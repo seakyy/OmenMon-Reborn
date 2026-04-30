@@ -141,7 +141,7 @@ namespace OmenMon.AppGui {
             try {
                 string markdown = CliOp.ProbeGetMarkdown(includeEcDiff: false);
                 Clipboard.SetText(markdown);
-                Process.Start("https://github.com/OmenMon/OmenMon/issues/new");
+                Process.Start("https://github.com/seakyy/OmenMon-Reborn/issues/new");
                 MessageBox.Show(
                     "Hardware dump copied to clipboard!\n\nThe GitHub new-issue page is opening in your browser.\nPaste the clipboard content into the issue body to help support your device.",
                     Config.AppName,
