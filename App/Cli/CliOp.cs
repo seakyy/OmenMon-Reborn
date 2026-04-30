@@ -461,8 +461,13 @@ namespace OmenMon.AppCli {
                     i--;
                     break;
 
-                // Show help (usage information)
-                case "-h":
+                    // Run a full hardware probe and dump the results as Markdown
+                case "-probe":
+                    ProbeRun();
+                    break;
+
+// Show help (usage information)
+                    case "-h":
                 case "-?":
                 case "-help":
                 case "--help":

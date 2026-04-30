@@ -1,6 +1,7 @@
 ﻿  //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
 
 using System;
 using OmenMon.Hardware.Bios;
@@ -45,74 +46,52 @@ namespace OmenMon.Hardware.Platform {
         // Initializes the fan controls
         private void InitFans() {
 
-            // Fan array can be product-specific
-            switch(this.System.GetProduct()) {
+            // Look up model-specific register layout; fall back to the default 2022/2023 preset
+            string product = this.System.GetProduct();
+            PlatformPreset preset = Config.Models.ContainsKey(product)
+                ? Config.Models[product]
+                : PlatformPreset.Default;
 
-                case "?": // Default
-                case "8A13":
-                case "8A14":
-                default:
+            this.Fans = new FanArray(
+                new IFan[] {
 
-                    this.Fans = new FanArray(
-                        new IFan[] {
-
-                            // Define the CPU fan
-                            new Fan(
-                                BiosData.FanType.Cpu,
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.SRP1,
-                                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.XGS1,
-                                    PlatformData.AccessType.Read),
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.XSS1,
-                                    PlatformData.AccessType.Write),
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.RPM1,
-                                    PlatformData.AccessType.Read,
-                                    PlatformData.DataSize.Word)),
-
-                            // Define the GPU fan
-                            new Fan(
-                                BiosData.FanType.Gpu,
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.SRP2,
-                                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.XGS2,
-                                    PlatformData.AccessType.Read),
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.XSS2,
-                                    PlatformData.AccessType.Write),
-                                new EcComponent(
-                                    (byte) EmbeddedControllerData.Register.RPM3, // Not a mistake, RPM2 is fan #0
-                                    PlatformData.AccessType.Read,
-                                    PlatformData.DataSize.Word)) },
-
-                        // Define the countdown component
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.XFCD,
+                    // CPU fan
+                    new Fan(
+                        BiosData.FanType.Cpu,
+                        new EcComponent(preset.FanLevelReg0,
                             PlatformData.AccessType.Read | PlatformData.AccessType.Write),
+                        new EcComponent(preset.FanRateReadReg0,
+                            PlatformData.AccessType.Read),
+                        new EcComponent(preset.FanRateWriteReg0,
+                            PlatformData.AccessType.Write),
+                        new EcComponent(preset.FanSpeedReg0,
+                            PlatformData.AccessType.Read,
+                            PlatformData.DataSize.Word)),
 
-                        // Define the manual toggle component
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.OMCC,
-                            PlatformData.AccessType.Read | PlatformData.AccessType.Write), 
+                    // GPU fan (RPM3 not RPM2 is intentional — RPM2 is the CPU high byte)
+                    new Fan(
+                        BiosData.FanType.Gpu,
+                        new EcComponent(preset.FanLevelReg1,
+                            PlatformData.AccessType.Read | PlatformData.AccessType.Write),
+                        new EcComponent(preset.FanRateReadReg1,
+                            PlatformData.AccessType.Read),
+                        new EcComponent(preset.FanRateWriteReg1,
+                            PlatformData.AccessType.Write),
+                        new EcComponent(preset.FanSpeedReg1,
+                            PlatformData.AccessType.Read,
+                            PlatformData.DataSize.Word)) },
 
-                        // Define the mode component
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.HPCM,
-                            PlatformData.AccessType.Read | PlatformData.AccessType.Write), 
+                new EcComponent(preset.CountdownReg,
+                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
 
-                        // Define the switch component
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.SFAN,
-                            PlatformData.AccessType.Read | PlatformData.AccessType.Write));
+                new EcComponent(preset.ManualReg,
+                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
 
-                    break;
+                new EcComponent(preset.ModeReg,
+                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
 
-            }
+                new EcComponent(preset.SwitchReg,
+                    PlatformData.AccessType.Read | PlatformData.AccessType.Write));
 
         }
 

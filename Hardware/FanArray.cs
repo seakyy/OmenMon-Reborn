@@ -189,8 +189,21 @@ namespace OmenMon.Hardware.Platform {
 
         // Switches the fan off or back on
         public void SetOff(bool flag) {
-            this.Switch.SetValue(flag ?
-                (int) PlatformData.FanSwitch.Off : (int) PlatformData.FanSwitch.On);
+            if(flag && !Config.FanLevelUseEc) {
+                try {
+
+                    // Use a BIOS call consistent with SetLevels when in BIOS fan level mode
+                    Hw.BiosSet(Hw.Bios.SetFanLevel, new byte[] { 0, 0 });
+
+                } catch {
+
+                    // Settings may take effect anyway despite a BIOS error (see SetLevels)
+
+                }
+            } else {
+                this.Switch.SetValue(flag ?
+                    (int) PlatformData.FanSwitch.Off : (int) PlatformData.FanSwitch.On);
+            }
         }
 #endregion
 

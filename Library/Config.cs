@@ -1,6 +1,7 @@
   //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
 
 using System;
 using System.Collections.Generic;
@@ -343,6 +344,31 @@ namespace OmenMon.Library {
                     if(TemperatureSensorXml.Count > 0 && usable)
                         TemperatureSensor = TemperatureSensorXml;
 
+                    // Load the model database entries
+                    foreach(XmlNode node in xml.SelectNodes(XmlPrefixModel)) {
+                        try {
+                            string productId = node.Attributes[XmlAttrModelProductId].Value;
+                            string displayName = "";
+                            try { displayName = node.Attributes[XmlAttrModelDisplayName].Value; } catch { }
+                            var p = new OmenMon.Hardware.Platform.PlatformPreset();
+                            p.ProductId        = productId;
+                            p.DisplayName      = displayName;
+                            p.FanLevelReg0     = Conv.GetByte(node[XmlElementFanLevelReg0].InnerText);
+                            p.FanLevelReg1     = Conv.GetByte(node[XmlElementFanLevelReg1].InnerText);
+                            p.FanRateReadReg0  = Conv.GetByte(node[XmlElementFanRateReadReg0].InnerText);
+                            p.FanRateReadReg1  = Conv.GetByte(node[XmlElementFanRateReadReg1].InnerText);
+                            p.FanRateWriteReg0 = Conv.GetByte(node[XmlElementFanRateWriteReg0].InnerText);
+                            p.FanRateWriteReg1 = Conv.GetByte(node[XmlElementFanRateWriteReg1].InnerText);
+                            p.FanSpeedReg0     = Conv.GetByte(node[XmlElementFanSpeedReg0].InnerText);
+                            p.FanSpeedReg1     = Conv.GetByte(node[XmlElementFanSpeedReg1].InnerText);
+                            p.CountdownReg     = Conv.GetByte(node[XmlElementCountdownReg].InnerText);
+                            p.ManualReg        = Conv.GetByte(node[XmlElementManualReg].InnerText);
+                            p.ModeReg          = Conv.GetByte(node[XmlElementModeReg].InnerText);
+                            p.SwitchReg        = Conv.GetByte(node[XmlElementSwitchReg].InnerText);
+                            Models[productId]  = p;
+                        } catch { }
+                    }
+
                     // Load the fan programs
                     foreach(XmlNode node in xml.SelectNodes(XmlPrefixFanProgram)) {
                         // Invalid entries will be discarded at this step
@@ -557,6 +583,28 @@ namespace OmenMon.Library {
 
                     }
 
+                    // Model database entries
+                    XmlElement xmlModels = (XmlElement) SetPath(xml, XmlPrefixModels);
+                    xmlModels.RemoveAll();
+                    foreach(string id in Models.Keys) {
+                        var p = Models[id];
+                        XmlElement mnode = (XmlElement) xmlModels.AppendChild(xml.CreateElement(XmlElementModel));
+                        mnode.SetAttribute(XmlAttrModelProductId, p.ProductId ?? "");
+                        mnode.SetAttribute(XmlAttrModelDisplayName, p.DisplayName ?? "");
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanLevelReg0)).InnerText     = Conv.GetString((uint) p.FanLevelReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanLevelReg1)).InnerText     = Conv.GetString((uint) p.FanLevelReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateReadReg0)).InnerText  = Conv.GetString((uint) p.FanRateReadReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateReadReg1)).InnerText  = Conv.GetString((uint) p.FanRateReadReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateWriteReg0)).InnerText = Conv.GetString((uint) p.FanRateWriteReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateWriteReg1)).InnerText = Conv.GetString((uint) p.FanRateWriteReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanSpeedReg0)).InnerText     = Conv.GetString((uint) p.FanSpeedReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanSpeedReg1)).InnerText     = Conv.GetString((uint) p.FanSpeedReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementCountdownReg)).InnerText     = Conv.GetString((uint) p.CountdownReg, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementManualReg)).InnerText        = Conv.GetString((uint) p.ManualReg, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementModeReg)).InnerText          = Conv.GetString((uint) p.ModeReg, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementSwitchReg)).InnerText        = Conv.GetString((uint) p.SwitchReg, 1, 10);
+                    }
+
                     // The remaining configuration values
                     SetUInt(xml, XmlPrefix + "UpdateIconInterval", (uint) UpdateIconInterval);
                     SetUInt(xml, XmlPrefix + "UpdateMonitorInterval", (uint) UpdateMonitorInterval);
@@ -580,6 +628,12 @@ namespace OmenMon.Library {
 
             }
 
+        }
+
+        // Adds or updates a model preset in the dictionary and persists to XML
+        public static void SaveModel(OmenMon.Hardware.Platform.PlatformPreset preset) {
+            Models[preset.ProductId] = preset;
+            Save();
         }
 
         // Sets a Boolean flag in the XML configuration file

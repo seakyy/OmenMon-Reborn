@@ -1,6 +1,7 @@
   //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
 
 using System;
 using System.Collections.Generic;
@@ -33,6 +34,10 @@ namespace OmenMon.Library {
 
         // Ignore BIOS errors if false (for not fully compatible devices)
         public static bool BiosErrorReporting = true;
+
+        // BIOS heartbeat interval [ms]: periodic GetFanCount() keeps Performance Control alive
+        // Set to 0 to disable
+        public static int BiosHeartbeatInterval = 30000;
 
         // Color presets (overriden at runtime if found in the configuration file)
         public static SortedDictionary<string, BiosData.ColorTable> ColorPreset =
@@ -381,28 +386,32 @@ namespace OmenMon.Library {
                     PlatformData.LinkType.EmbeddedController,
                     (byte) EmbeddedControllerData.Register.TMP1),
 
-                // Auxilliary EC temperature probe #2
+                // Auxilliary EC temperature probe #2 (disabled by default — unreliable on many models, triggers false fan curves)
                 ["TNT2"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte) EmbeddedControllerData.Register.TNT2),
+                    (byte) EmbeddedControllerData.Register.TNT2, false),
 
-                // Auxilliary EC temperature probe #3
+                // Auxilliary EC temperature probe #3 (disabled by default)
                 ["TNT3"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte) EmbeddedControllerData.Register.TNT3),
+                    (byte) EmbeddedControllerData.Register.TNT3, false),
 
-                // Auxilliary EC temperature probe #4
+                // Auxilliary EC temperature probe #4 (disabled by default)
                 ["TNT4"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte) EmbeddedControllerData.Register.TNT4),
+                    (byte) EmbeddedControllerData.Register.TNT4, false),
 
-                // Auxilliary EC temperature probe #5
+                // Auxilliary EC temperature probe #5 (disabled by default)
                 ["TNT5"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte) EmbeddedControllerData.Register.TNT5) };
+                    (byte) EmbeddedControllerData.Register.TNT5, false) };
 
         // Maximum number of temperature sensors
         public const int TemperatureSensorMax = 9;
+
+        // Model database (populated at runtime from XML, empty = use PlatformPreset.Default for all devices)
+        public static Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset> Models =
+            new Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset>();
 
         // Timestamp format in fan program status messages
         public const string TimestampFormat = "HH:mm:ss";
@@ -464,6 +473,24 @@ namespace OmenMon.Library {
         private const string XmlElementConfig = "Config";
         private const string XmlElementKeyCustomAction = "KeyCustomAction";
 
+        // Model database XML elements and attributes
+        private const string XmlElementModels = "Models";
+        private const string XmlElementModel = "Model";
+        private const string XmlAttrModelProductId = "ProductId";
+        private const string XmlAttrModelDisplayName = "DisplayName";
+        private const string XmlElementFanLevelReg0     = "FanLevelReg0";
+        private const string XmlElementFanLevelReg1     = "FanLevelReg1";
+        private const string XmlElementFanRateReadReg0  = "FanRateReadReg0";
+        private const string XmlElementFanRateReadReg1  = "FanRateReadReg1";
+        private const string XmlElementFanRateWriteReg0 = "FanRateWriteReg0";
+        private const string XmlElementFanRateWriteReg1 = "FanRateWriteReg1";
+        private const string XmlElementFanSpeedReg0     = "FanSpeedReg0";
+        private const string XmlElementFanSpeedReg1     = "FanSpeedReg1";
+        private const string XmlElementCountdownReg     = "CountdownReg";
+        private const string XmlElementManualReg        = "ManualReg";
+        private const string XmlElementModeReg          = "ModeReg";
+        private const string XmlElementSwitchReg        = "SwitchReg";
+
         // Configuration XML node prefixes
         private static string XmlPrefix = AppName + "/" + XmlElementConfig + "/"; // Must end with a slash
         private static string XmlPrefixColorPresets = XmlPrefix + XmlElementColorPresets + "/"; // Slash
@@ -473,6 +500,8 @@ namespace OmenMon.Library {
         private static string XmlPrefixKeyCustomAction = XmlPrefix + XmlElementKeyCustomAction + "/"; // Slash
         private static string XmlPrefixTemperature = XmlPrefix + XmlElementTemperature + "/"; // Slash
         private static string XmlPrefixTemperatureSensor = XmlPrefixTemperature + XmlElementTemperatureSensor; // No slash
+        private static string XmlPrefixModels = XmlPrefix + XmlElementModels + "/"; // Slash
+        private static string XmlPrefixModel = XmlPrefixModels + XmlElementModel; // No slash
 
         // Whether to skip the annoying Byte Order Mark (BOM) when saving the XML configuration
         private const bool XmlSaveBom = false;

@@ -3,6 +3,7 @@
      //  https://omenmon.github.io/
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
@@ -48,6 +49,25 @@ namespace OmenMon.Library {
 #endregion
 
 #region Display Control
+        // Returns all refresh rates supported by the primary display, sorted ascending
+        public static List<int> GetAvailableRefreshRates() {
+
+            var rates = new List<int>();
+            User32.DEVMODE d = new User32.DEVMODE();
+            d.dmDeviceName = new string(new char[32]);
+            d.dmFormName = new string(new char[32]);
+            d.dmSize = (short) Marshal.SizeOf(d);
+
+            int modeNum = 0;
+            while(User32.EnumDisplaySettings(null, modeNum++, ref d) != 0)
+                if(!rates.Contains(d.dmDisplayFrequency))
+                    rates.Add(d.dmDisplayFrequency);
+
+            rates.Sort();
+            return rates;
+
+        }
+
         // Retrieves the current display refresh rate
         public static int GetRefreshRate() {
 

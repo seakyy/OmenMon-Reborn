@@ -1,11 +1,14 @@
-  //\\   OmenMon: Hardware Monitoring & Control Utility
+﻿  //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows.Forms;
+using OmenMon.AppCli;
 using OmenMon.Hardware.Bios;
 using OmenMon.Hardware.Ec;
 using OmenMon.Library;
@@ -103,6 +106,7 @@ namespace OmenMon.AppGui {
 
         private const string I_TOGGLE_FORM_MAIN = Gui.M_ACT + "ToggleFormMain";
         private const string I_EXIT = Gui.M_ACT + "Exit";
+        private const string I_CONTRIBUTE = Gui.M_ACT + "ContributeHwData";
 
         // Menu tag identifiers
         internal const string MENU_TAG_PERSIST = "Persist";
@@ -132,6 +136,26 @@ namespace OmenMon.AppGui {
 #endregion
 
 #region Menu Action Events
+        // Generates a hardware dump, copies it to the clipboard, and opens the GitHub issues page
+        private void EventActionContribute(object sender, EventArgs e) {
+            try {
+                string markdown = CliOp.ProbeGetMarkdown(includeEcDiff: false);
+                Clipboard.SetText(markdown);
+                Process.Start("https://github.com/OmenMon/OmenMon/issues/new");
+                MessageBox.Show(
+                    "Hardware dump copied to clipboard!\n\nThe GitHub new-issue page is opening in your browser.\nPaste the clipboard content into the issue body to help support your device.",
+                    Config.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            } catch(Exception ex) {
+                MessageBox.Show(
+                    "Could not generate hardware dump: " + ex.Message,
+                    Config.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
         // Shows the about dialog
         private void EventActionAbout(object sender, EventArgs e) {
 
@@ -679,6 +703,8 @@ namespace OmenMon.AppGui {
                 MenuGpu,
                 MenuKbd,
                 MenuSettings,
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("Contribute Hardware Data...", null, EventActionContribute, I_CONTRIBUTE),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_TOGGLE_FORM_MAIN), null, EventActionShowFormMain, I_TOGGLE_FORM_MAIN),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_EXIT), null, EventActionExit, I_EXIT)

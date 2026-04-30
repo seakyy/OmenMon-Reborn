@@ -1,6 +1,7 @@
   //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
 
 using System;
 using System.Collections.Generic;
@@ -159,6 +160,55 @@ namespace OmenMon.AppGui {
 #endregion
 
 #region Event Actions
+        // Runs once when the form is first shown; checks for unknown hardware and offers auto-detection
+        private void EventFormShown(object sender, EventArgs e) {
+            this.Shown -= EventFormShown;
+            CheckUnknownModel();
+        }
+
+        // Prompts the user to run heuristic auto-detection if the current product ID is not in the model DB
+        private void CheckUnknownModel() {
+            try {
+                string product = Context.Op.Platform.System.GetProduct();
+                if(product == "?" || Config.Models.ContainsKey(product))
+                    return;
+
+                var answer = MessageBox.Show(
+                    $"Unknown Omen model detected ({product}).\n\nRun a safe read-only hardware scan to auto-configure sensors?",
+                    Config.AppName,
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if(answer != DialogResult.Yes)
+                    return;
+
+                if(Hw.Ec == null || !Hw.Ec.IsInitialized) {
+                    MessageBox.Show(
+                        "The Embedded Controller is not available — cannot run hardware scan.\n\nCheck that the WinRing0 driver loaded correctly.",
+                        Config.AppName,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var preset = OmenMon.Hardware.Platform.AutoDetector.DetectHeuristic(product);
+                if(preset != null) {
+                    Config.SaveModel(preset);
+                    MessageBox.Show(
+                        $"Auto-configuration saved for {product}.\n\nThe standard 2022+ register layout was confirmed on your device.",
+                        Config.AppName,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                } else {
+                    MessageBox.Show(
+                        $"Could not auto-detect register layout for {product}.\n\nPlease use 'Contribute Hardware Data...' from the tray menu to report your hardware to the project.",
+                        Config.AppName,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+            } catch { }
+        }
+
         // Toggles the keyboard backlight on or off
         private void EventActionBacklight(object sender, EventArgs e) {
 

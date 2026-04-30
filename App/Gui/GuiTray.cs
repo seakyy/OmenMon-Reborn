@@ -44,6 +44,9 @@ namespace OmenMon.AppGui {
         // Stores the system timer
         private System.Windows.Forms.Timer Timer;
 
+        // Stores the BIOS heartbeat timer
+        private System.Windows.Forms.Timer HeartbeatTimer;
+
         // Stores the number of ticks elapsed since
         // the last update of a particular category
         internal int UpdateIconTick;
@@ -100,6 +103,14 @@ namespace OmenMon.AppGui {
             this.Timer.Interval = Config.GuiTimerInterval;
             this.Timer.Tick += EventTimerTick;
             this.Timer.Enabled = true;
+
+            // Set up the BIOS heartbeat timer if enabled
+            if(Config.BiosHeartbeatInterval > 0) {
+                this.HeartbeatTimer = new System.Windows.Forms.Timer(Components);
+                this.HeartbeatTimer.Interval = Config.BiosHeartbeatInterval;
+                this.HeartbeatTimer.Tick += EventHeartbeatTick;
+                this.HeartbeatTimer.Enabled = true;
+            }
 
             // Show the main form if requested by the environment variable
             if(Environment.GetEnvironmentVariable(Config.EnvVarSelfName) != null
@@ -186,6 +197,11 @@ namespace OmenMon.AppGui {
             // Perform the updates as scheduled
             Update();
 
+        }
+
+        // Handles the BIOS heartbeat tick — keeps Performance Control alive
+        private void EventHeartbeatTick(object sender, EventArgs e) {
+            try { BiosCtl.Instance.GetFanCount(); } catch { }
         }
 #endregion
 

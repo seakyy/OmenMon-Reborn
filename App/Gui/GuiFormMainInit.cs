@@ -1,6 +1,7 @@
   //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
 
 using System;
 using System.Drawing;
@@ -78,6 +79,9 @@ namespace OmenMon.AppGui {
 
             // Add a handler when the form visibility changes
             this.VisibleChanged += EventFormVisibleChanged;
+
+            // Check for unknown hardware model on first show (runs once)
+            this.Shown += EventFormShown;
 
             // Add a handler to handle the help button being clicked
             this.HelpButtonClicked += EventActionHelp;
