@@ -128,12 +128,63 @@ namespace OmenMon.AppGui {
 
         }
 
+        // Cycles through the keyboard color presets defined in OmenMon.xml
+        // OmenMon-Reborn additions © 2026 seakyy
+        public void CycleColorPresets() {
+
+            // Nothing to do if no presets are defined
+            if(Config.ColorPreset.Count == 0)
+                return;
+
+            var keys = new System.Collections.Generic.List<string>(Config.ColorPreset.Keys);
+
+            // Determine the currently-active preset name
+            string currentPreset = "";
+            if(Context.FormMain != null && Context.FormMain.Kbd != null)
+                currentPreset = Context.FormMain.Kbd.GetPreset();
+            else {
+                BiosData.ColorTable colorNow = this.Platform.System.GetKbdColor();
+                foreach(string name in Config.ColorPreset.Keys)
+                    if(colorNow.Zone[0].Value == Config.ColorPreset[name].Zone[0].Value
+                        && colorNow.Zone[1].Value == Config.ColorPreset[name].Zone[1].Value
+                        && colorNow.Zone[2].Value == Config.ColorPreset[name].Zone[2].Value
+                        && colorNow.Zone[3].Value == Config.ColorPreset[name].Zone[3].Value) {
+                        currentPreset = name;
+                        break;
+                    }
+            }
+
+            // Select the next preset, wrapping around to the first
+            int idx = keys.IndexOf(currentPreset);
+            string nextPreset = keys[(idx + 1) % keys.Count];
+
+            // Apply the preset via GuiKbd when the main form is open,
+            // otherwise fall back to a direct BIOS call
+            if(Context.FormMain != null && Context.FormMain.Kbd != null) {
+                Context.FormMain.Kbd.SetColors(Config.ColorPreset[nextPreset]);
+                Context.FormMain.UpdateKbd();
+            } else {
+                this.Platform.System.SetKbdColor(Config.ColorPreset[nextPreset]);
+            }
+
+            // Show a balloon tip unless silent mode is on
+            if(!Config.KeyToggleColorPresetSilent)
+                Context.ShowBalloonTip(
+                    Config.Locale.Get(Config.L_GUI_MENU + Gui.M_SUB + Gui.G_KBD) + ": " + nextPreset);
+
+        }
+
         // Launches when the Omen key has been pressed
         public void KeyHandler(Gui.MessageParam lastParam) {
 
+            // Cycle color presets (takes priority over all other key actions)
+            if(Config.KeyToggleColorPreset) {
+
+                CycleColorPresets();
+
             // If Omen key is set
-            // to toggle fan program 
-            if(Config.KeyToggleFanProgram) {
+            // to toggle fan program
+            } else if(Config.KeyToggleFanProgram) {
 
                 // Show the form on first press
                 // if configured to do so and not already shown

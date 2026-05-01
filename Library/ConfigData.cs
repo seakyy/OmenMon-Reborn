@@ -224,6 +224,13 @@ namespace OmenMon.Library {
         public static string KeyCustomActionExecArgs = "";
         public static bool KeyCustomActionMinimized = false;
 
+        // Use the Omen key to cycle through keyboard color presets
+        // (takes priority over KeyToggleFanProgram and KeyCustomAction)
+        public static bool KeyToggleColorPreset = false;
+
+        // Do not show a balloon tip notification when cycling presets
+        public static bool KeyToggleColorPresetSilent = false;
+
         // Use the Omen key to control fan program
         // (as long as KeyCustomAction is set to false)
         public static bool KeyToggleFanProgram = false;

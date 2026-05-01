@@ -225,6 +225,12 @@ namespace OmenMon.Library {
                     if(GetWord(xml, XmlPrefix + "GuiTipDuration", out value))
                         GuiTipDuration = value;
 
+                    if(GetBool(xml, XmlPrefix + "KeyToggleColorPreset", out flag))
+                        KeyToggleColorPreset = flag;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleColorPresetSilent", out flag))
+                        KeyToggleColorPresetSilent = flag;
+
                     if(GetBool(xml, XmlPrefix + "KeyToggleFanProgram", out flag))
                         KeyToggleFanProgram = flag;
 
@@ -551,6 +557,8 @@ namespace OmenMon.Library {
                     SetString(xml, XmlPrefixKeyCustomAction + "ExecCmd", KeyCustomActionExecCmd);
                     SetString(xml, XmlPrefixKeyCustomAction + "ExecArgs", KeyCustomActionExecArgs);
                     SetBool(xml, XmlPrefixKeyCustomAction + "Minimized", KeyCustomActionMinimized);
+                    SetBool(xml, XmlPrefix + "KeyToggleColorPreset", KeyToggleColorPreset);
+                    SetBool(xml, XmlPrefix + "KeyToggleColorPresetSilent", KeyToggleColorPresetSilent);
                     SetBool(xml, XmlPrefix + "KeyToggleFanProgram", KeyToggleFanProgram);
                     SetBool(xml, XmlPrefix + "KeyToggleFanProgramCycleAll", KeyToggleFanProgramCycleAll);
                     SetBool(xml, XmlPrefix + "KeyToggleFanProgramShowGuiFirst", KeyToggleFanProgramShowGuiFirst);

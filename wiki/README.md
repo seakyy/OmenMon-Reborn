@@ -1,6 +1,6 @@
 # Wiki source files
 
-This folder contains the Markdown source for the [OmenMon-Reborn GitHub Wiki](../../OmenMon-Reborn/wiki).
+This folder contains the Markdown source for the [OmenMon-Reborn GitHub Wiki](../../wiki).
 
 | File | Wiki page |
 |------|-----------|
@@ -23,11 +23,11 @@ Place screenshot files in `wiki/images/`. The four screenshots referenced across
 
 ## Publishing to GitHub Wiki
 
-GitHub Wiki is a separate Git repository at `https://github.com/seakyy/OmenMon-Reborn.wiki.git`.  
+GitHub Wiki is a separate Git repository at `https://github.com/<user>/<repo>.wiki.git`.  
 To push these files there:
 
 ```bash
-git clone https://github.com/seakyy/OmenMon-Reborn.wiki.git
+git clone https://github.com/<user>/OmenMon-Reborn.wiki.git
 cp wiki/*.md OmenMon-Reborn.wiki/
 cp -r wiki/images OmenMon-Reborn.wiki/
 cd OmenMon-Reborn.wiki

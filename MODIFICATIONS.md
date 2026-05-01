@@ -19,6 +19,20 @@ The following files from the original codebase were modified by seakyy in April 
 * `Hardware/AutoDetector.cs`: Implements the read-only heuristic EC scanner for unknown hardware.
 * `App/Cli/CliOpProbe.cs`: Implements the `-Probe` CLI verb and the hardware markdown dump logic.
 
+## Phase 7 — RGB Preset Hotkey (Colour Cycling via Omen Key)
+
+A new `CycleColorPresets()` method was added to `App/Gui/GuiOp.cs`.  When enabled, pressing the Omen key cycles through all `<ColorPresets>` entries defined in `OmenMon.xml` in alphabetical order, wrapping back to the first after the last.  The active preset is detected by comparing the live hardware colour table against the preset list; if no match is found (i.e. a custom colour is set) the cycle starts at the first preset.
+
+Two new XML configuration keys control the feature:
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `KeyToggleColorPreset` | `false` | Enable/disable the feature |
+| `KeyToggleColorPresetSilent` | `false` | Suppress the balloon-tip notification |
+
+The feature takes priority over `KeyToggleFanProgram` and `KeyCustomAction` in the Omen-key handler chain.
+
+---
+
 ### Modified Files
 * **Core Logic & DB:** 
   * `Library/Config.cs` & `Library/ConfigData.cs`: Added XML parsing and serialization for the `<Models>` database; disabled TNT2-TNT5 sensors by default.
