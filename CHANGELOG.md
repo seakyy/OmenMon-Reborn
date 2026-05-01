@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.0] - 2026-05-01
+
+### Added
+- **RGB Preset Cycling:** The Omen key can now be used as a hotkey to seamlessly cycle through all `<ColorPresets>` defined in the `OmenMon.xml` without opening the GUI.
+- **Smart Color Detection:** The `CycleColorPresets()` logic automatically detects the active hardware colors and wraps around the preset list sequentially.
+- **New XML Flags:** Added `<KeyToggleColorPreset>` to enable the new RGB feature and `<KeyToggleColorPresetSilent>` to optionally suppress the balloon tip notification.
+
+### Changed
+- **Hotkey Priority:** RGB preset cycling now takes highest precedence in the `KeyHandler` chain over Fan Program toggling and Custom Actions.
+- **Safer Startup Defaults:** `<AutoConfig>` is now set to `false` by default to prevent silent crashes during Windows startup when WMI/EC services are not fully initialized yet.
+- **Optimized Power Profile:** The `<GpuPower>` for the default "Power" program and `<GpuPowerDefault>` have been changed from `Maximum` to `Default` (Base Power). This prevents the system from automatically overriding the user's choice and jumping to "Cool" mode, ensuring maximum fan speeds with balanced heat generation.
+
 ## [1.0.0-reborn] - 2026-04-30
 
 ### Added
