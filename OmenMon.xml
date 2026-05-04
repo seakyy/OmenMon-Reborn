@@ -14,6 +14,8 @@
         <AutoStartup>true</AutoStartup>
         <!-- Ignore BIOS errors if false (for not fully compatible devices) -->
         <BiosErrorReporting>true</BiosErrorReporting>
+        <!-- Pause BIOS heartbeat while on battery to prevent forced hibernation (default: true) -->
+        <BiosHeartbeatPauseOnBattery>true</BiosHeartbeatPauseOnBattery>
         <!-- Color Backlight -->
         <!-- Note: two default entries are hard-coded in the application
              and will appear if there is nothing else to show instead -->
@@ -53,8 +55,8 @@
         <FanLevelNeedManual>false</FanLevelNeedManual>
         <!-- Use the Embedded Controller instead of a BIOS call for fan-level setting -->
         <FanLevelUseEc>false</FanLevelUseEc>
-        <!-- Default fan program, which might be loaded on startup -->
-        <FanProgramDefault>Default</FanProgramDefault>
+        <!-- Default fan program, which might be loaded on startup (must match a <Program Name="..."> entry) -->
+        <FanProgramDefault>Power</FanProgramDefault>
         <!-- Default alternate fan program to switch to if no longer on AC power -->
         <FanProgramDefaultAlt>Silent</FanProgramDefaultAlt>
         <!-- Check first (using the EC) if the fan mode is not set already -->
@@ -66,7 +68,7 @@
         <FanPrograms>
             <Program Name="Power">
                 <FanMode>Performance</FanMode>
-                <GpuPower>Default</GpuPower>
+                <GpuPower>Maximum</GpuPower>
                 <Level Temperature="00">
                     <Cpu>00</Cpu>
                     <Gpu>00</Gpu>
@@ -182,8 +184,8 @@
             </Program>
         </FanPrograms>
         <!-- GPU -->
-        <!-- Default GPU power settings -->
-        <GpuPowerDefault>Default</GpuPowerDefault>
+        <!-- Default GPU power settings (valid values: Minimum | Medium | Maximum) -->
+        <GpuPowerDefault>Maximum</GpuPowerDefault>
         <!-- The wait before setting the GPU power for the 2nd time [ms] -->
         <GpuPowerSetInterval>200</GpuPowerSetInterval>
         <!-- Graphical User Interface -->

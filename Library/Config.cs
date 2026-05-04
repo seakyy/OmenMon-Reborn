@@ -451,6 +451,7 @@ namespace OmenMon.Library {
                     SetBool(xml, XmlPrefix + "AutoConfig", AutoConfig);
                     SetBool(xml, XmlPrefix + "AutoStartup", AutoStartup);
                     SetBool(xml, XmlPrefix + "BiosErrorReporting", BiosErrorReporting);
+                    SetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", BiosHeartbeatPauseOnBattery);
 
                     // Color presets (so that the settings are sorted alphabetically)
                     // Ensure the parent element node exists, or create it
