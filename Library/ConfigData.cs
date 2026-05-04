@@ -39,6 +39,11 @@ namespace OmenMon.Library {
         // Set to 0 to disable
         public static int BiosHeartbeatInterval = 30000;
 
+        // Pause BIOS heartbeat on battery power to prevent HP firmware from forcing hibernate.
+        // The heartbeat keeps HP's "Performance Control" session alive; on battery this conflicts
+        // with the BIOS battery-manager and can trigger unexpected hibernation after extended use.
+        public static bool BiosHeartbeatPauseOnBattery = true;
+
         // Color presets (overriden at runtime if found in the configuration file)
         public static SortedDictionary<string, BiosData.ColorTable> ColorPreset =
             new SortedDictionary<string, BiosData.ColorTable>() {

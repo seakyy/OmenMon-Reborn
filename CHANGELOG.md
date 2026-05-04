@@ -3,17 +3,14 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.1.0] - 2026-05-01
+## [1.1.1-reborn] - 2026-05-04
+
+### Fixed
+- **Unexpected Hibernate on Battery (Critical):** OmenMon's BIOS heartbeat timer (`GetFanCount()` every 30 s) kept HP's "Performance Control" session alive on battery power. On certain HP OMEN/Victus firmware revisions this conflicts with the BIOS battery manager and causes the system to force hibernate without warning after extended battery use. The heartbeat is now automatically paused when on battery and resumed when AC is restored.
 
 ### Added
-- **RGB Preset Cycling:** The Omen key can now be used as a hotkey to seamlessly cycle through all `<ColorPresets>` defined in the `OmenMon.xml` without opening the GUI.
-- **Smart Color Detection:** The `CycleColorPresets()` logic automatically detects the active hardware colors and wraps around the preset list sequentially.
-- **New XML Flags:** Added `<KeyToggleColorPreset>` to enable the new RGB feature and `<KeyToggleColorPresetSilent>` to optionally suppress the balloon tip notification.
-
-### Changed
-- **Hotkey Priority:** RGB preset cycling now takes highest precedence in the `KeyHandler` chain over Fan Program toggling and Custom Actions.
-- **Safer Startup Defaults:** `<AutoConfig>` is now set to `false` by default to prevent silent crashes during Windows startup when WMI/EC services are not fully initialized yet.
-- **Optimized Power Profile:** The `<GpuPower>` for the default "Power" program and `<GpuPowerDefault>` have been changed from `Maximum` to `Default` (Base Power). This prevents the system from automatically overriding the user's choice and jumping to "Cool" mode, ensuring maximum fan speeds with balanced heat generation.
+- **`BiosHeartbeatPauseOnBattery` config option:** Controls whether the heartbeat pauses on battery (default: `true`). Set to `false` in `OmenMon.xml` only if you experience fan control issues while on battery.
+- **`INSTRUCTION.md`:** Comprehensive user guide covering all fan modes (including legacy modes), fan programs, battery care, keyboard RGB, CLI reference, configuration, and known issues.
 
 ## [1.0.0-reborn] - 2026-04-30
 

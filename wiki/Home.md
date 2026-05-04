@@ -1,13 +1,19 @@
-# OmenMon-Reborn — Developer Wiki
+# OmenMon-Reborn — Wiki
 
 **OmenMon-Reborn** is a fork of [OmenMon](https://github.com/OmenMon/OmenMon) by Piotr Szczepański.  
-Fork maintained by [@seakyy](https://github.com/seakyy). Current release: **1.0.0-reborn** (2026-04-30).
+Fork maintained by [@seakyy](https://github.com/seakyy). Current release: **v1.1.1-reborn** (2026-05-04).
 
 The primary goal of this fork is to replace the hardcoded 2023 EC register layout with a dynamic, XML-driven model database, and to make unknown devices self-configuring through a safe read-only heuristic scan.
 
 ---
 
-## Pages
+## User Documentation
+
+**New to OmenMon? Start here:** [INSTRUCTION.md](../INSTRUCTION.md) — covers fan modes, fan programs, battery care, RGB, CLI, and known issues.
+
+---
+
+## Developer Pages
 
 | Page | What it covers |
 |------|----------------|

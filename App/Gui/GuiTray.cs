@@ -109,7 +109,9 @@ namespace OmenMon.AppGui {
                 this.HeartbeatTimer = new System.Windows.Forms.Timer(Components);
                 this.HeartbeatTimer.Interval = Config.BiosHeartbeatInterval;
                 this.HeartbeatTimer.Tick += EventHeartbeatTick;
-                this.HeartbeatTimer.Enabled = true;
+                // Pause immediately if starting on battery (prevents hibernate on battery)
+                this.HeartbeatTimer.Enabled = !Config.BiosHeartbeatPauseOnBattery
+                    || this.Op.Platform.System.IsFullPower();
             }
 
             // Show the main form if requested by the environment variable
@@ -186,8 +188,14 @@ namespace OmenMon.AppGui {
 
             // Only respond to status change events,
             // which excludes Resume and Suspend
-            if(e.Mode == PowerModes.StatusChange)
+            if(e.Mode == PowerModes.StatusChange) {
                 this.Op.PowerChange();
+
+                // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
+                // unexpected hibernate; re-enable it when AC power is restored
+                if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
+                    this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPower();
+            }
 
         }
 
