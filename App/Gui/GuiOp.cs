@@ -277,20 +277,37 @@ namespace OmenMon.AppGui {
 
                 IsThermalPanic = true;
                 Platform.Fans.SetMax(true);
+
+                // Respect the configured display unit in the balloon
+                string tempStr = Config.TemperatureUseFahrenheit
+                    ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
+                    : maxTemp + "°C";
                 Context.ShowBalloonTip(
-                    "⚠ " + maxTemp + "°C — both fans forced to maximum!",
+                    "⚠ " + tempStr + " — both fans forced to maximum!",
                     "OmenMon — Thermal Panic",
                     ToolTipIcon.Warning);
 
-            } else if(IsThermalPanic
-                && maxTemp < (Config.ThermalPanicTemperature - Config.ThermalPanicHysteresis)) {
+            } else if(IsThermalPanic) {
 
-                IsThermalPanic = false;
-                Platform.Fans.SetMax(false);
-                Context.ShowBalloonTip(
-                    "Temperature normalized (" + maxTemp + "°C) — fan control restored.",
-                    "OmenMon — Thermal Panic",
-                    ToolTipIcon.Info);
+                // Safe off-threshold: clamp hysteresis so it can never exceed threshold-1,
+                // preventing unsigned underflow if Hysteresis >= Temperature in config
+                int offThreshold = Config.ThermalPanicTemperature
+                    - Math.Min(Config.ThermalPanicHysteresis, (byte)(Config.ThermalPanicTemperature - 1));
+
+                if(maxTemp < offThreshold) {
+
+                    IsThermalPanic = false;
+                    Platform.Fans.SetMax(false);
+
+                    string tempStr = Config.TemperatureUseFahrenheit
+                        ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
+                        : maxTemp + "°C";
+                    Context.ShowBalloonTip(
+                        "Temperature normalized (" + tempStr + ") — fan control restored.",
+                        "OmenMon — Thermal Panic",
+                        ToolTipIcon.Info);
+
+                }
 
             }
 

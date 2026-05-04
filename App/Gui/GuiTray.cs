@@ -351,11 +351,15 @@ namespace OmenMon.AppGui {
                         this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
                             GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
 
-                    // Show temperature in configured unit
+                    // Show temperature in configured unit.
+                    // The dynamic icon uses a custom bitmap font — only the localized °C glyph
+                    // is guaranteed to render. Omit the suffix when Fahrenheit is active rather
+                    // than passing a literal "°F" that may produce garbled characters.
                     int displayTemp = Config.TemperatureUseFahrenheit
                         ? (maxTemp * 9 / 5) + 32 : maxTemp;
                     string unitSuffix = Config.TemperatureUseFahrenheit
-                        ? "°F" : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
+                        ? string.Empty
+                        : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
                     this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
 
                 }
@@ -387,22 +391,11 @@ namespace OmenMon.AppGui {
                 int cpu = Config.TemperatureUseFahrenheit && cpuTemp > 0 ? (cpuTemp * 9 / 5) + 32 : cpuTemp;
                 int gpu = Config.TemperatureUseFahrenheit && gpuTemp > 0 ? (gpuTemp * 9 / 5) + 32 : gpuTemp;
 
-                string tip;
-
-                // Fan RPMs are only shown when the main form is already polling the EC —
-                // calling GetSpeed() directly here would add unsanctioned WinRing0 reads
-                if(this.FormMain != null && this.FormMain.Visible) {
-                    int rpm0 = this.Op.Platform.Fans.Fan[0].GetSpeed();
-                    int rpm1 = this.Op.Platform.Fans.Fan[1].GetSpeed();
-                    tip = string.Format("CPU: {0}{1} | GPU: {2}{1} | Fan: {3}/{4} RPM",
-                        cpu > 0 ? cpu.ToString() : "--", unit,
-                        gpu > 0 ? gpu.ToString() : "--",
-                        rpm0.ToString("N0"), rpm1.ToString("N0"));
-                } else {
-                    tip = string.Format("CPU: {0}{1} | GPU: {2}{1}",
-                        cpu > 0 ? cpu.ToString() : "--", unit,
-                        gpu > 0 ? gpu.ToString() : "--");
-                }
+                // Fan RPMs are visible in the main form; omitting them here avoids calling
+                // GetSpeed() (WinRing0 EC read) a second time per tick while the form is open.
+                string tip = string.Format("CPU: {0}{1} | GPU: {2}{1}",
+                    cpu > 0 ? cpu.ToString() : "--", unit,
+                    gpu > 0 ? gpu.ToString() : "--");
 
                 // Append panic or program indicator
                 if(this.Op.IsThermalPanic)

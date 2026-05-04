@@ -156,10 +156,10 @@ namespace OmenMon.Library {
                     if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
                         ThermalPanicEnabled = flag;
 
-                    if(GetWord(xml, XmlPrefix + "ThermalPanicTemperature", out value))
+                    if(GetWord(xml, XmlPrefix + "ThermalPanicTemperature", out value) && value <= byte.MaxValue)
                         ThermalPanicTemperature = (byte) value;
 
-                    if(GetWord(xml, XmlPrefix + "ThermalPanicHysteresis", out value))
+                    if(GetWord(xml, XmlPrefix + "ThermalPanicHysteresis", out value) && value <= byte.MaxValue)
                         ThermalPanicHysteresis = (byte) value;
 
                     if(GetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", out flag))
@@ -468,8 +468,15 @@ namespace OmenMon.Library {
         // Imports a fan program from a standalone XML file; returns the program name or null on failure
         public static string ImportFanProgram(string filePath) {
             try {
-                var xml = new System.Xml.XmlDocument();
-                xml.Load(filePath);
+                // Disable DTD/external-entity processing to prevent XXE attacks
+                var readerSettings = new System.Xml.XmlReaderSettings {
+                    DtdProcessing = System.Xml.DtdProcessing.Prohibit,
+                    XmlResolver  = null
+                };
+                var xml = new System.Xml.XmlDocument { XmlResolver = null };
+                using(var reader = System.Xml.XmlReader.Create(filePath, readerSettings))
+                    xml.Load(reader);
+
                 // Accept both <OmenMonFanProfile> root and bare <Program> root
                 var progNode = xml.SelectSingleNode("//" + XmlElementFanProgram) as System.Xml.XmlElement;
                 if(progNode == null) return null;
@@ -492,8 +499,15 @@ namespace OmenMon.Library {
                     levels[temp] = new byte[] { cpu, gpu };
                 }
                 if(levels.Count == 0) return null;
-                FanProgram[name] = new OmenMon.Hardware.Platform.FanProgramData(name, fanMode, gpuPower, levels);
-                return name;
+
+                // Avoid silently overwriting an existing curve — append numeric suffix until unique
+                string finalName = name;
+                int suffix = 1;
+                while(FanProgram.ContainsKey(finalName))
+                    finalName = name + " (" + (suffix++) + ")";
+
+                FanProgram[finalName] = new OmenMon.Hardware.Platform.FanProgramData(finalName, fanMode, gpuPower, levels);
+                return finalName;
             } catch { return null; }
         }
 #endregion

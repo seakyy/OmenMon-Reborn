@@ -707,14 +707,15 @@ namespace OmenMon.AppGui {
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_FAN_OFF), null, EventActionFanOff, I_FAN_OFF),
                 new ToolStripSeparator(),
-                new ToolStripMenuItem("Import Fan Profile...", null, EventActionFanImport, I_FAN_IMPORT),
+                new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_FAN_IMPORT), null, EventActionFanImport, I_FAN_IMPORT),
             });
 
-            // Add "Export <Name>..." sub-items for each defined program
+            // Add localised "Export <Name>..." sub-items for each defined fan program
             if(Config.FanProgram.Keys.Count > 0) {
+                string exportPrefix = Config.Locale.Get(Config.L_GUI_MENU + I_FAN_EXPORT);
                 foreach(string name in Config.FanProgram.Keys) {
                     MenuFan.DropDownItems.Add(new ToolStripMenuItem(
-                        "Export \"" + name + "\"...",
+                        exportPrefix + " \"" + name + "\"...",
                         null, EventActionFanExport, I_FAN_EXPORT + name));
                 }
             }
@@ -774,7 +775,7 @@ namespace OmenMon.AppGui {
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_TASK_KEY), null, EventActionToggleTask, I_SET_TASK_KEY),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_TASK_MUX), null, EventActionToggleTask, I_SET_TASK_MUX),
                 new ToolStripSeparator(),
-                new ToolStripMenuItem("Show temperature in °F", null, EventActionToggleTempUnit, I_SET_TEMP_UNIT) {
+                new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_TEMP_UNIT), null, EventActionToggleTempUnit, I_SET_TEMP_UNIT) {
                     Checked = Config.TemperatureUseFahrenheit, CheckOnClick = false }
             });
 
