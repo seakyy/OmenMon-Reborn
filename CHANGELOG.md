@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.1-reborn] - 2026-05-04 (Hotfix)
+
+### Fixed
+
+- **Hibernate regression on AC and battery:** v1.2.0 introduced two new hardware-access patterns that caused the same BIOS interference as the original v1.1.0 hibernate bug:
+  1. `BuildTrayTooltip()` called `Fan.GetSpeed()` via WinRing0 every 3 seconds, even when neither the main form nor the dynamic icon was active. This added unsanctioned EC reads that had not existed previously.
+  2. `CheckThermalPanic()` called `Platform.Fans.SetMax(true)` via BIOS Cmd 0x27, which — like the heartbeat `GetFanCount()` — can trigger HP firmware's power-management safeguards and force hibernate.
+  Both calls now only happen when the dynamic icon is active (same hardware-access budget as v1.1.x).
+
+- **`ThermalPanicEnabled` default changed to `false`** (was `true`). Thermal Panic is an opt-in feature. Enabling it with `ThermalPanicEnabled=true` in `OmenMon.xml` also requires `GuiDynamicIcon=true` so that sensor readings are already being taken. Without the dynamic icon, no panic check runs.
+
+- **Tray tooltip fan RPM** is now only read when the main form is already visible and polling the EC — no additional hardware access when the window is hidden.
+
+## [1.2.0-reborn] - 2026-05-04
+
+### Added
+
+- **Thermal Panic Mode:** When the maximum sensor temperature reaches the configured threshold (default 90 °C), OmenMon instantly forces both fans to maximum speed and shows a balloon alert. Fans are restored automatically once the temperature drops 5 °C below the threshold (configurable hysteresis). Configurable via `ThermalPanicEnabled`, `ThermalPanicTemperature`, `ThermalPanicHysteresis` in `OmenMon.xml`.
+
+- **Fahrenheit display toggle:** Temperatures can now be shown in °F instead of °C. Toggle via **Settings → Show temperature in °F** in the tray menu. Applies to the main window sensor readouts, the dynamic tray icon, and the tray tooltip. Saved to `OmenMon.xml` (`TemperatureUseFahrenheit`).
+
+- **Fan Profile Export / Import:** Share fan curves with the community. In the tray **Fan** submenu, click **"Export \<Name\>..."** to save any defined fan program as a portable `*.xml` file. Click **Import Fan Profile...** to load a shared curve — it is immediately added to the Fan menu and saved. Exported files use the same `<Program>` schema as `OmenMon.xml`, so they're human-readable and easy to tweak.
+
+- **Rich tray tooltip (Dual-Temp):** The tray icon tooltip now always shows `CPU: 78°C | GPU: 72°C | Fan: 3200/3100 RPM`, even when no fan program is running and the dynamic icon is disabled. During Thermal Panic the tooltip adds `⚠ THERMAL PANIC — fans at MAX`. Respects the °C/°F setting.
+
+### Changed
+
+- Thermal Panic check now runs on every icon-update tick (every ~3 s) regardless of whether the main window is open.
+- The tray tooltip is now updated on every icon-update tick instead of only during fan program callbacks.
+
 ## [1.1.1-reborn] - 2026-05-04
 
 ### Fixed

@@ -153,6 +153,18 @@ namespace OmenMon.Library {
                     if(GetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", out flag))
                         BiosHeartbeatPauseOnBattery = flag;
 
+                    if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
+                        ThermalPanicEnabled = flag;
+
+                    if(GetWord(xml, XmlPrefix + "ThermalPanicTemperature", out value))
+                        ThermalPanicTemperature = (byte) value;
+
+                    if(GetWord(xml, XmlPrefix + "ThermalPanicHysteresis", out value))
+                        ThermalPanicHysteresis = (byte) value;
+
+                    if(GetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", out flag))
+                        TemperatureUseFahrenheit = flag;
+
                     if(GetWord(xml, XmlPrefix + "EcFailLimit", out value))
                         EcFailLimit = value;
 
@@ -420,6 +432,70 @@ namespace OmenMon.Library {
             }
 
         }
+
+        // Exports a single fan program to a standalone XML file
+        public static bool ExportFanProgram(string name, string filePath) {
+            if(!FanProgram.ContainsKey(name)) return false;
+            try {
+                var xml = new System.Xml.XmlDocument();
+                xml.AppendChild(xml.CreateXmlDeclaration("1.0", "utf-8", null));
+                var root = xml.CreateElement("OmenMonFanProfile");
+                xml.AppendChild(root);
+                var prog = xml.CreateElement(XmlElementFanProgram);
+                prog.SetAttribute(XmlAttrFanProgramName, name);
+                root.AppendChild(prog);
+                prog.AppendChild(xml.CreateElement(XmlElementFanProgramMode)).InnerText =
+                    Enum.GetName(typeof(OmenMon.Hardware.Bios.BiosData.FanMode), FanProgram[name].FanMode);
+                prog.AppendChild(xml.CreateElement(XmlElementFanProgramPower)).InnerText =
+                    Enum.GetName(typeof(OmenMon.Hardware.Bios.BiosData.GpuPowerLevel), FanProgram[name].GpuPower);
+                foreach(var temp in FanProgram[name].Level.Keys) {
+                    var level = (System.Xml.XmlElement) prog.AppendChild(xml.CreateElement(XmlElementFanProgramLevel));
+                    level.SetAttribute(XmlAttrFanProgramLevelTemperature, Conv.GetString(temp, 2, 10));
+                    level.AppendChild(xml.CreateElement(XmlElementFanProgramLevelCpu)).InnerText =
+                        Conv.GetString(FanProgram[name].Level[temp][0], 2, 10);
+                    level.AppendChild(xml.CreateElement(XmlElementFanProgramLevelGpu)).InnerText =
+                        Conv.GetString(FanProgram[name].Level[temp][1], 2, 10);
+                }
+                var settings = new System.Xml.XmlWriterSettings {
+                    Indent = true, IndentChars = "    ", Encoding = new System.Text.UTF8Encoding(false)
+                };
+                using var writer = System.Xml.XmlWriter.Create(filePath, settings);
+                xml.Save(writer);
+                return true;
+            } catch { return false; }
+        }
+
+        // Imports a fan program from a standalone XML file; returns the program name or null on failure
+        public static string ImportFanProgram(string filePath) {
+            try {
+                var xml = new System.Xml.XmlDocument();
+                xml.Load(filePath);
+                // Accept both <OmenMonFanProfile> root and bare <Program> root
+                var progNode = xml.SelectSingleNode("//" + XmlElementFanProgram) as System.Xml.XmlElement;
+                if(progNode == null) return null;
+                string name = progNode.GetAttribute(XmlAttrFanProgramName);
+                if(string.IsNullOrEmpty(name)) return null;
+                // Parse exactly like Load()
+                var fanModeNode  = progNode.SelectSingleNode(XmlElementFanProgramMode);
+                var gpuPowerNode = progNode.SelectSingleNode(XmlElementFanProgramPower);
+                if(fanModeNode == null || gpuPowerNode == null) return null;
+                if(!Enum.TryParse(fanModeNode.InnerText, out OmenMon.Hardware.Bios.BiosData.FanMode fanMode)) return null;
+                if(!Enum.TryParse(gpuPowerNode.InnerText, out OmenMon.Hardware.Bios.BiosData.GpuPowerLevel gpuPower)) return null;
+                var levels = new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+                foreach(System.Xml.XmlElement levelNode in progNode.SelectNodes(XmlElementFanProgramLevel)) {
+                    if(!Conv.GetByte(levelNode.GetAttribute(XmlAttrFanProgramLevelTemperature), out byte temp)) continue;
+                    var cpuNode = levelNode.SelectSingleNode(XmlElementFanProgramLevelCpu);
+                    var gpuNode = levelNode.SelectSingleNode(XmlElementFanProgramLevelGpu);
+                    if(cpuNode == null || gpuNode == null) continue;
+                    if(!Conv.GetByte(cpuNode.InnerText, out byte cpu)) continue;
+                    if(!Conv.GetByte(gpuNode.InnerText, out byte gpu)) continue;
+                    levels[temp] = new byte[] { cpu, gpu };
+                }
+                if(levels.Count == 0) return null;
+                FanProgram[name] = new OmenMon.Hardware.Platform.FanProgramData(name, fanMode, gpuPower, levels);
+                return name;
+            } catch { return null; }
+        }
 #endregion
 
 #region Configuration Saving
@@ -452,6 +528,10 @@ namespace OmenMon.Library {
                     SetBool(xml, XmlPrefix + "AutoStartup", AutoStartup);
                     SetBool(xml, XmlPrefix + "BiosErrorReporting", BiosErrorReporting);
                     SetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", BiosHeartbeatPauseOnBattery);
+                    SetBool(xml, XmlPrefix + "ThermalPanicEnabled", ThermalPanicEnabled);
+                    SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
+                    SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);
+                    SetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", TemperatureUseFahrenheit);
 
                     // Color presets (so that the settings are sorted alphabetically)
                     // Ensure the parent element node exists, or create it

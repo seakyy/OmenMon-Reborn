@@ -29,6 +29,9 @@ namespace OmenMon.AppGui {
         // Flag to indicate if running on full power
         public bool FullPower { get; private set; }
 
+        // Thermal panic: true while max temperature is above the configured threshold
+        public bool IsThermalPanic { get; private set; }
+
         // Constructs the operation-running class
         public GuiOp(GuiTray context) {
 
@@ -259,6 +262,35 @@ namespace OmenMon.AppGui {
 
                 // Just toggle the main form
                 Context.ToggleFormMain();
+
+            }
+
+        }
+
+        // Checks temperature and activates or deactivates Thermal Panic Mode
+        public void CheckThermalPanic(byte maxTemp) {
+
+            if(!Config.ThermalPanicEnabled)
+                return;
+
+            if(!IsThermalPanic && maxTemp >= Config.ThermalPanicTemperature) {
+
+                IsThermalPanic = true;
+                Platform.Fans.SetMax(true);
+                Context.ShowBalloonTip(
+                    "⚠ " + maxTemp + "°C — both fans forced to maximum!",
+                    "OmenMon — Thermal Panic",
+                    ToolTipIcon.Warning);
+
+            } else if(IsThermalPanic
+                && maxTemp < (Config.ThermalPanicTemperature - Config.ThermalPanicHysteresis)) {
+
+                IsThermalPanic = false;
+                Platform.Fans.SetMax(false);
+                Context.ShowBalloonTip(
+                    "Temperature normalized (" + maxTemp + "°C) — fan control restored.",
+                    "OmenMon — Thermal Panic",
+                    ToolTipIcon.Info);
 
             }
 

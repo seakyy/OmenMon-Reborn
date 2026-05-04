@@ -978,9 +978,15 @@ namespace OmenMon.AppGui {
             // Update the status
             labelCaption.Enabled = value > 0;
 
+            // Convert to Fahrenheit if configured
+            int displayValue = Config.TemperatureUseFahrenheit && value > 0
+                ? (value * 9 / 5) + 32 : value;
+            string tempUnit = Config.TemperatureUseFahrenheit
+                ? "°F" : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
+
             // Update the value
             labelValue.Text = value == 0 ? "" :
-                value.ToString() + Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT)
+                displayValue.ToString() + tempUnit
                 + (valueTrend == PlatformData.ValueTrend.Unchanged ?
                     Conv.GetChar(Conv.SpecialChar.SpaceEn) : valueTrend == PlatformData.ValueTrend.Ascending ?
                         Conv.GetChar(Conv.SpecialChar.SupPlus) : Conv.GetChar(Conv.SpecialChar.SupMinus));

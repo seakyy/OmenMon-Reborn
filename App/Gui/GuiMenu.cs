@@ -73,6 +73,10 @@ namespace OmenMon.AppGui {
 
         private const string S_TOGGLE_FORM_MAIN_HIDE = "Hide";
 
+        private const string I_SET_TEMP_UNIT    = Gui.M_ACT + Gui.G_SET + "TempUnit";
+        private const string I_FAN_EXPORT       = Gui.M_ACT + Gui.G_FAN + "Export";
+        private const string I_FAN_IMPORT       = Gui.M_ACT + Gui.G_FAN + "Import";
+
         // Menu item identifiers
         private const string I_APPNAME = Gui.M_HDR + "App";
         private const string I_APPLANG = Gui.M_HDR + "AppLang";
@@ -403,6 +407,72 @@ namespace OmenMon.AppGui {
  
        }
 
+        // Toggles temperature display between °C and °F
+        private void EventActionToggleTempUnit(object sender, EventArgs e) {
+
+            Config.TemperatureUseFahrenheit = !Config.TemperatureUseFahrenheit;
+            ((ToolStripMenuItem) sender).Checked = Config.TemperatureUseFahrenheit;
+            Config.Save();
+
+            // Immediately refresh the main form if visible
+            if(Context.FormMain != null && Context.FormMain.Visible)
+                Context.FormMain.UpdateTmp();
+
+        }
+
+        // Exports the selected fan program to a file
+        private void EventActionFanExport(object sender, EventArgs e) {
+
+            // Pick which program to export from the item name
+            string progName = ((ToolStripMenuItem) sender).Name.Remove(0, I_FAN_EXPORT.Length);
+            if(!Config.FanProgram.ContainsKey(progName)) return;
+
+            using var dlg = new SaveFileDialog {
+                Title = "Export Fan Profile — " + progName,
+                Filter = "OmenMon Fan Profile (*.xml)|*.xml",
+                FileName = progName.Replace(" ", "_") + "_FanProfile.xml",
+                DefaultExt = "xml"
+            };
+            if(dlg.ShowDialog() != DialogResult.OK) return;
+
+            bool ok = Config.ExportFanProgram(progName, dlg.FileName);
+            MessageBox.Show(
+                ok ? "Fan profile \"" + progName + "\" exported successfully."
+                   : "Export failed.",
+                Config.AppName,
+                MessageBoxButtons.OK,
+                ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+
+        }
+
+        // Imports a fan program from a file
+        private void EventActionFanImport(object sender, EventArgs e) {
+
+            using var dlg = new OpenFileDialog {
+                Title = "Import Fan Profile",
+                Filter = "OmenMon Fan Profile (*.xml)|*.xml",
+                DefaultExt = "xml"
+            };
+            if(dlg.ShowDialog() != DialogResult.OK) return;
+
+            string imported = Config.ImportFanProgram(dlg.FileName);
+            if(imported == null) {
+                MessageBox.Show(
+                    "Import failed — the file is not a valid OmenMon fan profile.",
+                    Config.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Persist and rebuild menu so the new program appears immediately
+            Config.Save();
+            Context.Menu.Create();
+
+            MessageBox.Show(
+                "Fan profile \"" + imported + "\" imported successfully.\nYou can now select it from the Fan menu.",
+                Config.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+        }
+
         // Toggles whether to stay on top of other windows or not
         private void EventActionToggleStayOnTop(object sender, EventArgs e) {
 
@@ -636,7 +706,18 @@ namespace OmenMon.AppGui {
             MenuFan.DropDownItems.AddRange(new ToolStripItem[] {
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_FAN_OFF), null, EventActionFanOff, I_FAN_OFF),
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("Import Fan Profile...", null, EventActionFanImport, I_FAN_IMPORT),
             });
+
+            // Add "Export <Name>..." sub-items for each defined program
+            if(Config.FanProgram.Keys.Count > 0) {
+                foreach(string name in Config.FanProgram.Keys) {
+                    MenuFan.DropDownItems.Add(new ToolStripMenuItem(
+                        "Export \"" + name + "\"...",
+                        null, EventActionFanExport, I_FAN_EXPORT + name));
+                }
+            }
 
             // Define the graphics menu
             MenuGpu = new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_GPU), null, null, I_GPU);
@@ -691,7 +772,10 @@ namespace OmenMon.AppGui {
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_AUTOCONFIG), null, EventActionToggleAutoConfig, I_SET_AUTOCONFIG),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_TASK_KEY), null, EventActionToggleTask, I_SET_TASK_KEY),
-                new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_TASK_MUX), null, EventActionToggleTask, I_SET_TASK_MUX)
+                new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_SET_TASK_MUX), null, EventActionToggleTask, I_SET_TASK_MUX),
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("Show temperature in °F", null, EventActionToggleTempUnit, I_SET_TEMP_UNIT) {
+                    Checked = Config.TemperatureUseFahrenheit, CheckOnClick = false }
             });
 
             // Define the top-level menu items
@@ -968,6 +1052,9 @@ namespace OmenMon.AppGui {
             ((ToolStripMenuItem) MenuSettings.DropDownItems[I_SET_TASK_GUI]).Checked = Hw.TaskGet(Config.TaskId.Gui);
             ((ToolStripMenuItem) MenuSettings.DropDownItems[I_SET_TASK_KEY]).Checked = Hw.TaskGet(Config.TaskId.Key);
             ((ToolStripMenuItem) MenuSettings.DropDownItems[I_SET_TASK_MUX]).Checked = Hw.TaskGet(Config.TaskId.Mux);
+
+            // Temperature unit
+            ((ToolStripMenuItem) MenuSettings.DropDownItems[I_SET_TEMP_UNIT]).Checked = Config.TemperatureUseFahrenheit;
 
         }
 #endregion
