@@ -300,7 +300,7 @@ OmenMon uses `WinRing0.sys` for EC access. If BSOD occurs:
 
 1. Open OmenMon → right-click tray → **Contribute Hardware Data** (attaches your EC register layout).
 2. Run `OmenMon.exe -Probe` and copy the output.
-3. File a bug at: **https://github.com/OmenMon/OmenMon/issues**
+3. File a bug at: **https://github.com/seakyy/OmenMon-Reborn/issues/new**
 
 Include:
 - Your HP model (e.g., `HP OMEN 16-b0075ng`)
