@@ -85,18 +85,18 @@ Define programs in `OmenMon.xml`:
   <Program Name="Gaming">
     <FanMode>Performance</FanMode>
     <GpuPower>Maximum</GpuPower>
-    <Level Temperature="0"  Cpu="20" Gpu="20"/>
-    <Level Temperature="50" Cpu="30" Gpu="30"/>
-    <Level Temperature="70" Cpu="45" Gpu="45"/>
-    <Level Temperature="85" Cpu="55" Gpu="55"/>
+    <Level Temperature="0">  <Cpu>20</Cpu><Gpu>20</Gpu></Level>
+    <Level Temperature="50"><Cpu>30</Cpu><Gpu>30</Gpu></Level>
+    <Level Temperature="70"><Cpu>45</Cpu><Gpu>45</Gpu></Level>
+    <Level Temperature="85"><Cpu>55</Cpu><Gpu>55</Gpu></Level>
   </Program>
   <Program Name="Quiet">
     <FanMode>Cool</FanMode>
-    <GpuPower>Reduced</GpuPower>
-    <Level Temperature="0"  Cpu="20" Gpu="20"/>
-    <Level Temperature="60" Cpu="25" Gpu="25"/>
-    <Level Temperature="75" Cpu="35" Gpu="35"/>
-    <Level Temperature="85" Cpu="50" Gpu="50"/>
+    <GpuPower>Minimum</GpuPower>
+    <Level Temperature="0">  <Cpu>20</Cpu><Gpu>20</Gpu></Level>
+    <Level Temperature="60"><Cpu>25</Cpu><Gpu>25</Gpu></Level>
+    <Level Temperature="75"><Cpu>35</Cpu><Gpu>35</Gpu></Level>
+    <Level Temperature="85"><Cpu>50</Cpu><Gpu>50</Gpu></Level>
   </Program>
 </FanPrograms>
 ```
@@ -104,7 +104,7 @@ Define programs in `OmenMon.xml`:
 - `Temperature` = trigger point in °C (max of CPU/GPU/PCH)
 - `Cpu` / `Gpu` = fan speed level (0–55)
 - `FanMode` = background performance mode while program runs
-- `GpuPower` = `Maximum` | `Reduced` | `Minimum`
+- `GpuPower` = `Maximum` | `Medium` | `Minimum`
 
 **AutoConfig** can auto-start the default program on launch and switch to an alternate program on battery.
 
@@ -212,7 +212,7 @@ OmenMon.exe [mode] [options]
 | `-FanOff On\|Off` | Toggle fans off |
 | `-FanLevel <cpu> <gpu>` | Set fan levels (0–55) |
 | `-Prog <name>` | Run a named fan program |
-| `-GpuPower <level>` | Set GPU power (Maximum/Reduced/Minimum) |
+| `-GpuPower <level>` | Set GPU power (Maximum/Medium/Minimum) |
 | `-Ec` | Open EC monitor |
 | `-Probe` | Run heuristic hardware scanner |
 
@@ -300,7 +300,7 @@ OmenMon uses `WinRing0.sys` for EC access. If BSOD occurs:
 
 1. Open OmenMon → right-click tray → **Contribute Hardware Data** (attaches your EC register layout).
 2. Run `OmenMon.exe -Probe` and copy the output.
-3. File a bug at: **https://github.com/seakyy/OmenMon-Reborn/issues**
+3. File a bug at: **https://github.com/OmenMon/OmenMon/issues**
 
 Include:
 - Your HP model (e.g., `HP OMEN 16-b0075ng`)
