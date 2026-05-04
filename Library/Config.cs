@@ -150,6 +150,9 @@ namespace OmenMon.Library {
                     if(GetBool(xml, XmlPrefix + "BiosErrorReporting", out flag))
                         BiosErrorReporting = flag;
 
+                    if(GetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", out flag))
+                        BiosHeartbeatPauseOnBattery = flag;
+
                     if(GetWord(xml, XmlPrefix + "EcFailLimit", out value))
                         EcFailLimit = value;
 
