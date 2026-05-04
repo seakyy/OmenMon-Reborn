@@ -270,15 +270,22 @@ namespace OmenMon.AppGui {
         // Checks temperature and activates or deactivates Thermal Panic Mode
         public void CheckThermalPanic(byte maxTemp) {
 
-            if(!Config.ThermalPanicEnabled)
+            // If panic is currently active but the feature has been disabled (e.g. user toggled
+            // it off at runtime or the dynamic icon was turned off), clear the stuck state so
+            // fans are not left at max indefinitely.
+            if(!Config.ThermalPanicEnabled) {
+                if(IsThermalPanic) {
+                    IsThermalPanic = false;
+                    Platform.Fans.SetMax(false);
+                }
                 return;
+            }
 
             if(!IsThermalPanic && maxTemp >= Config.ThermalPanicTemperature) {
 
                 IsThermalPanic = true;
                 Platform.Fans.SetMax(true);
 
-                // Respect the configured display unit in the balloon
                 string tempStr = Config.TemperatureUseFahrenheit
                     ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
                     : maxTemp + "°C";
@@ -289,12 +296,14 @@ namespace OmenMon.AppGui {
 
             } else if(IsThermalPanic) {
 
-                // Safe off-threshold: clamp hysteresis so it can never exceed threshold-1,
-                // preventing unsigned underflow if Hysteresis >= Temperature in config
+                // Guard against Temperature=0 underflow; clamp hysteresis below threshold.
+                int maxHysteresis = Config.ThermalPanicTemperature == 0
+                    ? 0 : Config.ThermalPanicTemperature - 1;
                 int offThreshold = Config.ThermalPanicTemperature
-                    - Math.Min(Config.ThermalPanicHysteresis, (byte)(Config.ThermalPanicTemperature - 1));
+                    - Math.Min((int)Config.ThermalPanicHysteresis, maxHysteresis);
 
-                if(maxTemp < offThreshold) {
+                // Use <= so temperature normalized at exactly (threshold - hysteresis) clears
+                if(maxTemp <= offThreshold) {
 
                     IsThermalPanic = false;
                     Platform.Fans.SetMax(false);

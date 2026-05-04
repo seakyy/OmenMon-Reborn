@@ -372,9 +372,10 @@ namespace OmenMon.AppGui {
 
         }
 
-        // Builds the tray tooltip from CACHED sensor values only (no hardware reads).
-        // Fan RPMs are shown when the main form is visible (already being polled);
-        // when the form is hidden only temperature and program/panic status are shown.
+        // Builds the tray tooltip from CACHED sensor values only — no hardware reads.
+        // Shows CPU/GPU temperatures (cached by the last GetMaxTemperature or fan-program tick)
+        // plus panic/program status. Fan RPMs are intentionally omitted to avoid calling
+        // GetSpeed() (a WinRing0 EC read) a second time per tick while the form is already open.
         private string BuildTrayTooltip() {
             try {
                 // Temperature: use LastMaxTemperature (set by GetMaxTemperature or fan program)

@@ -162,6 +162,12 @@ namespace OmenMon.Library {
                     if(GetWord(xml, XmlPrefix + "ThermalPanicHysteresis", out value) && value <= byte.MaxValue)
                         ThermalPanicHysteresis = (byte) value;
 
+                    // Disable Thermal Panic when configured values are nonsensical:
+                    // Temperature=0 would trigger immediately; Hysteresis>=Temperature would
+                    // leave panic permanently active (off-threshold underflows to 0 or below).
+                    if(ThermalPanicTemperature < 1 || ThermalPanicHysteresis >= ThermalPanicTemperature)
+                        ThermalPanicEnabled = false;
+
                     if(GetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", out flag))
                         TemperatureUseFahrenheit = flag;
 
