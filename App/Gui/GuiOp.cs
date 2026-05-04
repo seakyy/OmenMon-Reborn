@@ -29,6 +29,9 @@ namespace OmenMon.AppGui {
         // Flag to indicate if running on full power
         public bool FullPower { get; private set; }
 
+        // Thermal panic: true while max temperature is above the configured threshold
+        public bool IsThermalPanic { get; private set; }
+
         // Constructs the operation-running class
         public GuiOp(GuiTray context) {
 
@@ -259,6 +262,61 @@ namespace OmenMon.AppGui {
 
                 // Just toggle the main form
                 Context.ToggleFormMain();
+
+            }
+
+        }
+
+        // Checks temperature and activates or deactivates Thermal Panic Mode
+        public void CheckThermalPanic(byte maxTemp) {
+
+            // If panic is currently active but the feature has been disabled (e.g. user toggled
+            // it off at runtime or the dynamic icon was turned off), clear the stuck state so
+            // fans are not left at max indefinitely.
+            if(!Config.ThermalPanicEnabled) {
+                if(IsThermalPanic) {
+                    IsThermalPanic = false;
+                    Platform.Fans.SetMax(false);
+                }
+                return;
+            }
+
+            if(!IsThermalPanic && maxTemp >= Config.ThermalPanicTemperature) {
+
+                IsThermalPanic = true;
+                Platform.Fans.SetMax(true);
+
+                string tempStr = Config.TemperatureUseFahrenheit
+                    ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
+                    : maxTemp + "°C";
+                Context.ShowBalloonTip(
+                    "⚠ " + tempStr + " — both fans forced to maximum!",
+                    "OmenMon — Thermal Panic",
+                    ToolTipIcon.Warning);
+
+            } else if(IsThermalPanic) {
+
+                // Guard against Temperature=0 underflow; clamp hysteresis below threshold.
+                int maxHysteresis = Config.ThermalPanicTemperature == 0
+                    ? 0 : Config.ThermalPanicTemperature - 1;
+                int offThreshold = Config.ThermalPanicTemperature
+                    - Math.Min((int)Config.ThermalPanicHysteresis, maxHysteresis);
+
+                // Use <= so temperature normalized at exactly (threshold - hysteresis) clears
+                if(maxTemp <= offThreshold) {
+
+                    IsThermalPanic = false;
+                    Platform.Fans.SetMax(false);
+
+                    string tempStr = Config.TemperatureUseFahrenheit
+                        ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
+                        : maxTemp + "°C";
+                    Context.ShowBalloonTip(
+                        "Temperature normalized (" + tempStr + ") — fan control restored.",
+                        "OmenMon — Thermal Panic",
+                        ToolTipIcon.Info);
+
+                }
 
             }
 

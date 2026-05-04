@@ -329,28 +329,86 @@ namespace OmenMon.AppGui {
                 this.FormMain.UpdateTmp();
             }
 
-            // Update the notification icon, if dynamic
-            if(this.Icon.IsDynamic && this.UpdateIconTick++ == 0) {
+            // Update the notification icon and tray tooltip
+            if(this.UpdateIconTick++ == 0) {
 
-                // Update the background depending on the fan mode
-                this.Icon.SetBackground(
-                    this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
-                        GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
+                // Only force a fresh EC temperature read when the dynamic icon is active
+                // (same behavior as v1.1.x — avoids spurious hardware reads that can
+                // interfere with HP firmware power-management and cause forced hibernate)
+                if(this.Icon.IsDynamic) {
 
-                // Update the icon text with the temperature
-                this.Icon.Update(
-                    Conv.GetString(
-                        this.Op.Platform.GetMaxTemperature(
-                            // Only force sensor update if neither the main form
-                            // nor the currently-running fan program did so
-                            (this.FormMain == null || !this.FormMain.Visible)
-                            && (!this.Op.Program.IsEnabled || this.UpdateProgramTick != 1)),
-                        2, 10)
-                    + Config.Locale.Get(
-                        Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT));
+                    bool needForcedUpdate =
+                        (this.FormMain == null || !this.FormMain.Visible)
+                        && (!this.Op.Program.IsEnabled || this.UpdateProgramTick != 1);
+
+                    byte maxTemp = this.Op.Platform.GetMaxTemperature(needForcedUpdate);
+
+                    // Thermal panic — only runs when we have a fresh, hardware-verified reading
+                    this.Op.CheckThermalPanic(maxTemp);
+
+                    // Update the icon background based on fan mode
+                    this.Icon.SetBackground(
+                        this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
+                            GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
+
+                    // Show temperature in configured unit.
+                    // The dynamic icon uses a custom bitmap font — only the localized °C glyph
+                    // is guaranteed to render. Omit the suffix when Fahrenheit is active rather
+                    // than passing a literal "°F" that may produce garbled characters.
+                    int displayTemp = Config.TemperatureUseFahrenheit
+                        ? (maxTemp * 9 / 5) + 32 : maxTemp;
+                    string unitSuffix = Config.TemperatureUseFahrenheit
+                        ? string.Empty
+                        : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
+                    this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
+
+                }
+
+                // Tooltip: use only values already cached by the icon or form update —
+                // never triggers additional hardware reads on its own
+                SetNotifyText(BuildTrayTooltip());
 
             }
 
+        }
+
+        // Builds the tray tooltip from CACHED sensor values only — no hardware reads.
+        // Shows CPU/GPU temperatures (cached by the last GetMaxTemperature or fan-program tick)
+        // plus panic/program status. Fan RPMs are intentionally omitted to avoid calling
+        // GetSpeed() (a WinRing0 EC read) a second time per tick while the form is already open.
+        private string BuildTrayTooltip() {
+            try {
+                // Temperature: use LastMaxTemperature (set by GetMaxTemperature or fan program)
+                // GetValue() on each sensor returns the last Update()-cached result — no EC access
+                int cpuTemp = 0, gpuTemp = 0;
+                for(int i = 0; i < this.Op.Platform.Temperature.Length; i++) {
+                    string name = this.Op.Platform.Temperature[i].GetName();
+                    int val = this.Op.Platform.Temperature[i].GetValue();
+                    if(name == "CPUT" && val > 0) cpuTemp = val;
+                    else if(name == "GPTM" && val > 0) gpuTemp = val;
+                }
+
+                string unit = Config.TemperatureUseFahrenheit ? "°F" : "°C";
+                int cpu = Config.TemperatureUseFahrenheit && cpuTemp > 0 ? (cpuTemp * 9 / 5) + 32 : cpuTemp;
+                int gpu = Config.TemperatureUseFahrenheit && gpuTemp > 0 ? (gpuTemp * 9 / 5) + 32 : gpuTemp;
+
+                // Fan RPMs are visible in the main form; omitting them here avoids calling
+                // GetSpeed() (WinRing0 EC read) a second time per tick while the form is open.
+                string tip = string.Format("CPU: {0}{1} | GPU: {2}{1}",
+                    cpu > 0 ? cpu.ToString() : "--", unit,
+                    gpu > 0 ? gpu.ToString() : "--");
+
+                // Append panic or program indicator
+                if(this.Op.IsThermalPanic)
+                    tip += Environment.NewLine + "⚠ THERMAL PANIC — fans at MAX";
+                else if(this.Op.Program.IsEnabled)
+                    tip += Environment.NewLine + Config.Locale.Get(Config.L_PROG)
+                        + ": " + this.Op.Program.GetName();
+
+                return tip;
+            } catch {
+                return Config.AppName + " " + Config.AppVersion;
+            }
         }
 
     }
