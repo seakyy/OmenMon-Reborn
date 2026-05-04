@@ -1,0 +1,36 @@
+#
+#  //\\   OmenMon: Hardware Monitoring & Control Utility
+# //  \\  Copyright © 2023 Piotr Szczepański * License: GPL3
+#     //  https://omenmon.github.io/
+#
+# OmenMon Build Bump Workflow
+# Bumps up the build number stored in a repository variable
+
+name: "OmenMon Build Bump"
+run-name: "OmenMon Build Bump by ${{ github.actor }}"
+
+on:
+  workflow_call:
+    secrets:
+      VARIABLE_WRITE_TOKEN:
+        description: "A token that allows writing repository variables"
+        required: true
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  bump:
+    name: "Bump up Build"
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: "Increment Build Number & Call the REST API to Update Repository Variable"
+      run: >
+        curl -L
+        -X PATCH
+        -H "Accept: application/vnd.github+json"
+        -H "Authorization: Bearer ${{ secrets.VARIABLE_WRITE_TOKEN }}"
+        -H "X-GitHub-Api-Version: 2022-11-28"
+        -d "{\"name\":\"BUILD_NUMBER\",\"value\":\"$((${{ vars.BUILD_NUMBER }} + 1))\"}"
+        https://api.github.com/repos/${{ github.repository }}/actions/variables/BUILD_NUMBER

@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="utf-8"?>
+<OmenMon>
+    <!--
+      //\\   OmenMon: Hardware Monitoring & Control Utility
+     //  \\  Configuration Settings XML File
+         //  https://omenmon.github.io/
+    -->
+    <!-- Note: comments under child nodes such as <ColorPresets> and <FanPrograms>
+         will be overwritten when the file is automatically generated upon save -->
+    <Config>
+        <!-- Automatically apply settings on start -->
+        <AutoConfig>false</AutoConfig>
+        <!-- Automatically start up with Windows -->
+        <AutoStartup>true</AutoStartup>
+        <!-- Ignore BIOS errors if false (for not fully compatible devices) -->
+        <BiosErrorReporting>true</BiosErrorReporting>
+        <!-- Pause BIOS heartbeat while on battery to prevent forced hibernation (default: true) -->
+        <BiosHeartbeatPauseOnBattery>true</BiosHeartbeatPauseOnBattery>
+        <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
+        <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
+        <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->
+        <!-- REQUIRES GuiDynamicIcon=true. Set to true only after verifying your sensors report realistic values. -->
+        <ThermalPanicEnabled>false</ThermalPanicEnabled>
+        <ThermalPanicTemperature>90</ThermalPanicTemperature>
+        <ThermalPanicHysteresis>5</ThermalPanicHysteresis>
+        <!-- Color Backlight -->
+        <!-- Note: two default entries are hard-coded in the application
+             and will appear if there is nothing else to show instead -->
+        <ColorPresets>
+            <Preset Name="All Amber">FF8800:FF8800:FF8800:FF8800</Preset>
+            <Preset Name="All White">FFFFFF:FFFFFF:FFFFFF:FFFFFF</Preset>
+            <Preset Name="Cyan Magenta Yellow">FFFF00:FF0080:3AE5E7:FFFF00</Preset>
+            <Preset Name="DefaultApp">0080FF:00FF00:00FF00:FFFFFF</Preset>
+            <Preset Name="DefaultOem">0F84FA:710FFA:F9350F:FAAC0F</Preset>
+            <Preset Name="Red Green Blue">0000FF:00FF00:FF0000:FFFFFF</Preset>
+        </ColorPresets>
+        <!-- Embedded Controller -->
+        <!-- Maximum number of failed attempts waiting to read -->
+        <EcFailLimit>15</EcFailLimit>
+        <!-- Embedded Controller monitoring interval [ms]
+             (applies to command-line mode -EcMon context) -->
+        <EcMonInterval>1000</EcMonInterval>
+        <!-- How long before bailing out trying to get a mutex [ms] -->
+        <EcMutexTimeout>200</EcMutexTimeout>
+        <!-- Maximum number of read or write attempts -->
+        <EcRetryLimit>3</EcRetryLimit>
+        <!-- Iterations before waiting fails each time -->
+        <EcWaitLimit>30</EcWaitLimit>
+        <!-- Fan Control -->
+        <!-- Fan countdown will always be continually extended, even
+             with no fan program running, no constant-speed button
+             selected, and the main window hidden, until exit -->
+        <FanCountdownExtendAlways>false</FanCountdownExtendAlways>
+        <!-- Fan countdown timer will be extended by this value [s] -->
+        <FanCountdownExtendInterval>120</FanCountdownExtendInterval>
+        <!-- Fan countdown extension threshold [s] -->
+        <FanCountdownExtendThreshold>5</FanCountdownExtendThreshold>
+        <!-- Minimum and maximum fan level thresholds [krpm] -->
+        <FanLevelMax>55</FanLevelMax>
+        <FanLevelMin>20</FanLevelMin>
+        <!-- Before setting fan levels, set manual fan mode first using the Embedded Controller -->
+        <FanLevelNeedManual>false</FanLevelNeedManual>
+        <!-- Use the Embedded Controller instead of a BIOS call for fan-level setting -->
+        <FanLevelUseEc>false</FanLevelUseEc>
+        <!-- Default fan program, which might be loaded on startup (must match a <Program Name="..."> entry) -->
+        <FanProgramDefault>Power</FanProgramDefault>
+        <!-- Default alternate fan program to switch to if no longer on AC power -->
+        <FanProgramDefaultAlt>Silent</FanProgramDefaultAlt>
+        <!-- Check first (using the EC) if the fan mode is not set already -->
+        <FanProgramModeCheckFirst>false</FanProgramModeCheckFirst>
+        <!-- Suspend fan program whenever the system enters low-power mode -->
+        <FanProgramSuspend>true</FanProgramSuspend>
+        <!-- Fan program definitions
+             Curve visualization: https://www.desmos.com/calculator/6vfpghtud0 -->
+        <FanPrograms>
+            <Program Name="Power">
+                <FanMode>Performance</FanMode>
+                <GpuPower>Maximum</GpuPower>
+                <Level Temperature="00">
+                    <Cpu>00</Cpu>
+                    <Gpu>00</Gpu>
+                </Level>
+                <Level Temperature="36">
+                    <Cpu>21</Cpu>
+                    <Gpu>00</Gpu>
+                </Level>
+                <Level Temperature="39">
+                    <Cpu>22</Cpu>
+                    <Gpu>22</Gpu>
+                </Level>
+                <Level Temperature="42">
+                    <Cpu>23</Cpu>
+                    <Gpu>24</Gpu>
+                </Level>
+                <Level Temperature="45">
+                    <Cpu>24</Cpu>
+                    <Gpu>26</Gpu>
+                </Level>
+                <Level Temperature="48">
+                    <Cpu>25</Cpu>
+                    <Gpu>27</Gpu>
+                </Level>
+                <Level Temperature="51">
+                    <Cpu>26</Cpu>
+                    <Gpu>29</Gpu>
+                </Level>
+                <Level Temperature="54">
+                    <Cpu>28</Cpu>
+                    <Gpu>31</Gpu>
+                </Level>
+                <Level Temperature="57">
+                    <Cpu>30</Cpu>
+                    <Gpu>33</Gpu>
+                </Level>
+                <Level Temperature="60">
+                    <Cpu>32</Cpu>
+                    <Gpu>35</Gpu>
+                </Level>
+                <Level Temperature="63">
+                    <Cpu>34</Cpu>
+                    <Gpu>37</Gpu>
+                </Level>
+                <Level Temperature="66">
+                    <Cpu>36</Cpu>
+                    <Gpu>40</Gpu>
+                </Level>
+                <Level Temperature="69">
+                    <Cpu>38</Cpu>
+                    <Gpu>43</Gpu>
+                </Level>
+                <Level Temperature="72">
+                    <Cpu>41</Cpu>
+                    <Gpu>46</Gpu>
+                </Level>
+                <Level Temperature="75">
+                    <Cpu>44</Cpu>
+                    <Gpu>49</Gpu>
+                </Level>
+                <Level Temperature="78">
+                    <Cpu>47</Cpu>
+                    <Gpu>52</Gpu>
+                </Level>
+                <Level Temperature="81">
+                    <Cpu>50</Cpu>
+                    <Gpu>55</Gpu>
+                </Level>
+                <Level Temperature="84">
+                    <Cpu>55</Cpu>
+                    <Gpu>57</Gpu>
+                </Level>
+            </Program>
+            <Program Name="Silent">
+                <FanMode>Default</FanMode>
+                <GpuPower>Minimum</GpuPower>
+                <Level Temperature="00">
+                    <Cpu>21</Cpu>
+                    <Gpu>00</Gpu>
+                </Level>
+                <Level Temperature="50">
+                    <Cpu>25</Cpu>
+                    <Gpu>00</Gpu>
+                </Level>
+                <Level Temperature="55">
+                    <Cpu>25</Cpu>
+                    <Gpu>25</Gpu>
+                </Level>
+                <Level Temperature="60">
+                    <Cpu>30</Cpu>
+                    <Gpu>30</Gpu>
+                </Level>
+                <Level Temperature="65">
+                    <Cpu>35</Cpu>
+                    <Gpu>35</Gpu>
+                </Level>
+                <Level Temperature="70">
+                    <Cpu>40</Cpu>
+                    <Gpu>40</Gpu>
+                </Level>
+                <Level Temperature="75">
+                    <Cpu>45</Cpu>
+                    <Gpu>45</Gpu>
+                </Level>
+                <Level Temperature="80">
+                    <Cpu>50</Cpu>
+                    <Gpu>50</Gpu>
+                </Level>
+                <Level Temperature="85">
+                    <Cpu>55</Cpu>
+                    <Gpu>57</Gpu>
+                </Level>
+            </Program>
+        </FanPrograms>
+        <!-- GPU -->
+        <!-- Default GPU power settings (valid values: Minimum | Medium | Maximum) -->
+        <GpuPowerDefault>Maximum</GpuPowerDefault>
+        <!-- The wait before setting the GPU power for the 2nd time [ms] -->
+        <GpuPowerSetInterval>200</GpuPowerSetInterval>
+        <!-- Graphical User Interface -->
+        <GuiCloseWindowExit>false</GuiCloseWindowExit>
+        <GuiDpiChangeResize>false</GuiDpiChangeResize>
+        <GuiDynamicIcon>true</GuiDynamicIcon>
+        <GuiDynamicIconHasBackground>true</GuiDynamicIconHasBackground>
+        <GuiStayOnTop>true</GuiStayOnTop>
+        <GuiSysInfoFontSize>0</GuiSysInfoFontSize>
+        <GuiTipDuration>30000</GuiTipDuration>
+        <!-- Omen Key -->
+        <KeyCustomAction>
+            <Enabled>false</Enabled>
+            <ExecCmd>cmd.exe</ExecCmd>
+            <ExecArgs>/c start /min "" powershell -WindowStyle Hidden (Add-Type '[DllImport(\"user32.dll\")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name User32 -PassThru)::SendMessage(-1, 0x0112, 0xF170, 2) ^| Out-Null</ExecArgs>
+            <Minimized>true</Minimized>
+        </KeyCustomAction>
+        
+        <!-- Cycle through keyboard color presets on Omen key press -->
+        <!-- Takes priority over KeyToggleFanProgram and KeyCustomAction -->
+        <KeyToggleColorPreset>true</KeyToggleColorPreset>
+        
+        <!-- Suppress the balloon tip notification when cycling presets -->
+        <KeyToggleColorPresetSilent>false</KeyToggleColorPresetSilent>
+
+        <KeyToggleFanProgram>false</KeyToggleFanProgram>
+        <KeyToggleFanProgramCycleAll>true</KeyToggleFanProgramCycleAll>
+        <KeyToggleFanProgramShowGuiFirst>true</KeyToggleFanProgramShowGuiFirst>
+        <KeyToggleFanProgramSilent>false</KeyToggleFanProgramSilent>
+        <!-- Preset Settings -->
+        <PresetRefreshRateHigh>165</PresetRefreshRateHigh>
+        <PresetRefreshRateLow>60</PresetRefreshRateLow>
+        <!-- Temperature Sensors -->
+        <!-- Note: Unreliable EC sensors (TNT2-TNT5) and BIOS are disabled for fan curves by default to prevent 100% Fan Bugs -->
+        <Temperature>
+            <Sensor Name="CPUT" Source="EC" />
+            <Sensor Name="GPTM" Source="EC" />
+            <Sensor Name="BIOS" Source="BIOS" Use="false" />
+            <Sensor Name="RTMP" Source="EC" />
+            <Sensor Name="TMP1" Source="EC" />
+            <Sensor Name="TNT2" Source="EC" Use="false" />
+            <Sensor Name="TNT3" Source="EC" Use="false" />
+            <Sensor Name="TNT4" Source="EC" Use="false" />
+            <Sensor Name="TNT5" Source="EC" Use="false" />
+        </Temperature>
+        <!-- Model Database -->
+        <!-- The application reads EC register mappings from here. If a model is not listed, the Heuristic Scanner will auto-configure it. -->
+        <Models>
+            <Model ProductId="8A4C" DisplayName="Omen 16 (2022, i9-12900H)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <Model ProductId="8A4D" DisplayName="Omen 16 (2022, k0xxx)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BBE: HP Victus 16 R0053NT (2023) — fan level regs at 0x11/0x12, confirmed via probe EC[0x11]=BIOS CPU level -->
+            <Model ProductId="8BBE" DisplayName="HP Victus 16 (2023, R0053NT)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BAB: HP Omen 16 (2025) — same fan level register layout as 8BBE, confirmed via probe EC[0x11]=BIOS CPU level -->
+            <Model ProductId="8BAB" DisplayName="HP Omen 16 (2025)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8C9C: HP Victus 16 (2024) — same new EC layout; EC[0x11]=0x12=BIOS CPU=0x12; no backlight (HasBacklight=False) -->
+            <Model ProductId="8C9C" DisplayName="HP Victus 16 (2024)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+        </Models>
+        <!-- Update Interval -->
+        <UpdateIconInterval>3</UpdateIconInterval>
+        <UpdateMonitorInterval>3</UpdateMonitorInterval>
+        <UpdateProgramInterval>15</UpdateProgramInterval>
+    </Config>
+    <!-- Localizable Messages -->
+    <Messages>
+        <!-- <String Key="CliTranslated">Translated to [Language] by [Author]</String> -->
+        <!-- <String Key="GuiTranslated">Translated by [Author]</String> -->
+    </Messages>
+</OmenMon>

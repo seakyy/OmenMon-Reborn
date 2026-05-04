@@ -1,0 +1,9 @@
+# Build Output
+Bin/
+Obj/
+.vs/
+.claude/
+OmenMon.manifest
+OmenMon.resx
+OmenMon.exe.config
+*.user

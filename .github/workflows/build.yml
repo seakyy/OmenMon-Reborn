@@ -1,0 +1,115 @@
+#
+#  //\\   OmenMon: Hardware Monitoring & Control Utility
+# //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
+#     //  https://omenmon.github.io/
+#
+# OmenMon Build Workflow
+# Builds the application with the specified version data
+
+name: "OmenMon Build"
+run-name: "OmenMon Build by ${{ github.actor }}"
+
+on:
+  workflow_call:
+    inputs:
+      version_number:
+        description: "Version number (three dot-separated non-negative integers)"
+        required: true
+        type: string
+      version_word:
+        default: "Snapshot"
+        description: "Build type (Preview, Release, Snapshot)"
+        required: false
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      version_number:
+        default: "0.0.0"
+        description: "Version number"
+        required: true
+        type: string
+      version_word:
+        default: "Snapshot"
+        description: "Build type"
+        options:
+          - "Preview"
+          - "Release"
+          - "Snapshot"
+        required: true
+        type: choice
+
+permissions:
+  contents: read
+
+jobs:
+  call-bump:
+    name: "Call Bump"
+    secrets: inherit
+    uses: ./.github/workflows/build_bump.yml
+
+  build:
+    name: "Build OmenMon"
+    needs: call-bump
+    runs-on: windows-2022
+
+    strategy:
+      matrix:
+        configuration: ["Release"]
+
+    steps:
+    - name: "Checkout OmenMon"
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: "Checkout OmenMon Resources"
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        path: ${{ vars.RESOURCES_DIR }}
+        repository: ${{ vars.RESOURCES_REPO }}
+
+    - name: "Set up Microsoft Build"
+      uses: microsoft/setup-msbuild@v1.1
+      with:
+        msbuild-architecture: x64
+        vs-version: "[17.7,)"
+
+    - name: "Run Microsoft Build"
+      working-directory: ${{ github.workspace }}
+      run: >
+        msbuild -m -noLogo
+        -p:AssemblyVersion=${{inputs.version_number}}.${{vars.BUILD_NUMBER}}
+        -p:AssemblyVersionWord=${{inputs.version_word}}
+        -p:Configuration=${{matrix.configuration}}
+        -t:Build ${{vars.SOLUTION_FILE}}
+
+    - name: "Retrieve Certificate"
+      working-directory: ${{ github.workspace }}
+      env:
+        CODE_SIGN_CERT: ${{ secrets.CODE_SIGN_CERT }}
+      run: >
+          echo $CODE_SIGN_CERT > OmenMon-GitHub.pfx.txt
+      shell: bash
+
+    - name: "Decode Certificate"
+      working-directory: ${{ github.workspace }}
+      run: >
+          certutil -decode OmenMon-GitHub.pfx.txt OmenMon-GitHub.pfx
+
+    - name: "Sign OmenMon"
+      working-directory: ${{ github.workspace }}
+      run: >
+        & 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe' sign
+        /d OmenMon /du https://omenmon.github.io/
+        /f OmenMon-GitHub.pfx /fd sha256
+        /td sha256 /tr http://timestamp.digicert.com/
+        /v ${{ vars.BIN_DIR }}\\OmenMon.exe
+
+    - name: "Upload OmenMon"
+      uses: actions/upload-artifact@v3
+      with:
+        if-no-files-found: error
+        name: ${{ github.event.repository.name }}
+        path: ${{ vars.BIN_DIR }}

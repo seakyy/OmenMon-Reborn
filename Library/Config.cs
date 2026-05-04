@@ -1,0 +1,836 @@
+  //\\   OmenMon: Hardware Monitoring & Control Utility
+ //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
+     //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
+using System.Text;
+using System.Xml;
+using OmenMon.Hardware.Bios;
+using OmenMon.Hardware.Ec;
+using OmenMon.Hardware.Platform;
+using OmenMon.Library.Locale;
+
+namespace OmenMon.Library {
+
+    // Implements application-wide configuration settings look-up
+    // This part only contains the implementing methods
+    public static partial class Config {
+
+#region Initialization
+        // State flag
+        public static bool IsInitialized { get; private set; }
+
+        // Localization strings interface
+        public static ILocale Locale;
+
+        // Initializes the configuration class
+        public static void Initialize() {
+
+            // Only do it once
+            if(!IsInitialized) {
+
+                // Set the configuration file location
+                // Note: also used by locale, so must happen before
+                try {
+
+                    // Establish where to look for the XML configuration file
+                    FilePath = Path.ChangeExtension(AppFile, ".xml");
+
+                } catch { }
+
+                // Initialize the message system
+                if(!LocaleInit("Override"))
+                    App.Exit(Config.ExitStatus.ErrorLocale);
+
+                // Load the configuration
+                Load();
+
+                // Done
+                IsInitialized = true;
+
+            }
+
+        }
+
+        // Initializes the locale system
+        public static bool LocaleInit() {
+
+            // Instantiate the localization system
+            if((Locale = OmenMon.Library.Locale.Locale.Instance) == null) {
+
+                // Show an error if failed
+                App.Error("ErrLocaleNull");
+                return false;
+
+            }
+
+            return true;
+
+        }
+
+        // Initializes the locale system and sets the language
+        public static bool LocaleInit(string language) {
+
+            // Instantiate the locale
+            if(!LocaleInit())
+                return false;
+
+            // Set the application language
+            Locale.SetLanguage(language);
+
+            return true;
+
+        }
+#endregion
+
+#region Configuration Retrieval
+        // Retrieves a Boolean flag value from the XML configuration file
+        private static bool GetBool(XmlDocument xml, string node, out bool value) {
+            value = false;
+            try {
+                if(Conv.GetBool(xml.SelectSingleNode(node).InnerText, out value))
+                    return true;
+            } catch {  }
+            return false;
+
+        }
+
+        // Retrieves a string value from the XML configuration file
+        private static string GetString(XmlDocument xml, string node) {
+            string value = "";
+            try {
+                value = xml.SelectSingleNode(node).InnerText;
+            } catch {  }
+            return (value == null ? "" : value);
+        }
+
+        // Retrieves an unsigned word-sized value from the XML configuration file
+        private static bool GetWord(XmlDocument xml, string node, out ushort value) {
+            value = 0;
+            try {
+                if(Conv.GetWord(xml.SelectSingleNode(node).InnerText, out value))
+                    return true;
+            } catch {  }
+            return false;
+
+        }
+
+        // Loads the configuration data from the XML file
+        public static void Load() {
+
+            // Proceed only if the file exists
+            if(FilePath != "" && File.Exists(FilePath)) {
+
+                try {
+
+                    // Load the file
+                    XmlDocument xml = new XmlDocument();
+                    xml.Load(FilePath);
+
+                    // Replace the hard-coded XML template with a localized one
+                    // Only possible once the localizable message class is instantiated
+                    XmlTemplate = Config.Locale.Get("_ConfigXmlTemplate");
+
+                    // Read the configuration and parse it into values
+                    bool flag;
+                    ushort value;
+
+                    if(GetBool(xml, XmlPrefix + "AutoConfig", out flag))
+                        AutoConfig = flag;
+
+                    if(GetBool(xml, XmlPrefix + "AutoStartup", out flag))
+                        AutoStartup = flag;
+
+                    if(GetBool(xml, XmlPrefix + "BiosErrorReporting", out flag))
+                        BiosErrorReporting = flag;
+
+                    if(GetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", out flag))
+                        BiosHeartbeatPauseOnBattery = flag;
+
+                    if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
+                        ThermalPanicEnabled = flag;
+
+                    if(GetWord(xml, XmlPrefix + "ThermalPanicTemperature", out value) && value <= byte.MaxValue)
+                        ThermalPanicTemperature = (byte) value;
+
+                    if(GetWord(xml, XmlPrefix + "ThermalPanicHysteresis", out value) && value <= byte.MaxValue)
+                        ThermalPanicHysteresis = (byte) value;
+
+                    if(GetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", out flag))
+                        TemperatureUseFahrenheit = flag;
+
+                    if(GetWord(xml, XmlPrefix + "EcFailLimit", out value))
+                        EcFailLimit = value;
+
+                    if(GetWord(xml, XmlPrefix + "EcMonInterval", out value))
+                        EcMonInterval = value;
+
+                    if(GetWord(xml, XmlPrefix + "EcMutexTimeout", out value))
+                        EcMutexTimeout = value;
+
+                    if(GetWord(xml, XmlPrefix + "EcRetryLimit", out value))
+                        EcRetryLimit = value;
+
+                    if(GetWord(xml, XmlPrefix + "EcWaitLimit", out value))
+                        EcWaitLimit = value;
+
+                    if(GetBool(xml, XmlPrefix + "FanCountdownExtendAlways", out flag))
+                        FanCountdownExtendAlways = flag;
+
+                    if(GetWord(xml, XmlPrefix + "FanCountdownExtendInterval", out value))
+                        FanCountdownExtendInterval = value;
+
+                    if(GetWord(xml, XmlPrefix + "FanCountdownExtendThreshold", out value))
+                        FanCountdownExtendThreshold = value;
+
+                    if(GetWord(xml, XmlPrefix + "FanLevelMax", out value))
+                        FanLevelMax = value;
+
+                    if(GetWord(xml, XmlPrefix + "FanLevelMin", out value))
+                        FanLevelMin = value;
+
+                    if(GetBool(xml, XmlPrefix + "FanLevelNeedManual", out flag))
+                        FanLevelNeedManual = flag;
+
+                    if(GetBool(xml, XmlPrefix + "FanLevelUseEc", out flag))
+                        FanLevelUseEc = flag;
+
+                    FanProgramDefault =
+                        GetString(xml, XmlPrefix + "FanProgramDefault");
+
+                    FanProgramDefaultAlt =
+                        GetString(xml, XmlPrefix + "FanProgramDefaultAlt");
+
+                    if(GetBool(xml, XmlPrefix + "FanProgramModeCheckFirst", out flag))
+                        FanProgramModeCheckFirst = flag;
+
+                    if(GetBool(xml, XmlPrefix + "FanProgramSuspend", out flag))
+                        FanProgramSuspend = flag;
+
+                    GpuPowerDefault =
+                        GetString(xml, XmlPrefix + "GpuPowerDefault");
+
+                    if(GetWord(xml, XmlPrefix + "GpuPowerSetInterval", out value))
+                        GpuPowerSetInterval = value;
+
+                    if(GetBool(xml, XmlPrefix + "GuiCloseWindowExit", out flag))
+                        GuiCloseWindowExit = flag;
+
+                    if(GetBool(xml, XmlPrefix + "GuiDpiChangeResize", out flag))
+                        GuiDpiChangeResize = flag;
+
+                    if(GetBool(xml, XmlPrefix + "GuiDynamicIcon", out flag))
+                        GuiDynamicIcon = flag;
+
+                    if(GetBool(xml, XmlPrefix + "GuiDynamicIconHasBackground", out flag))
+                        GuiDynamicIconHasBackground = flag;
+
+                    if(GetBool(xml, XmlPrefix + "GuiStayOnTop", out flag))
+                        GuiStayOnTop = flag;
+
+                    if(GetWord(xml, XmlPrefix + "GuiSysInfoFontSize", out value))
+                        GuiSysInfoFontSize = value;
+
+                    if(GetWord(xml, XmlPrefix + "GuiTipDuration", out value))
+                        GuiTipDuration = value;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleColorPreset", out flag))
+                        KeyToggleColorPreset = flag;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleColorPresetSilent", out flag))
+                        KeyToggleColorPresetSilent = flag;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleFanProgram", out flag))
+                        KeyToggleFanProgram = flag;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleFanProgramCycleAll", out flag))
+                        KeyToggleFanProgramCycleAll = flag;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleFanProgramShowGuiFirst", out flag))
+                        KeyToggleFanProgramShowGuiFirst = flag;
+
+                    if(GetBool(xml, XmlPrefix + "KeyToggleFanProgramSilent", out flag))
+                        KeyToggleFanProgramSilent = flag;
+
+                    if(GetWord(xml, XmlPrefix + "PresetRefreshRateHigh", out value))
+                        PresetRefreshRateHigh = value;
+
+                    if(GetWord(xml, XmlPrefix + "PresetRefreshRateLow", out value))
+                        PresetRefreshRateLow = value;
+
+                    if(GetWord(xml, XmlPrefix + "UpdateIconInterval", out value))
+                        UpdateIconInterval = value;
+
+                    if(GetWord(xml, XmlPrefix + "UpdateMonitorInterval", out value))
+                        UpdateMonitorInterval = value;
+
+                    if(GetWord(xml, XmlPrefix + "UpdateProgramInterval", out value))
+                        UpdateProgramInterval = value;
+
+                    // Load the key custom action settings
+                    if(GetBool(xml, XmlPrefixKeyCustomAction + "Enabled", out flag))
+                        KeyCustomActionEnabled = flag;
+
+                    KeyCustomActionExecCmd =
+                        GetString(xml, XmlPrefixKeyCustomAction + "ExecCmd");
+
+                    KeyCustomActionExecArgs =
+                        GetString(xml, XmlPrefixKeyCustomAction + "ExecArgs");
+
+                    if(GetBool(xml, XmlPrefixKeyCustomAction + "Minimized", out flag))
+                        KeyCustomActionMinimized = flag;
+
+                    // Load the color presets
+                    SortedDictionary<string, BiosData.ColorTable> ColorPresetXml
+                        = new SortedDictionary<string, BiosData.ColorTable>();
+                    foreach(XmlNode node in xml.SelectNodes(XmlPrefixColorPreset)) {
+                        // Invalid entries will be discarded at this step
+                        try {
+                            BiosData.ColorTable colorTable = new BiosData.ColorTable(node.InnerText);
+                            ColorPresetXml[node.Attributes[XmlAttrColorPresetName].Value] = colorTable;
+                        } catch { }
+                    }
+
+                    // Replace the defaults with configured color presets unless none
+                    if(ColorPresetXml.Count > 0)
+                        ColorPreset = ColorPresetXml;
+
+                    // Populate the RTF header with colors at run-time
+                    SysInfoRtfHeader = SysInfoRtfPreHeader + 
+                        "{\\colortbl;"
+                        + Conv.GetColorStringRtf(SystemColors.GrayText.ToArgb())  // System Gray
+                        + Conv.GetColorStringRtf(0)                               // Black
+                        + Conv.GetColorStringRtf(GuiColorTextTeal)                // Teal
+                        + Conv.GetColorStringRtf(GuiColorWarmDark)                // Red
+                        + Conv.GetColorStringRtf(GuiColorTextBlue)                // Blue
+                        + Conv.GetColorStringRtf(GuiColorWarmLite)                // Fuchsia
+                        + "}";
+
+                    // Load the temperature sensors
+                    bool usable = false;
+                    Dictionary<string, TemperatureSensorData> TemperatureSensorXml
+                        = new Dictionary<string, TemperatureSensorData>();
+                    foreach(XmlNode node in xml.SelectNodes(XmlPrefixTemperatureSensor)) {
+                        // Invalid entries will be discarded at this step
+                        try {
+
+                            // Abort if more than the maximum number of sensors defined already
+                            if(TemperatureSensorXml.Count >= TemperatureSensorMax)
+                                break;
+
+                            // Set the optional use flag
+                            // based on the XML attribute
+                            bool use = true;
+                            try {
+                                Conv.GetBool(node.Attributes[XmlAttrTemperatureSensorUse].Value, out use);
+                            } catch {  }
+
+                            // Check for Embedded Controller sensor source
+                            if(node.Attributes[XmlAttrTemperatureSensorSource].Value
+                                == XmlAttrTemperatureSensorSourceValueEc)
+
+                                // Adding a sensor sourced from the Embedded Controller
+                                TemperatureSensorXml[node.Attributes[XmlAttrTemperatureSensorName].Value] =
+                                    new TemperatureSensorData(
+                                        PlatformData.LinkType.EmbeddedController,
+                                        (byte) Enum.Parse(typeof(EmbeddedControllerData.Register),
+                                            node.Attributes[XmlAttrTemperatureSensorName].Value), use);
+
+                            // Check for WMI BIOS sensor source
+                            else if(node.Attributes[XmlAttrTemperatureSensorSource].Value
+                                == XmlAttrTemperatureSensorSourceValueBios)
+
+                                // Adding a sensor sourced from the WMI BIOS
+                                TemperatureSensorXml[XmlAttrTemperatureSensorSourceValueBios] =
+                                    new TemperatureSensorData(PlatformData.LinkType.WmiBios, use);
+
+                            // Throw an exception for any unknown sources
+                            else throw new ArgumentOutOfRangeException();
+
+                            // Record found usable
+                            if(use) usable = true;
+
+                        } catch { }
+
+                    }
+
+                    // Replace the defaults with configured temperature sensors unless none
+                    // were configured or not a single sensor was set to actually be used
+                    if(TemperatureSensorXml.Count > 0 && usable)
+                        TemperatureSensor = TemperatureSensorXml;
+
+                    // Load the model database entries
+                    foreach(XmlNode node in xml.SelectNodes(XmlPrefixModel)) {
+                        try {
+                            string productId = node.Attributes[XmlAttrModelProductId].Value;
+                            string displayName = "";
+                            try { displayName = node.Attributes[XmlAttrModelDisplayName].Value; } catch { }
+                            var p = new OmenMon.Hardware.Platform.PlatformPreset();
+                            p.ProductId        = productId;
+                            p.DisplayName      = displayName;
+                            p.FanLevelReg0     = Conv.GetByte(node[XmlElementFanLevelReg0].InnerText);
+                            p.FanLevelReg1     = Conv.GetByte(node[XmlElementFanLevelReg1].InnerText);
+                            p.FanRateReadReg0  = Conv.GetByte(node[XmlElementFanRateReadReg0].InnerText);
+                            p.FanRateReadReg1  = Conv.GetByte(node[XmlElementFanRateReadReg1].InnerText);
+                            p.FanRateWriteReg0 = Conv.GetByte(node[XmlElementFanRateWriteReg0].InnerText);
+                            p.FanRateWriteReg1 = Conv.GetByte(node[XmlElementFanRateWriteReg1].InnerText);
+                            p.FanSpeedReg0     = Conv.GetByte(node[XmlElementFanSpeedReg0].InnerText);
+                            p.FanSpeedReg1     = Conv.GetByte(node[XmlElementFanSpeedReg1].InnerText);
+                            p.CountdownReg     = Conv.GetByte(node[XmlElementCountdownReg].InnerText);
+                            p.ManualReg        = Conv.GetByte(node[XmlElementManualReg].InnerText);
+                            p.ModeReg          = Conv.GetByte(node[XmlElementModeReg].InnerText);
+                            p.SwitchReg        = Conv.GetByte(node[XmlElementSwitchReg].InnerText);
+                            Models[productId]  = p;
+                        } catch { }
+                    }
+
+                    // Load the fan programs
+                    foreach(XmlNode node in xml.SelectNodes(XmlPrefixFanProgram)) {
+                        // Invalid entries will be discarded at this step
+                        try {
+
+                            // Set up a variable to read the level configuration into
+                            SortedDictionary<byte, byte[]> levels =
+                                new SortedDictionary<byte, byte[]>();
+
+                            // Iterate through the levels specified in the XML file
+                            foreach(XmlNode subnode in node.SelectNodes(XmlElementFanProgramLevel)) {
+
+                                // Populate the level data
+                                levels[Conv.GetByte(
+                                    subnode.Attributes[XmlAttrFanProgramLevelTemperature].Value)] =
+                                        new byte[] {
+                                            Conv.GetByte(subnode[XmlElementFanProgramLevelCpu].InnerText),
+                                            Conv.GetByte(subnode[XmlElementFanProgramLevelGpu].InnerText)};
+
+                            }
+
+                            // Create a new fan program from the configuration data
+                            FanProgram[node.Attributes[XmlAttrFanProgramName].Value] =
+                                new FanProgramData(
+                                    node.Attributes[XmlAttrFanProgramName].Value,
+                                    (BiosData.FanMode) Enum.Parse(typeof(BiosData.FanMode), node[XmlElementFanProgramMode].InnerText),
+                                    (BiosData.GpuPowerLevel) Enum.Parse(typeof(BiosData.GpuPowerLevel), node[XmlElementFanProgramPower].InnerText),
+                                    levels);
+
+                        } catch { }
+
+                    }
+
+                } catch {
+
+                    // Silently ignore any errors
+
+                }
+
+            }
+
+        }
+
+        // Exports a single fan program to a standalone XML file
+        public static bool ExportFanProgram(string name, string filePath) {
+            if(!FanProgram.ContainsKey(name)) return false;
+            try {
+                var xml = new System.Xml.XmlDocument();
+                xml.AppendChild(xml.CreateXmlDeclaration("1.0", "utf-8", null));
+                var root = xml.CreateElement("OmenMonFanProfile");
+                xml.AppendChild(root);
+                var prog = xml.CreateElement(XmlElementFanProgram);
+                prog.SetAttribute(XmlAttrFanProgramName, name);
+                root.AppendChild(prog);
+                prog.AppendChild(xml.CreateElement(XmlElementFanProgramMode)).InnerText =
+                    Enum.GetName(typeof(OmenMon.Hardware.Bios.BiosData.FanMode), FanProgram[name].FanMode);
+                prog.AppendChild(xml.CreateElement(XmlElementFanProgramPower)).InnerText =
+                    Enum.GetName(typeof(OmenMon.Hardware.Bios.BiosData.GpuPowerLevel), FanProgram[name].GpuPower);
+                foreach(var temp in FanProgram[name].Level.Keys) {
+                    var level = (System.Xml.XmlElement) prog.AppendChild(xml.CreateElement(XmlElementFanProgramLevel));
+                    level.SetAttribute(XmlAttrFanProgramLevelTemperature, Conv.GetString(temp, 2, 10));
+                    level.AppendChild(xml.CreateElement(XmlElementFanProgramLevelCpu)).InnerText =
+                        Conv.GetString(FanProgram[name].Level[temp][0], 2, 10);
+                    level.AppendChild(xml.CreateElement(XmlElementFanProgramLevelGpu)).InnerText =
+                        Conv.GetString(FanProgram[name].Level[temp][1], 2, 10);
+                }
+                var settings = new System.Xml.XmlWriterSettings {
+                    Indent = true, IndentChars = "    ", Encoding = new System.Text.UTF8Encoding(false)
+                };
+                using var writer = System.Xml.XmlWriter.Create(filePath, settings);
+                xml.Save(writer);
+                return true;
+            } catch { return false; }
+        }
+
+        // Imports a fan program from a standalone XML file; returns the program name or null on failure
+        public static string ImportFanProgram(string filePath) {
+            try {
+                // Disable DTD / external entity processing to prevent XXE attacks
+                var readerSettings = new System.Xml.XmlReaderSettings {
+                    DtdProcessing = System.Xml.DtdProcessing.Prohibit,
+                    XmlResolver = null
+                };
+                var xml = new System.Xml.XmlDocument { XmlResolver = null };
+                using(var reader = System.Xml.XmlReader.Create(filePath, readerSettings))
+                    xml.Load(reader);
+
+                // Accept both <OmenMonFanProfile> root and bare <Program> root
+                var progNode = xml.SelectSingleNode("//" + XmlElementFanProgram) as System.Xml.XmlElement;
+                if(progNode == null) return null;
+                string name = progNode.GetAttribute(XmlAttrFanProgramName);
+                if(string.IsNullOrEmpty(name)) return null;
+                // Parse exactly like Load()
+                var fanModeNode  = progNode.SelectSingleNode(XmlElementFanProgramMode);
+                var gpuPowerNode = progNode.SelectSingleNode(XmlElementFanProgramPower);
+                if(fanModeNode == null || gpuPowerNode == null) return null;
+                if(!Enum.TryParse(fanModeNode.InnerText, out OmenMon.Hardware.Bios.BiosData.FanMode fanMode)) return null;
+                if(!Enum.TryParse(gpuPowerNode.InnerText, out OmenMon.Hardware.Bios.BiosData.GpuPowerLevel gpuPower)) return null;
+                var levels = new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+                foreach(System.Xml.XmlElement levelNode in progNode.SelectNodes(XmlElementFanProgramLevel)) {
+                    if(!Conv.GetByte(levelNode.GetAttribute(XmlAttrFanProgramLevelTemperature), out byte temp)) continue;
+                    var cpuNode = levelNode.SelectSingleNode(XmlElementFanProgramLevelCpu);
+                    var gpuNode = levelNode.SelectSingleNode(XmlElementFanProgramLevelGpu);
+                    if(cpuNode == null || gpuNode == null) continue;
+                    if(!Conv.GetByte(cpuNode.InnerText, out byte cpu)) continue;
+                    if(!Conv.GetByte(gpuNode.InnerText, out byte gpu)) continue;
+                    levels[temp] = new byte[] { cpu, gpu };
+                }
+                if(levels.Count == 0) return null;
+
+                // Avoid silently overwriting an existing curve — append suffix until name is unique
+                string finalName = name;
+                int suffix = 1;
+                while(FanProgram.ContainsKey(finalName))
+                    finalName = name + " (" + (suffix++) + ")";
+
+                FanProgram[finalName] = new OmenMon.Hardware.Platform.FanProgramData(finalName, fanMode, gpuPower, levels);
+                return finalName;
+            } catch { return null; }
+        }
+#endregion
+
+#region Configuration Saving
+        // Save the configuration data to the XML file
+        public static void Save() {
+
+            // Proceed only if the filename is not empty
+            if(FilePath != "") {
+
+                try {
+
+                    // Create a new XML document
+                    XmlDocument xml = new XmlDocument();
+
+                    try {
+
+                        // Try to load the existing configuration file
+                        xml.Load(FilePath);
+
+                    } catch {
+
+                        // Otherwise, start with a pre-defined template
+                        // and do not preserve the formatting
+                        xml.LoadXml(Config.XmlTemplate);
+
+                    }
+
+                    // Create or update the configuration values
+                    SetBool(xml, XmlPrefix + "AutoConfig", AutoConfig);
+                    SetBool(xml, XmlPrefix + "AutoStartup", AutoStartup);
+                    SetBool(xml, XmlPrefix + "BiosErrorReporting", BiosErrorReporting);
+                    SetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", BiosHeartbeatPauseOnBattery);
+                    SetBool(xml, XmlPrefix + "ThermalPanicEnabled", ThermalPanicEnabled);
+                    SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
+                    SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);
+                    SetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", TemperatureUseFahrenheit);
+
+                    // Color presets (so that the settings are sorted alphabetically)
+                    // Ensure the parent element node exists, or create it
+                    XmlElement xmlColor = (XmlElement) SetPath(xml, XmlPrefixColorPresets);
+
+                    // Remove all currently-defined presets
+                    // (the user might have already deleted some of them)
+                    xmlColor.RemoveAll();
+
+                    // Iterate through the color presets
+                    foreach(string name in ColorPreset.Keys) {
+
+                        // Create an element for each preset
+                        XmlElement node = (XmlElement) xmlColor.AppendChild(
+                                xml.CreateElement(XmlElementColorPreset));
+
+                        // Store the preset name in an attribute
+                        node.SetAttribute(XmlAttrColorPresetName, name);
+
+                        // Store the preset parameter value as inner text
+                        node.InnerText = (Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Right].ValueReverse)
+                            + ":" + Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Middle].ValueReverse)
+                            + ":" + Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Left].ValueReverse)
+                            + ":" + Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Wasd].ValueReverse))
+                                .ToUpper();
+
+                    }
+
+                    // Continue with the configuration values
+                    SetUInt(xml, XmlPrefix + "EcFailLimit", (uint) EcFailLimit);
+                    SetUInt(xml, XmlPrefix + "EcMonInterval", (uint) EcMonInterval);
+                    SetUInt(xml, XmlPrefix + "EcMutexTimeout", (uint) EcMutexTimeout);
+                    SetUInt(xml, XmlPrefix + "EcRetryLimit", (uint) EcRetryLimit);
+                    SetUInt(xml, XmlPrefix + "EcWaitLimit", (uint) EcWaitLimit);
+                    SetBool(xml, XmlPrefix + "FanCountdownExtendAlways", FanCountdownExtendAlways);
+                    SetUInt(xml, XmlPrefix + "FanCountdownExtendInterval", (uint) FanCountdownExtendInterval);
+                    SetUInt(xml, XmlPrefix + "FanCountdownExtendThreshold", (uint) FanCountdownExtendThreshold);
+                    SetUInt(xml, XmlPrefix + "FanLevelMax", (uint) FanLevelMax);
+                    SetUInt(xml, XmlPrefix + "FanLevelMin", (uint) FanLevelMin);
+                    SetBool(xml, XmlPrefix + "FanLevelNeedManual", FanLevelNeedManual);
+                    SetBool(xml, XmlPrefix + "FanLevelUseEc", FanLevelUseEc);
+                    SetString(xml, XmlPrefix + "FanProgramDefault", FanProgramDefault);
+                    SetString(xml, XmlPrefix + "FanProgramDefaultAlt", FanProgramDefaultAlt);
+                    SetBool(xml, XmlPrefix + "FanProgramModeCheckFirst", FanProgramModeCheckFirst);
+                    SetBool(xml, XmlPrefix + "FanProgramSuspend", FanProgramSuspend);
+
+                    // Fan programs (again, so that the settings are
+                    // sorted alphabetically for the user's convenience)
+
+                    // Ensure the parent element node exists, or create it
+                    XmlElement xmlFan = (XmlElement) SetPath(xml, XmlPrefixFanPrograms);
+
+                    // Remove all currently-defined presets
+                    // (the user might have already deleted some of them)
+                    xmlFan.RemoveAll();
+
+                    // Iterate through the fan programs
+                    foreach(string name in FanProgram.Keys) {
+
+                        // Create an element for each program
+                        XmlElement node = (XmlElement) xmlFan.AppendChild(
+                                xml.CreateElement(XmlElementFanProgram));
+
+                        // Store the program name in an attribute
+                        node.SetAttribute(XmlAttrFanProgramName, name);
+
+                        // Create an element to store the fan mode
+                        node.AppendChild(xml.CreateElement(XmlElementFanProgramMode)).InnerText =
+                            Enum.GetName(typeof(BiosData.FanMode), FanProgram[name].FanMode);
+
+                        // Create an element to store the GPU power level
+                        node.AppendChild(xml.CreateElement(XmlElementFanProgramPower)).InnerText =
+                            Enum.GetName(typeof(BiosData.GpuPowerLevel), FanProgram[name].GpuPower);
+
+                        // For each programmed fan level
+                        foreach(byte temperature in FanProgram[name].Level.Keys) {
+
+                            // Create an element to store the level data
+                            XmlElement level = (XmlElement) node.AppendChild(xml.CreateElement(XmlElementFanProgramLevel));
+
+                            // Store the temperature
+                            level.SetAttribute(XmlAttrFanProgramLevelTemperature, Conv.GetString(temperature, 2, 10));
+
+                            // Store the CPU fan level
+                            level.AppendChild(xml.CreateElement(XmlElementFanProgramLevelCpu)).InnerText =
+                                Conv.GetString(FanProgram[name].Level[temperature][0], 2, 10);
+
+                            // Store the GPU fan level
+                            level.AppendChild(xml.CreateElement(XmlElementFanProgramLevelGpu)).InnerText =
+                                Conv.GetString(FanProgram[name].Level[temperature][1], 2, 10);
+
+                        }
+
+                    }
+
+                    // Continue with the configuration values
+                    SetString(xml, XmlPrefix + "GpuPowerDefault", GpuPowerDefault);
+                    SetUInt(xml, XmlPrefix + "GpuPowerSetInterval", (uint) GpuPowerSetInterval);
+                    SetBool(xml, XmlPrefix + "GuiCloseWindowExit", GuiCloseWindowExit);
+                    SetBool(xml, XmlPrefix + "GuiDpiChangeResize", GuiDpiChangeResize);
+                    SetBool(xml, XmlPrefix + "GuiDynamicIcon", GuiDynamicIcon);
+                    SetBool(xml, XmlPrefix + "GuiDynamicIconHasBackground", GuiDynamicIconHasBackground);
+                    SetBool(xml, XmlPrefix + "GuiStayOnTop", GuiStayOnTop);
+                    SetUInt(xml, XmlPrefix + "GuiSysInfoFontSize", (uint) GuiSysInfoFontSize);
+                    SetUInt(xml, XmlPrefix + "GuiTipDuration", (uint) GuiTipDuration);
+                    SetBool(xml, XmlPrefixKeyCustomAction + "Enabled", KeyCustomActionEnabled);
+                    SetString(xml, XmlPrefixKeyCustomAction + "ExecCmd", KeyCustomActionExecCmd);
+                    SetString(xml, XmlPrefixKeyCustomAction + "ExecArgs", KeyCustomActionExecArgs);
+                    SetBool(xml, XmlPrefixKeyCustomAction + "Minimized", KeyCustomActionMinimized);
+                    SetBool(xml, XmlPrefix + "KeyToggleColorPreset", KeyToggleColorPreset);
+                    SetBool(xml, XmlPrefix + "KeyToggleColorPresetSilent", KeyToggleColorPresetSilent);
+                    SetBool(xml, XmlPrefix + "KeyToggleFanProgram", KeyToggleFanProgram);
+                    SetBool(xml, XmlPrefix + "KeyToggleFanProgramCycleAll", KeyToggleFanProgramCycleAll);
+                    SetBool(xml, XmlPrefix + "KeyToggleFanProgramShowGuiFirst", KeyToggleFanProgramShowGuiFirst);
+                    SetBool(xml, XmlPrefix + "KeyToggleFanProgramSilent", KeyToggleFanProgramSilent);
+                    SetUInt(xml, XmlPrefix + "PresetRefreshRateHigh", (uint) PresetRefreshRateHigh);
+                    SetUInt(xml, XmlPrefix + "PresetRefreshRateLow", (uint) PresetRefreshRateLow);
+
+                    // Temperature sensors (alphabetical order maintained)
+                    // Ensure the parent element node exists, or create it
+                    XmlElement xmlTemperature = (XmlElement) SetPath(xml, XmlPrefixTemperature);
+
+                    // Remove all currently-defined sensor entries
+                    xmlTemperature.RemoveAll();
+
+                    // Iterate through the sensor entries
+                    foreach(string name in TemperatureSensor.Keys) {
+
+                        // Create an element for each sensor
+                        XmlElement node = (XmlElement) xmlTemperature.AppendChild(
+                                xml.CreateElement(XmlElementTemperatureSensor));
+
+                        // Store the preset name and source in attributes
+                        node.SetAttribute(XmlAttrTemperatureSensorName, name);
+                        node.SetAttribute(XmlAttrTemperatureSensorSource,
+                            TemperatureSensor[name].Source == PlatformData.LinkType.EmbeddedController ?
+                                XmlAttrTemperatureSensorSourceValueEc : XmlAttrTemperatureSensorSourceValueBios);
+
+                        if(!TemperatureSensor[name].Use)
+                            node.SetAttribute(XmlAttrTemperatureSensorUse, XmlSaveBoolFalse);
+
+                    }
+
+                    // Model database entries
+                    XmlElement xmlModels = (XmlElement) SetPath(xml, XmlPrefixModels);
+                    xmlModels.RemoveAll();
+                    foreach(string id in Models.Keys) {
+                        var p = Models[id];
+                        XmlElement mnode = (XmlElement) xmlModels.AppendChild(xml.CreateElement(XmlElementModel));
+                        mnode.SetAttribute(XmlAttrModelProductId, p.ProductId ?? "");
+                        mnode.SetAttribute(XmlAttrModelDisplayName, p.DisplayName ?? "");
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanLevelReg0)).InnerText     = Conv.GetString((uint) p.FanLevelReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanLevelReg1)).InnerText     = Conv.GetString((uint) p.FanLevelReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateReadReg0)).InnerText  = Conv.GetString((uint) p.FanRateReadReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateReadReg1)).InnerText  = Conv.GetString((uint) p.FanRateReadReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateWriteReg0)).InnerText = Conv.GetString((uint) p.FanRateWriteReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanRateWriteReg1)).InnerText = Conv.GetString((uint) p.FanRateWriteReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanSpeedReg0)).InnerText     = Conv.GetString((uint) p.FanSpeedReg0, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementFanSpeedReg1)).InnerText     = Conv.GetString((uint) p.FanSpeedReg1, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementCountdownReg)).InnerText     = Conv.GetString((uint) p.CountdownReg, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementManualReg)).InnerText        = Conv.GetString((uint) p.ManualReg, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementModeReg)).InnerText          = Conv.GetString((uint) p.ModeReg, 1, 10);
+                        mnode.AppendChild(xml.CreateElement(XmlElementSwitchReg)).InnerText        = Conv.GetString((uint) p.SwitchReg, 1, 10);
+                    }
+
+                    // The remaining configuration values
+                    SetUInt(xml, XmlPrefix + "UpdateIconInterval", (uint) UpdateIconInterval);
+                    SetUInt(xml, XmlPrefix + "UpdateMonitorInterval", (uint) UpdateMonitorInterval);
+                    SetUInt(xml, XmlPrefix + "UpdateProgramInterval", (uint) UpdateProgramInterval);
+
+                    // Save the file
+                    XmlWriterSettings xmlWriterSettings = new XmlWriterSettings();
+                    xmlWriterSettings.Encoding = new UTF8Encoding(XmlSaveBom);
+                    xmlWriterSettings.Indent = true;
+                    xmlWriterSettings.IndentChars = XmlSaveIndent;
+                    xmlWriterSettings.NewLineHandling = NewLineHandling.Replace;
+                    using(XmlWriter xmlWriter = XmlWriter.Create(FilePath, xmlWriterSettings))
+                        xml.Save(xmlWriter);
+
+                } catch {
+
+                    // Show an error message if the settings could not be saved
+                    App.Error("ErrConfigSave");
+
+                }
+
+            }
+
+        }
+
+        // Adds or updates a model preset in the dictionary and persists to XML
+        public static void SaveModel(OmenMon.Hardware.Platform.PlatformPreset preset) {
+            Models[preset.ProductId] = preset;
+            Save();
+        }
+
+        // Sets a Boolean flag in the XML configuration file
+        private static bool SetBool(XmlDocument xml, string node, bool value) {
+            try {
+                (SetPath(xml, node)).InnerText = value ? XmlSaveBoolTrue : XmlSaveBoolFalse;
+                return true;
+            } catch {  }
+            return false;
+        }
+
+        // Ensures all intermediate nodes exist along an XML search path,
+        // then returns the requested node as an object
+        private static XmlNode SetPath(XmlDocument xml, XmlNode parent, string path) {
+            XmlNode node;
+
+            // Split the path into individual node names
+            string[] nodes = path.Trim('/').Split('/');
+
+            // If the next node name is empty, return the parent node
+            if(string.IsNullOrEmpty(nodes[0]))
+                return parent;
+
+            // Create the node if it does not exist
+            if((node = parent.SelectSingleNode(nodes[0])) == null)
+                node = parent.AppendChild(xml.CreateElement(nodes[0]));
+
+            // Recursively process the remaining nodes along the path
+            return SetPath(xml, node,
+                path.Length > nodes[0].Length ?
+                    path.Substring(nodes[0].Length + 1) : "");
+
+        }
+
+        // Wrapper for SetPath() starting at document root
+        private static XmlNode SetPath(XmlDocument xml, string path) {
+            return SetPath(xml, (XmlNode) xml, path);
+        }
+
+        // Sets a string value in the XML configuration file
+        private static bool SetString(XmlDocument xml, string node, string value) {
+            try {
+                (SetPath(xml, node)).InnerText = value;
+                return true;
+            } catch {  }
+            return false;
+        }
+
+        // Sets an unsigned double word-sized value in the XML configuration file
+        private static bool SetUInt(XmlDocument xml, string node, uint value, int padding = 1, int nbase = 10) {
+            try {
+                (SetPath(xml, node)).InnerText = Conv.GetString(value, padding, nbase);
+                return true;
+            } catch {  }
+            return false;
+        }
+#endregion
+
+#region Error Handling
+        // Retrieves a concatenated error message
+        public static string GetError(string messageIds, Exception e = null) {
+
+            // A bit of a chicken and egg problem
+            if(Config.Locale == null)
+                return "Failed to instantiate the localizable message system";
+
+            int messageCount = 0;
+            string message = "";
+
+            // Obtain a localization string for each message identifier
+            foreach(string messageId in messageIds.Split('|')) {
+
+                // If multiple messages, add a separator
+                // between the first and the second only
+                message += messageCount > 0 ? messageCount > 1 ? "" : ": " : "";
+
+                // Append the next message
+                // Exception message is a special case
+                if(messageId == "EXCEPTION")
+                    message += e != null ? e.Message : Config.Locale.Get("ErrUnexpectedReally");
+                else
+                    message += Config.Locale.Get(messageId);
+
+                // Count the messages processed so far
+                messageCount++;
+            }
+
+            return message;
+        }
+#endregion
+
+    }
+
+}
