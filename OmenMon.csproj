@@ -61,6 +61,7 @@
     <Compile Include="App\Cli\CliOpEc.cs" />
     <Compile Include="App\Cli\CliOpProg.cs" />
     <Compile Include="App\Cli\CliOpProbe.cs" />
+    <Compile Include="App\Cli\CliOpCalibration.cs" />
     <Compile Include="App\Cli\CliOpTask.cs" />
     <Compile Include="App\Gui\Gui.cs" />
     <Compile Include="App\Gui\GuiOp.cs" />
@@ -76,6 +77,10 @@
     </Compile>
     <Compile Include="App\Gui\GuiIcon.cs" />
     <Compile Include="App\Gui\GuiMenu.cs" />
+    <Compile Include="App\Gui\GuiFormCalibration.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="App\Gui\GuiCalibrationProcessGuard.cs" />
     <Compile Include="App\Gui\GuiKbd.cs" />
     <Compile Include="App\Gui\GuiTray.cs" />
     <Compile Include="Driver\Driver.cs" />
@@ -95,6 +100,7 @@
     <Compile Include="Hardware\Ec.cs" />
     <Compile Include="Hardware\EcData.cs" />
     <Compile Include="Hardware\EcMutex.cs" />
+    <Compile Include="Hardware\EcDiffScanner.cs" />
     <Compile Include="Hardware\Fan.cs" />
     <Compile Include="Hardware\FanArray.cs" />
     <Compile Include="Hardware\FanProgram.cs" />
@@ -104,6 +110,7 @@
     <Compile Include="Hardware\PlatformData.cs" />
     <Compile Include="Hardware\PlatformPreset.cs" />
     <Compile Include="Hardware\Settings.cs" />
+    <Compile Include="Library\AutoCal.cs" />
     <Compile Include="Library\Config.cs" />
     <Compile Include="Library\ConfigData.cs" />
     <Compile Include="Library\Conv.cs" />

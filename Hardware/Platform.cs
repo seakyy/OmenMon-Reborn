@@ -52,6 +52,11 @@ namespace OmenMon.Hardware.Platform {
                 ? Config.Models[product]
                 : PlatformPreset.Default;
 
+            // Apply known-good RPM-register overrides for boards where the legacy
+            // tachometer offsets are unreliable (e.g. 8BD4 repurposes 0xB0/0xB2 as
+            // temperature sensors). User-run wizard results take precedence.
+            AutoCal.Prime(product);
+
             this.Fans = new FanArray(
                 new IFan[] {
 

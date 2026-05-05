@@ -78,7 +78,26 @@ namespace OmenMon.Hardware.Platform {
         }
 
         // Retrieves the fan speed [rpm]
+        //
+        // If the Auto-Calibration Wizard has discovered a register/mode override for
+        // this fan, the override wins over the PlatformPreset configured at construction.
+        // We deliberately do not fall back to the preset on a transient zero — if the
+        // override is wrong the user will see it immediately and can recalibrate, which
+        // is far less confusing than a silent flip-flop between the two readings.
         public virtual int GetSpeed() {
+            byte? reg = null;
+            EcDiffScanner.Mode? mode = null;
+            if(this.FanType == BiosData.FanType.Cpu && AutoCal.HasCpu) {
+                reg = AutoCal.CpuFanReg; mode = AutoCal.CpuFanMode;
+            } else if(this.FanType == BiosData.FanType.Gpu && AutoCal.HasGpu) {
+                reg = AutoCal.GpuFanReg; mode = AutoCal.GpuFanMode;
+            }
+
+            if(reg.HasValue && mode.HasValue) {
+                int rpm = AutoCal.ReadRpm(reg.Value, mode.Value);
+                if(rpm >= 0) return rpm;
+            }
+
             this.Speed.Update();
             return this.Speed.GetValue();
         }

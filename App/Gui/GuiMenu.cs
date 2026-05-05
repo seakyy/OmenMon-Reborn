@@ -140,6 +140,25 @@ namespace OmenMon.AppGui {
 #endregion
 
 #region Menu Action Events
+        // Launches the Auto-Calibration Wizard. The wizard runs the fans through a
+        // multi-step profile, dumps the EC at each step, and identifies the RPM tach
+        // registers heuristically — replacing the old manual "paste a dump on GitHub"
+        // workflow on boards where HP has shuffled the EC layout.
+        private void EventActionAutoCalibrate(object sender, EventArgs e) {
+            try {
+                var fans = Context.Op?.Platform?.Fans;
+                using(var dlg = new GuiFormCalibration(fans)) {
+                    dlg.ShowDialog();
+                }
+            } catch(Exception ex) {
+                MessageBox.Show(
+                    "Could not start Auto-Calibration: " + ex.Message,
+                    Config.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
         // Generates a hardware dump, copies it to the clipboard, and opens the GitHub issues page
         private void EventActionContribute(object sender, EventArgs e) {
             try {
@@ -791,7 +810,7 @@ namespace OmenMon.AppGui {
                 MenuKbd,
                 MenuSettings,
                 new ToolStripSeparator(),
-                new ToolStripMenuItem("Contribute Hardware Data...", null, EventActionContribute, I_CONTRIBUTE),
+                new ToolStripMenuItem("Auto-Calibrate && Diagnose...", null, EventActionAutoCalibrate, I_CONTRIBUTE),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_TOGGLE_FORM_MAIN), null, EventActionShowFormMain, I_TOGGLE_FORM_MAIN),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_EXIT), null, EventActionExit, I_EXIT)
