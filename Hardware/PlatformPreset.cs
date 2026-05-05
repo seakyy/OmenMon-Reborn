@@ -58,6 +58,8 @@ namespace OmenMon.Hardware.Platform {
 
         // 2023+ layout (Victus 16 R0xxx, Omen 16 2023+) — FanLevel at 0x11/0x12, CPUT=0xFF
         // Confirmed on 8BBE, 8BAB, 8C9C via EC probe data (EC[0x11] matches BIOS GetFanLevel)
+        // FanSpeedReg0/1 default to 0xB0/0xB2; some models (e.g. 8BAB) use different RPM
+        // registers — those must be overridden per-model in OmenMon.xml via FanSpeedReg0/1.
         public static readonly PlatformPreset Default2023 = new PlatformPreset {
             ProductId        = "?",
             DisplayName      = "Default 2023+ (Victus/Omen 2023+)",

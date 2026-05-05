@@ -41,9 +41,12 @@ namespace OmenMon.Hardware.Platform {
 
                 // Layout B — 2023+ (Victus/Omen 16 2023+): FanLevel at 0x11/0x12.
                 // Signal: CPUT at 0x57 = 0xFF (overlaps firmware string data on these models)
-                // AND EC[0x11] holds a plausible fan level (0–55), AND RPM is in range.
-                if(cput == 0xFF && rpm1Valid) {
-                    byte fanLevel = ec[0x11];
+                // AND EC[FanLevelReg0] holds a plausible fan level (0–55).
+                // RPM is NOT checked here: some 2023+ models (e.g. 8BAB) have RPM registers
+                // at a different address than 0xB0/0xB1, so rpm1Valid would be false even
+                // when the layout is correct. cput==0xFF + fanLevel range is discriminating enough.
+                if(cput == 0xFF) {
+                    byte fanLevel = ec[PlatformPreset.Default2023.FanLevelReg0];
                     if(fanLevel <= 55)
                         return FromTemplate(productId, PlatformPreset.Default2023, "2023+ layout");
                 }
