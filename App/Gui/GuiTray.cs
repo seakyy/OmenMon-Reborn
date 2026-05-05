@@ -273,9 +273,12 @@ namespace OmenMon.AppGui {
             if(!this.FormMain.Visible)
                 this.FormMain.Show();
 
-            // Bring to the front (handles the case where the window is already visible
-            // but minimized or behind other windows)
-            Gui.ShowToFront(this.FormMain.Handle);
+            // Bring to the front only when needed, to avoid flicker from forcing
+            // the window through an unnecessary minimize/restore/show sequence.
+            bool shouldBringToFront = this.FormMain.WindowState == FormWindowState.Minimized
+                || !this.FormMain.ContainsFocus;
+            if(shouldBringToFront)
+                Gui.ShowToFront(this.FormMain.Handle);
 
             // Briefly set to show in front of everything
             this.FormMain.TopMost = true;
