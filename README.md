@@ -1,5 +1,9 @@
 # OmenMon-Reborn
 
+<p align="center">
+  <a href="https://buymeacoffee.com/seakyy"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-seakyy-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
 > **Welcome to OmenMon-Reborn** — an active fork by **[seakyy](https://github.com/seakyy)**, last updated April 2026.  
 > The original OmenMon hardcoded the EC hardware layout for 2023 devices, causing severe issues (fans stuck at 100%, wrong temperatures) on newer and older HP Omen and Victus laptops.  
 >

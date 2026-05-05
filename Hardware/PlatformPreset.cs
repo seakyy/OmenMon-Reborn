@@ -38,16 +38,37 @@ namespace OmenMon.Hardware.Platform {
 #endregion
 
 #region Default
-        // Standard 2022/2023 layout (Omen 16 b1xxx/k0xxx, confirmed on i9-12900H/RTX 3070 Ti)
+        // Standard 2022 layout (Omen 16 b1xxx/k0xxx) — FanLevel at 0x34/0x35 (SRP1/SRP2)
         public static readonly PlatformPreset Default = new PlatformPreset {
             ProductId        = "?",
-            DisplayName      = "Default (Omen 16 2022/2023)",
+            DisplayName      = "Default (Omen 16 2022)",
             FanLevelReg0     = (byte) EmbeddedControllerData.Register.SRP1,
             FanLevelReg1     = (byte) EmbeddedControllerData.Register.SRP2,
             FanRateReadReg0  = (byte) EmbeddedControllerData.Register.XGS1,
             FanRateReadReg1  = (byte) EmbeddedControllerData.Register.XGS2,
             FanRateWriteReg0 = (byte) EmbeddedControllerData.Register.XSS1,
             FanRateWriteReg1 = (byte) EmbeddedControllerData.Register.XSS2,
+            FanSpeedReg0     = (byte) EmbeddedControllerData.Register.RPM1,
+            FanSpeedReg1     = (byte) EmbeddedControllerData.Register.RPM3,
+            CountdownReg     = (byte) EmbeddedControllerData.Register.XFCD,
+            ManualReg        = (byte) EmbeddedControllerData.Register.OMCC,
+            ModeReg          = (byte) EmbeddedControllerData.Register.HPCM,
+            SwitchReg        = (byte) EmbeddedControllerData.Register.SFAN
+        };
+
+        // 2023+ layout (Victus 16 R0xxx, Omen 16 2023+) — FanLevel at 0x11/0x12, CPUT=0xFF
+        // Confirmed on 8BBE, 8BAB, 8C9C via EC probe data (EC[0x11] matches BIOS GetFanLevel)
+        // FanSpeedReg0/1 default to 0xB0/0xB2; some models (e.g. 8BAB) use different RPM
+        // registers — those must be overridden per-model in OmenMon.xml via FanSpeedReg0/1.
+        public static readonly PlatformPreset Default2023 = new PlatformPreset {
+            ProductId        = "?",
+            DisplayName      = "Default 2023+ (Victus/Omen 2023+)",
+            FanLevelReg0     = 17,   // 0x11 — confirmed on 8BBE, 8BAB, 8C9C
+            FanLevelReg1     = 18,   // 0x12
+            FanRateReadReg0  = (byte) EmbeddedControllerData.Register.XGS1,
+            FanRateReadReg1  = (byte) EmbeddedControllerData.Register.XGS2,
+            FanRateWriteReg0 = 58,   // 0x3A — confirmed in all manually added 2023+ models
+            FanRateWriteReg1 = 59,   // 0x3B
             FanSpeedReg0     = (byte) EmbeddedControllerData.Register.RPM1,
             FanSpeedReg1     = (byte) EmbeddedControllerData.Register.RPM3,
             CountdownReg     = (byte) EmbeddedControllerData.Register.XFCD,
