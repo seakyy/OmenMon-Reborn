@@ -31,7 +31,7 @@ The prompt fires **once per session** only. It is wired to the form's `Shown` ev
 
 The preset is written to `OmenMon.xml` under `<Models>`. On the next launch, `Platform.InitFans()` finds it in `Config.Models` and the prompt never appears again.
 
-**If the scan fails** (values outside expected ranges), the dialog directs the user to the [Contributing Hardware Data](Contributing-Hardware-Data) tray menu item to file a report with a full EC dump.
+**If the scan fails** (values outside expected ranges), the dialog directs the user to the [Auto-Calibration Wizard](Contributing-Hardware-Data), available from the tray menu as **"Auto-Calibrate & Diagnose..."**. Unlike the read-only startup heuristic, the wizard actively drives the fans through a 4-step stress sweep, diffs the EC across steps to find the actual tachometer registers, and applies them to the live session — so even boards with non-default register layouts get correct fan readings without the user editing any XML.
 
 ---
 

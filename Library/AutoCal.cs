@@ -3,7 +3,10 @@
      //  https://omenmon.github.io/
 // OmenMon-Reborn additions © 2026 seakyy
 
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Xml;
 using OmenMon.Hardware.Ec;
 
 namespace OmenMon.Library {
@@ -49,6 +52,70 @@ namespace OmenMon.Library {
             CpuFanReg = null; CpuFanMode = null;
             GpuFanReg = null; GpuFanMode = null;
         }
+
+#region Persistence
+        // Path of the sidecar file CliOpCalibration writes after a successful scan.
+        // Kept separate from OmenMon.xml so the wizard never has to rewrite the main
+        // config and so the user can delete it to undo a calibration without losing
+        // anything else.
+        private const string SidecarFileName = "OmenMon-AutoCal.xml";
+
+        // Loads any persisted overrides written by a previous calibration run.
+        // Returns true if at least one override was restored.
+        // Called from Platform construction so the registers discovered last session
+        // take effect on the next launch without the user having to re-run the wizard.
+        public static bool Load() {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SidecarFileName);
+            if(!File.Exists(path)) return false;
+
+            try {
+                var doc = new XmlDocument();
+                doc.Load(path);
+                bool anyApplied = false;
+
+                XmlNode cpu = doc.SelectSingleNode("/AutoCalibration/CpuFan");
+                if(cpu != null && TryParseEntry(cpu, out byte cReg, out EcDiffScanner.Mode cMode)) {
+                    CpuFanReg = cReg; CpuFanMode = cMode;
+                    anyApplied = true;
+                }
+
+                XmlNode gpu = doc.SelectSingleNode("/AutoCalibration/GpuFan");
+                if(gpu != null && TryParseEntry(gpu, out byte gReg, out EcDiffScanner.Mode gMode)) {
+                    GpuFanReg = gReg; GpuFanMode = gMode;
+                    anyApplied = true;
+                }
+
+                return anyApplied;
+            } catch {
+                // Corrupt sidecar — better to fall through to the model preset / known-board
+                // mapping than to crash on startup. The next successful run will overwrite it.
+                return false;
+            }
+        }
+
+        private static bool TryParseEntry(XmlNode node, out byte reg, out EcDiffScanner.Mode mode) {
+            reg = 0; mode = EcDiffScanner.Mode.LittleEndian16;
+            string offset = node.Attributes?["offset"]?.Value;
+            string modeStr = node.Attributes?["mode"]?.Value;
+            if(string.IsNullOrEmpty(offset) || string.IsNullOrEmpty(modeStr)) return false;
+
+            // Accept either "0xB0" or "176"
+            int parsed;
+            if(offset.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) {
+                if(!int.TryParse(offset.Substring(2), System.Globalization.NumberStyles.HexNumber,
+                    System.Globalization.CultureInfo.InvariantCulture, out parsed)) return false;
+            } else {
+                if(!int.TryParse(offset, out parsed)) return false;
+            }
+            if(parsed < 0 || parsed > 0xFF) return false;
+
+            if(!Enum.TryParse(modeStr, out EcDiffScanner.Mode parsedMode)) return false;
+
+            reg = (byte) parsed;
+            mode = parsedMode;
+            return true;
+        }
+#endregion
 
 #region Known Boards
         // Mappings the project has confirmed by hand (probe data + user-reported behaviour).

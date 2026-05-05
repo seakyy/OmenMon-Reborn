@@ -201,7 +201,7 @@ namespace OmenMon.AppGui {
                         MessageBoxIcon.Information);
                 } else {
                     MessageBox.Show(
-                        $"Could not auto-detect register layout for {product}.\n\nPlease use 'Contribute Hardware Data...' from the tray menu to report your hardware to the project.",
+                        $"Could not auto-detect register layout for {product}.\n\nPlease use 'Auto-Calibrate & Diagnose...' from the tray menu to identify the correct EC registers for your hardware and report them to the project.",
                         Config.AppName,
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);

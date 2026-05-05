@@ -15,7 +15,7 @@
 |---------|-------------|
 | **Self-Healing** | Unknown HP laptop? The Smart Fallback reads your EC registers safely and writes a working profile to `OmenMon.xml`. |
 | **Fan Bug Fixed** | Ghost sensors TNT2–TNT5 that forced fans to 100% are now disabled by default for fan curves (still visible in the GUI). |
-| **One-Click Contribute** | Click "Contribute Hardware Data..." in the tray menu to copy your hardware dump to the clipboard and open a GitHub issue. |
+| **Auto-Calibration Wizard** | Click **"Auto-Calibrate & Diagnose..."** in the tray menu. OmenMon runs a guided 4-step fan stress sweep, scans the EC for fan-tachometer registers (16-bit LE, period-encoded, or direct-multiplier), applies the discovered layout to the live session, and copies a Markdown report to the clipboard for upstream contribution. The override survives a restart via a sidecar XML. |
 | **`-Probe` CLI verb** | `OmenMon.exe -Probe` generates a full WMI + BIOS + EC snapshot as Markdown — ideal for bug reports. |
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release notes, [ARCHITECTURE.md](ARCHITECTURE.md) for design rationale, and [MODIFICATIONS.md](MODIFICATIONS.md) for GPLv3 compliance information.

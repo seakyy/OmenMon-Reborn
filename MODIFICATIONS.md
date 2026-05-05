@@ -43,7 +43,7 @@ The feature takes priority over `KeyToggleFanProgram` and `KeyCustomAction` in t
   * `Library/Os.cs`: Added `GetAvailableRefreshRates` using `EnumDisplaySettings`.
 * **User Interface:**
   * `App/Gui/GuiFormMain.cs` & `App/Gui/GuiFormMainInit.cs`: Added startup hook to trigger `AutoDetector` if the device is unknown.
-  * `App/Gui/GuiMenu.cs`: Added "Contribute Hardware Data" button to copy markdown dumps to the clipboard.
+  * `App/Gui/GuiMenu.cs`: Added the "Auto-Calibrate & Diagnose..." tray entry that launches the Auto-Calibration Wizard (`App/Gui/GuiFormCalibration.cs`). The wizard runs an active 4-step fan stress sweep, scans the EC dumps via `Hardware/EcDiffScanner.cs` to discover RPM-tachometer registers (16-bit LE / period-encoded / direct-multiplier), applies the result to the live session through `Library/AutoCal.cs`, persists it to a sidecar XML, and copies a Markdown report to the clipboard for upstream contribution. Replaces the older static "Contribute Hardware Data" dump-and-paste flow.
   * `App/Gui/GuiTray.cs`: Implemented a background heartbeat timer to prevent Performance Control from sleeping.
 * **Build System:**
   * `OmenMon.csproj`: Included new `.cs` files in the compilation target.

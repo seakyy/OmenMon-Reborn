@@ -197,6 +197,11 @@ namespace OmenMon.AppCli {
         // on every refresh tick — and persists it to a sidecar XML so the override
         // survives a restart without us touching the main OmenMon.xml.
         private static void ApplyToLiveSession(EcDiffScanner.Result scan) {
+            // Wipe any prior override (from a previous wizard run, the sidecar XML, or a
+            // known-board prime) before publishing this run's results. Otherwise a scan
+            // that finds only the CPU fan would leave a stale GPU mapping in place.
+            AutoCal.Clear();
+
             if(scan.CpuFan != null) {
                 AutoCal.CpuFanReg  = scan.CpuFan.Offset;
                 AutoCal.CpuFanMode = scan.CpuFan.Mode;

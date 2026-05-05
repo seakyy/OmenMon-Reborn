@@ -41,9 +41,20 @@ namespace OmenMon.AppGui {
         private CliOp.CalibrationOutcome LastOutcome;
         private readonly IFanArray Fans;
 
+        // Worker handle so FormClosing can wait for a clean exit before the form is
+        // disposed. Without this the worker keeps Invoke()-ing into a destroyed handle
+        // and the fan sweep continues with no UI to cancel it.
+        private Task WorkerTask;
+
+        // Set to true the moment the form starts tearing down. The worker checks this
+        // before every UI marshal — once the form is closing we stop touching controls
+        // even though the cancellation token may take a tick or two to be observed.
+        private volatile bool IsClosingDown;
+
         public GuiFormCalibration(IFanArray fans) {
             this.Fans = fans;
             BuildUi();
+            this.FormClosing += OnFormClosing;
         }
 
 #region UI Construction
@@ -163,37 +174,82 @@ namespace OmenMon.AppGui {
             PrgOverall.Value = 0;
             TxtLog.Clear();
 
-            if(ChkCloseApps.Checked)
+            // Snapshot all checkbox state on the UI thread before the worker spins up.
+            // The worker's finally{} runs on a thread-pool thread and must not touch
+            // WinForms controls — doing so throws InvalidOperationException, which would
+            // skip ResumeHeavyHitters() and leave throttled processes pinned at Idle.
+            bool throttle = ChkCloseApps.Checked;
+
+            if(throttle)
                 ProcessGuard.PauseHeavyHitters(line => Log(line));
 
             Cts = new CancellationTokenSource();
             var token = Cts.Token;
             var fans = this.Fans;
 
-            // Run on a thread-pool task so the UI thread stays responsive.
-            // Progress is marshalled back via Invoke; we never touch controls from the worker.
-            Task.Run(() => {
+            // Run on a thread-pool task so the UI thread stays responsive. Progress is
+            // marshalled back via Invoke; we never touch controls from the worker. Every
+            // marshal is gated on IsClosingDown so a user dismissing the form mid-run
+            // doesn't trip an ObjectDisposedException on the (now-destroyed) handle.
+            WorkerTask = Task.Run(() => {
                 try {
                     var outcome = CliOp.AutoCalibrate(
-                        progress: (phase, detail, pct) => Invoke((Action) (() => {
+                        progress: (phase, detail, pct) => SafeInvoke(() => {
                             LblPhase.Text = phase + " — " + detail;
                             PrgOverall.Value = Math.Max(0, Math.Min(100, pct));
                             Log($"[{pct,3}%] {detail}");
-                        })),
+                        }),
                         cancel: token,
                         fans: fans);
 
-                    Invoke((Action) (() => Finished(outcome)));
+                    SafeInvoke(() => Finished(outcome));
                 } catch(Exception ex) {
-                    Invoke((Action) (() => {
+                    SafeInvoke(() => {
                         Log("Fatal: " + ex);
                         ResetButtons(success: false);
-                    }));
+                    });
                 } finally {
-                    if(ChkCloseApps.Checked)
+                    if(throttle)
                         ProcessGuard.ResumeHeavyHitters();
                 }
             });
+        }
+
+        // Marshals an action onto the UI thread, but only while the form is alive.
+        // Once IsClosingDown is set or the handle is gone, drops the call silently.
+        private void SafeInvoke(Action action) {
+            if(IsClosingDown || IsDisposed || !IsHandleCreated) return;
+            try {
+                Invoke(action);
+            } catch(ObjectDisposedException) {
+                // Form was disposed between the gate check above and the actual Invoke —
+                // benign; the FormClosing handler is responsible for cleanup.
+            } catch(InvalidOperationException) {
+                // Handle was destroyed concurrently — same situation, same handling.
+            }
+        }
+
+        // Cancels any in-flight calibration cleanly and waits for the worker to
+        // exit before the form's handle is destroyed. Without this the worker
+        // keeps invoking into a disposed form and the fan sweep continues
+        // headless — which is exactly the "ghost background task" failure mode.
+        private void OnFormClosing(object sender, FormClosingEventArgs e) {
+            if(WorkerTask == null || WorkerTask.IsCompleted) return;
+
+            // Tell the worker to stand down on the next 1 s tick, and stop accepting
+            // any further UI marshals from progress callbacks.
+            IsClosingDown = true;
+            try { Cts?.Cancel(); } catch { }
+
+            // Wait up to 20 s for the worker to clean up — long enough to cover the
+            // worst-case "between two 12 s settle ticks" window. We do this on the UI
+            // thread (which is fine because the worker no longer needs Invoke), and
+            // pump messages so the form doesn't appear frozen during the wait.
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            while(!WorkerTask.IsCompleted && DateTime.UtcNow < deadline) {
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(50);
+            }
         }
 
         private void Finished(CliOp.CalibrationOutcome outcome) {
