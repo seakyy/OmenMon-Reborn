@@ -304,7 +304,7 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
-            <!-- 8BAB: HP Omen 16 (2025) — same fan level register layout as 8BBE, confirmed via probe EC[0x11]=BIOS CPU level -->
+            <!-- 8BAB: HP Omen 16 (2025) — fan level at 0x11/0x12, RPM at 0xE3/0xE5 (0xB0/0xB2 return junk >15000 on this BIOS, rejected by constraint) -->
             <Model ProductId="8BAB" DisplayName="HP Omen 16 (2025)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
@@ -312,8 +312,8 @@
                 <FanRateReadReg1>47</FanRateReadReg1>
                 <FanRateWriteReg0>58</FanRateWriteReg0>
                 <FanRateWriteReg1>59</FanRateWriteReg1>
-                <FanSpeedReg0>176</FanSpeedReg0>
-                <FanSpeedReg1>178</FanSpeedReg1>
+                <FanSpeedReg0>227</FanSpeedReg0>
+                <FanSpeedReg1>229</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>
                 <ManualReg>98</ManualReg>
                 <ModeReg>149</ModeReg>
