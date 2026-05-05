@@ -62,15 +62,34 @@ namespace OmenMon.Library {
 
         // Loads any persisted overrides written by a previous calibration run.
         // Returns true if at least one override was restored.
+        //
+        // currentProductId is the WMI baseboard product of the running machine. The
+        // sidecar must declare a matching ProductId or it is rejected — otherwise an
+        // 8BD4 calibration carried over to a different laptop (USB stick, OneDrive
+        // sync, swapped install) would happily apply 8BD4 register offsets to a
+        // 2022 Omen and read garbage. A board mismatch deletes the file so the next
+        // wizard run starts clean.
+        //
         // Called from Platform construction so the registers discovered last session
         // take effect on the next launch without the user having to re-run the wizard.
-        public static bool Load() {
+        public static bool Load(string currentProductId) {
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SidecarFileName);
             if(!File.Exists(path)) return false;
 
             try {
                 var doc = new XmlDocument();
                 doc.Load(path);
+
+                string fileProductId = doc.DocumentElement?.GetAttribute("ProductId");
+                if(string.IsNullOrEmpty(fileProductId)
+                    || string.IsNullOrEmpty(currentProductId)
+                    || !string.Equals(fileProductId, currentProductId, StringComparison.OrdinalIgnoreCase)) {
+                    // File belongs to a different machine — discard it so we don't
+                    // poison this board's read-path with foreign offsets.
+                    try { File.Delete(path); } catch { }
+                    return false;
+                }
+
                 bool anyApplied = false;
 
                 XmlNode cpu = doc.SelectSingleNode("/AutoCalibration/CpuFan");
@@ -140,15 +159,19 @@ namespace OmenMon.Library {
             },
         };
 
-        // Pre-populates the AutoCal override for a known board. Called from Platform
-        // construction; a no-op if the user has already overridden via the wizard or
-        // restored from the sidecar XML.
+        // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
+        // Platform construction after Load(). A user-restored CPU override outranks
+        // the built-in CPU mapping, but if the GPU side wasn't restored — say, the
+        // wizard found only one fan, or the sidecar was hand-edited — the built-in
+        // GPU mapping still fills in. Without per-fan resolution, boards like 8BD4
+        // (which depend on Prime() for non-legacy tach registers) would fall back to
+        // the placeholder FanSpeedReg* in OmenMon.xml and report garbage on the
+        // un-restored fan.
         public static void Prime(string productId) {
             if(string.IsNullOrEmpty(productId)) return;
-            if(HasCpu || HasGpu) return;  // user/wizard wins
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
-            CpuFanReg = m.CpuReg; CpuFanMode = m.CpuMode;
-            GpuFanReg = m.GpuReg; GpuFanMode = m.GpuMode;
+            if(!HasCpu) { CpuFanReg = m.CpuReg; CpuFanMode = m.CpuMode; }
+            if(!HasGpu) { GpuFanReg = m.GpuReg; GpuFanMode = m.GpuMode; }
         }
 #endregion
 

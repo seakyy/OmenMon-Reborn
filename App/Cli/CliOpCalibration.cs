@@ -34,7 +34,7 @@ namespace OmenMon.AppCli {
             public EcDiffScanner.Result Scan;
             public string Markdown;            // ready to paste into a GitHub issue
             public string ProductId;
-            public string BiosVersion;
+            public string BiosBornDate;
             public List<EcDiffScanner.Sample> Samples = new List<EcDiffScanner.Sample>();
         }
 
@@ -77,7 +77,7 @@ namespace OmenMon.AppCli {
                 }
 
                 outcome.ProductId   = SafeProductId();
-                outcome.BiosVersion = SafeBiosVersion();
+                outcome.BiosBornDate = SafeBiosBornDate();
 
                 // Use the caller-supplied fan array (the GUI passes its live one). When
                 // invoked from the CLI we build a fresh Platform to get a working handle —
@@ -126,7 +126,7 @@ namespace OmenMon.AppCli {
 
                 if(outcome.Scan.IsPlausible) {
                     progress("apply", "Applying detected registers to live session…", 98);
-                    ApplyToLiveSession(outcome.Scan);
+                    ApplyToLiveSession(outcome.Scan, outcome.ProductId);
                 }
 
                 outcome.Markdown = BuildReport(outcome);
@@ -184,9 +184,11 @@ namespace OmenMon.AppCli {
             catch { return "?"; }
         }
 
-        private static string SafeBiosVersion() {
-            // Use the BIOS born-date as the identifying string — same field the existing
-            // Probe report uses. Avoids pulling in System.Management for one query.
+        private static string SafeBiosBornDate() {
+            // BIOS born-date (yyyymmdd, e.g. 20240625) — the same field the existing Probe
+            // report uses, and reliably available without pulling in System.Management.
+            // Reported as "BIOS Build Date" in the Markdown so maintainers don't mistake
+            // it for an SMBIOS firmware version string.
             try { return Hw.Bios?.GetBornDate() ?? "?"; }
             catch { return "?"; }
         }
@@ -196,7 +198,7 @@ namespace OmenMon.AppCli {
         // Publishes the scan result to OmenMon.Library.AutoCal — read by Fan.GetSpeed()
         // on every refresh tick — and persists it to a sidecar XML so the override
         // survives a restart without us touching the main OmenMon.xml.
-        private static void ApplyToLiveSession(EcDiffScanner.Result scan) {
+        private static void ApplyToLiveSession(EcDiffScanner.Result scan, string productId) {
             // Wipe any prior override (from a previous wizard run, the sidecar XML, or a
             // known-board prime) before publishing this run's results. Otherwise a scan
             // that finds only the CPU fan would leave a stale GPU mapping in place.
@@ -214,8 +216,13 @@ namespace OmenMon.AppCli {
             try {
                 string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "OmenMon-AutoCal.xml");
                 var sb = new StringBuilder();
+                // ProductId is stamped into the root element so AutoCal.Load() can reject
+                // a sidecar that came from a different machine (USB-stick installs, OneDrive
+                // sync, swapped drives). XML-encode it defensively even though baseboard IDs
+                // are alphanumeric in every sample we've seen — never trust an external string.
+                string safeId = System.Security.SecurityElement.Escape(productId ?? "");
                 sb.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-                sb.AppendLine("<AutoCalibration>");
+                sb.AppendLine($"<AutoCalibration ProductId=\"{safeId}\">");
                 if(scan.CpuFan != null)
                     sb.AppendLine($"  <CpuFan offset=\"0x{scan.CpuFan.Offset:X2}\" mode=\"{scan.CpuFan.Mode}\" />");
                 if(scan.GpuFan != null)
@@ -240,7 +247,7 @@ namespace OmenMon.AppCli {
             sb.AppendLine("## Device");
             sb.AppendLine();
             sb.AppendLine($"- **Product ID:** `{o.ProductId}`");
-            sb.AppendLine($"- **BIOS Version:** `{o.BiosVersion}`");
+            sb.AppendLine($"- **BIOS Build Date:** `{o.BiosBornDate}`");
             sb.AppendLine($"- **EC Read Method:** ACPI/Omen kernel driver");
             sb.AppendLine($"- **Profile:** {string.Join(" → ", o.Samples.Select(s => s.LevelPercent + "%"))}");
             sb.AppendLine();
