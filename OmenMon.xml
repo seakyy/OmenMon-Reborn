@@ -226,11 +226,16 @@
         <PresetRefreshRateHigh>165</PresetRefreshRateHigh>
         <PresetRefreshRateLow>60</PresetRefreshRateLow>
         <!-- Temperature Sensors -->
-        <!-- Note: Unreliable EC sensors (TNT2-TNT5) and BIOS are disabled for fan curves by default to prevent 100% Fan Bugs -->
+        <!-- TNT2-TNT5 disabled: unreliable on most devices (false spikes force fans to 100%).     -->
+        <!-- BIOS source enabled: on 2023+ HP OMEN/Victus devices (8BBE, 8BAB, 8C9C, …) the      -->
+        <!-- EC CPUT register (0x57) overlaps with firmware string data and always returns 0xFF.   -->
+        <!-- The WMI BIOS temperature (GetTemperature) is the only valid CPU-temp proxy on those  -->
+        <!-- models. On older devices BIOS reads slightly lower, but max(BIOS, CPUT, GPTM) still  -->
+        <!-- returns the correct maximum — enabling it here causes no regression.                  -->
         <Temperature>
             <Sensor Name="CPUT" Source="EC" />
             <Sensor Name="GPTM" Source="EC" />
-            <Sensor Name="BIOS" Source="BIOS" Use="false" />
+            <Sensor Name="BIOS" Source="BIOS" Use="true" />
             <Sensor Name="RTMP" Source="EC" />
             <Sensor Name="TMP1" Source="EC" />
             <Sensor Name="TNT2" Source="EC" Use="false" />

@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **`ThermalPanicEnabled` default changed to `false`** (was `true`). Thermal Panic is an opt-in feature. Enabling it with `ThermalPanicEnabled=true` in `OmenMon.xml` also requires `GuiDynamicIcon=true` so that sensor readings are already being taken. Without the dynamic icon, no panic check runs.
 
-- **Tray tooltip fan RPM** is now only read when the main form is already visible and polling the EC — no additional hardware access when the window is hidden.
+- **Tray tooltip** now shows only CPU/GPU temperatures from cached values — fan RPM is intentionally omitted to avoid WinRing0 EC reads outside the dynamic-icon hardware-access budget.
 
 ## [1.2.0-reborn] - 2026-05-04
 
@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Fan Profile Export / Import:** Share fan curves with the community. In the tray **Fan** submenu, click **"Export \<Name\>..."** to save any defined fan program as a portable `*.xml` file. Click **Import Fan Profile...** to load a shared curve — it is immediately added to the Fan menu and saved. Exported files use the same `<Program>` schema as `OmenMon.xml`, so they're human-readable and easy to tweak.
 
-- **Rich tray tooltip (Dual-Temp):** The tray icon tooltip now always shows `CPU: 78°C | GPU: 72°C | Fan: 3200/3100 RPM`, even when no fan program is running and the dynamic icon is disabled. During Thermal Panic the tooltip adds `⚠ THERMAL PANIC — fans at MAX`. Respects the °C/°F setting.
+- **Rich tray tooltip (Dual-Temp):** The tray icon tooltip now shows `CPU: 78°C | GPU: 72°C` from cached sensor values, even when no fan program is running. During Thermal Panic the tooltip adds `⚠ THERMAL PANIC — fans at MAX`. Respects the °C/°F setting. Fan RPM is omitted to avoid extra WinRing0 EC reads per tick.
 
 ### Changed
 

@@ -228,6 +228,10 @@ namespace OmenMon.AppGui {
         // Sets the notification icon tooltip text
         public void SetNotifyText(string text = "") {
 
+            // Clamp to the OS hard limit to prevent ArgumentOutOfRangeException
+            if(text.Length >= Os.NOTIFY_ICON_TEXT_MAXLEN)
+                text = text.Substring(0, Os.NOTIFY_ICON_TEXT_MAXLEN - 4) + "...";
+
             // Use reflection to bypass the 64-character limit
             Os.SetNotifyIconText(Context.Notification, text);
 
@@ -361,6 +365,13 @@ namespace OmenMon.AppGui {
                         ? string.Empty
                         : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
                     this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
+
+                } else if(this.Op.IsThermalPanic) {
+
+                    // Dynamic icon was disabled while panic was active: clear the stuck state
+                    // so fans are not left at maximum indefinitely. Passing temp=0 guarantees
+                    // the recovery branch fires (0 <= any hysteresis threshold).
+                    this.Op.CheckThermalPanic(0);
 
                 }
 
