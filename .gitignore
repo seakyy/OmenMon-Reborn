@@ -1,6 +1,7 @@
-# OmenMon
-# Git Ignored Files
-
-# Build Output
+.vs/
+.claude/
 Bin/
 Obj/
+OmenMon.manifest
+OmenMon.resx
+OmenMon.exe.config

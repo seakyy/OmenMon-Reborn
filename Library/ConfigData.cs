@@ -44,6 +44,17 @@ namespace OmenMon.Library {
         // with the BIOS battery-manager and can trigger unexpected hibernation after extended use.
         public static bool BiosHeartbeatPauseOnBattery = true;
 
+        // Thermal Panic Mode: when max sensor temperature exceeds the threshold, OmenMon
+        // forces both fans to maximum and shows a balloon alert. Deactivates with hysteresis.
+        // Only active when GuiDynamicIcon=true (requires live sensor reads already happening).
+        // Default is false (opt-in) to prevent false triggers or BIOS interference.
+        public static bool ThermalPanicEnabled = false;
+        public static byte ThermalPanicTemperature = 90;  // activate at [°C]
+        public static byte ThermalPanicHysteresis  =  5;  // deactivate at (threshold - this)
+
+        // Display temperature in Fahrenheit instead of Celsius
+        public static bool TemperatureUseFahrenheit = false;
+
         // Color presets (overriden at runtime if found in the configuration file)
         public static SortedDictionary<string, BiosData.ColorTable> ColorPreset =
             new SortedDictionary<string, BiosData.ColorTable>() {

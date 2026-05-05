@@ -16,6 +16,13 @@
         <BiosErrorReporting>true</BiosErrorReporting>
         <!-- Pause BIOS heartbeat while on battery to prevent forced hibernation (default: true) -->
         <BiosHeartbeatPauseOnBattery>true</BiosHeartbeatPauseOnBattery>
+        <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
+        <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
+        <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->
+        <!-- REQUIRES GuiDynamicIcon=true. Set to true only after verifying your sensors report realistic values. -->
+        <ThermalPanicEnabled>false</ThermalPanicEnabled>
+        <ThermalPanicTemperature>90</ThermalPanicTemperature>
+        <ThermalPanicHysteresis>5</ThermalPanicHysteresis>
         <!-- Color Backlight -->
         <!-- Note: two default entries are hard-coded in the application
              and will appear if there is nothing else to show instead -->
@@ -219,11 +226,16 @@
         <PresetRefreshRateHigh>165</PresetRefreshRateHigh>
         <PresetRefreshRateLow>60</PresetRefreshRateLow>
         <!-- Temperature Sensors -->
-        <!-- Note: Unreliable EC sensors (TNT2-TNT5) and BIOS are disabled for fan curves by default to prevent 100% Fan Bugs -->
+        <!-- TNT2-TNT5 disabled: unreliable on most devices (false spikes force fans to 100%).     -->
+        <!-- BIOS source enabled: on 2023+ HP OMEN/Victus devices (8BBE, 8BAB, 8C9C, …) the      -->
+        <!-- EC CPUT register (0x57) overlaps with firmware string data and always returns 0xFF.   -->
+        <!-- The WMI BIOS temperature (GetTemperature) is the only valid CPU-temp proxy on those  -->
+        <!-- models. On older devices BIOS reads slightly lower, but max(BIOS, CPUT, GPTM) still  -->
+        <!-- returns the correct maximum — enabling it here causes no regression.                  -->
         <Temperature>
             <Sensor Name="CPUT" Source="EC" />
             <Sensor Name="GPTM" Source="EC" />
-            <Sensor Name="BIOS" Source="BIOS" Use="false" />
+            <Sensor Name="BIOS" Source="BIOS" Use="true" />
             <Sensor Name="RTMP" Source="EC" />
             <Sensor Name="TMP1" Source="EC" />
             <Sensor Name="TNT2" Source="EC" Use="false" />
@@ -277,8 +289,53 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8BAD: HP Omen 17 (2023) — FanLevel at 0x34/0x35, confirmed via probe EC[0x34]=0x0D=CPU, EC[0x35]=0x0D=GPU (matches BIOS GetFanLevel) -->
+            <Model ProductId="8BAD" DisplayName="HP Omen 17 (2023)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
             <!-- 8BAB: HP Omen 16 (2025) — same fan level register layout as 8BBE, confirmed via probe EC[0x11]=BIOS CPU level -->
             <Model ProductId="8BAB" DisplayName="HP Omen 16 (2025)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A25: HP Victus 16-d1xxx (2022, 12th gen Intel) — GetMaxFan=True sets 0xFF at 0x34/0x35; rate regs confirmed at 0x2E/0x2F; Fan2=Unsupported -->
+            <Model ProductId="8A25" DisplayName="HP Victus 16 (2022, d1xxx)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8C9C: HP Victus 16 (2024) — same new EC layout; EC[0x11]=0x12=BIOS CPU=0x12; no backlight (HasBacklight=False) -->
+            <Model ProductId="8C9C" DisplayName="HP Victus 16 (2024)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
                 <FanRateReadReg0>46</FanRateReadReg0>

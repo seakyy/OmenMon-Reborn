@@ -3,6 +3,45 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.1-reborn] - 2026-05-05 (Hotfix)
+
+### Fixed
+
+- **Hibernate regression on AC and battery:** v1.2.0 introduced two new hardware-access patterns that caused the same BIOS interference as the original v1.1.0 hibernate bug:
+  1. `BuildTrayTooltip()` called `Fan.GetSpeed()` via WinRing0 every 3 seconds, even when neither the main form nor the dynamic icon was active. This added unsanctioned EC reads that had not existed previously.
+  2. `CheckThermalPanic()` called `Platform.Fans.SetMax(true)` via BIOS Cmd 0x27, which — like the heartbeat `GetFanCount()` — can trigger HP firmware's power-management safeguards and force hibernate.
+  Both calls now only happen when the dynamic icon is active (same hardware-access budget as v1.1.x).
+
+- **`ThermalPanicEnabled` default changed to `false`** (was `true`). Thermal Panic is an opt-in feature. Enabling it with `ThermalPanicEnabled=true` in `OmenMon.xml` also requires `GuiDynamicIcon=true` so that sensor readings are already being taken. Without the dynamic icon, no panic check runs.
+
+- **Tray tooltip** now shows only CPU/GPU temperatures from cached values — fan RPM is intentionally omitted to avoid WinRing0 EC reads outside the dynamic-icon hardware-access budget.
+- **Tray tooltip CPU temp fallback:** On devices where the EC CPUT register (0x57) overlaps with firmware data and returns 0xFF (8C9C, 8BBE, and similar 2023+ models), the tray tooltip now falls back to the WMI BIOS temperature sensor instead of showing `--`.
+- **Tooltip crash fix:** `SetNotifyText` now clamps the tooltip to 127 characters before calling `Os.SetNotifyIconText`, preventing an `ArgumentOutOfRangeException` crash when a long fan program name causes the string to exceed the OS limit.
+- **Thermal Panic stuck-fans fix:** If `GuiDynamicIcon` is disabled while Thermal Panic is active, the stuck state is now cleared immediately (fans restored from max).
+- **Config validation:** `ThermalPanicEnabled` is automatically disabled when `ThermalPanicTemperature` is 0 or `ThermalPanicHysteresis` ≥ `ThermalPanicTemperature`, preventing fans from being stuck at max due to nonsensical config values.
+
+### Added
+
+- **Model support: HP Omen 17 (2023, 8BAD)** — EC register layout confirmed via probe data (FanLevel at 0x34/0x35, matching BIOS GetFanLevel CPU=0x0D GPU=0x0D).
+- **Model support: HP Victus 16 (2022, d1xxx / 8A25)** — added with standard register layout (FanRate confirmed at 0x2E/0x2F); note that Fan2 is unsupported on this model.
+
+## [1.2.0-reborn] - 2026-05-04
+
+### Added
+
+- **Thermal Panic Mode:** When the maximum sensor temperature reaches the configured threshold (default 90 °C), OmenMon instantly forces both fans to maximum speed and shows a balloon alert. Fans are restored automatically once the temperature drops 5 °C below the threshold (configurable hysteresis). Configurable via `ThermalPanicEnabled`, `ThermalPanicTemperature`, `ThermalPanicHysteresis` in `OmenMon.xml`.
+
+- **Fahrenheit display toggle:** Temperatures can now be shown in °F instead of °C. Toggle via **Settings → Show temperature in °F** in the tray menu. Applies to the main window sensor readouts, the dynamic tray icon, and the tray tooltip. Saved to `OmenMon.xml` (`TemperatureUseFahrenheit`).
+
+- **Fan Profile Export / Import:** Share fan curves with the community. In the tray **Fan** submenu, click **"Export \<Name\>..."** to save any defined fan program as a portable `*.xml` file. Click **Import Fan Profile...** to load a shared curve — it is immediately added to the Fan menu and saved. Exported files use the same `<Program>` schema as `OmenMon.xml`, so they're human-readable and easy to tweak.
+
+- **Rich tray tooltip (Dual-Temp):** The tray icon tooltip now shows `CPU: 78°C | GPU: 72°C` from cached sensor values, even when no fan program is running. During Thermal Panic the tooltip adds `⚠ THERMAL PANIC — fans at MAX`. Respects the °C/°F setting. Fan RPM is omitted to avoid extra WinRing0 EC reads per tick.
+
+### Changed
+
+- Thermal Panic check now runs on every icon-update tick (every ~3 s) regardless of whether the main window is open.
+- The tray tooltip is now updated on every icon-update tick instead of only during fan program callbacks.
+
 ## [1.1.1-reborn] - 2026-05-04
 
 ### Fixed
