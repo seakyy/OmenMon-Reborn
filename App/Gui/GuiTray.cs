@@ -266,11 +266,16 @@ namespace OmenMon.AppGui {
             if(this.FormMain == null)
                 this.FormMain = new GuiFormMain();
 
-            // Show the form if not visible
-            if(!this.FormMain.Visible) {
-                Gui.ShowToFront(this.FormMain.Handle);
+            // Show the form if not visible.
+            // Show() must come before ShowToFront() — calling Win32 ShowWindow on a
+            // not-yet-shown form prevents WinForms from setting WS_EX_APPWINDOW,
+            // which is the extended style that makes the taskbar button appear.
+            if(!this.FormMain.Visible)
                 this.FormMain.Show();
-                }
+
+            // Bring to the front (handles the case where the window is already visible
+            // but minimized or behind other windows)
+            Gui.ShowToFront(this.FormMain.Handle);
 
             // Briefly set to show in front of everything
             this.FormMain.TopMost = true;
