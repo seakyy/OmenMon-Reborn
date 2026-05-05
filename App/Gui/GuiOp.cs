@@ -267,6 +267,16 @@ namespace OmenMon.AppGui {
 
         }
 
+        // Silently clears the Thermal Panic state and restores fan control.
+        // Used when the dynamic icon is disabled while panic is active — no balloon tip is shown
+        // because the trigger was a config change, not a temperature drop.
+        public void ClearThermalPanic() {
+            if(IsThermalPanic) {
+                IsThermalPanic = false;
+                Platform.Fans.SetMax(false);
+            }
+        }
+
         // Checks temperature and activates or deactivates Thermal Panic Mode
         public void CheckThermalPanic(byte maxTemp) {
 

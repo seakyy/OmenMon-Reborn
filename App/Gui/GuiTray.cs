@@ -368,10 +368,10 @@ namespace OmenMon.AppGui {
 
                 } else if(this.Op.IsThermalPanic) {
 
-                    // Dynamic icon was disabled while panic was active: clear the stuck state
-                    // so fans are not left at maximum indefinitely. Passing temp=0 guarantees
-                    // the recovery branch fires (0 <= any hysteresis threshold).
-                    this.Op.CheckThermalPanic(0);
+                    // Dynamic icon was disabled while panic was active: silently restore fans.
+                    // ClearThermalPanic() skips the "Temperature normalized" balloon — the user
+                    // turned off the icon deliberately, not because the temperature dropped.
+                    this.Op.ClearThermalPanic();
 
                 }
 

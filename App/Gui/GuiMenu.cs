@@ -427,10 +427,12 @@ namespace OmenMon.AppGui {
             string progName = ((ToolStripMenuItem) sender).Name.Remove(0, I_FAN_EXPORT.Length);
             if(!Config.FanProgram.ContainsKey(progName)) return;
 
+            string safeFileName = string.Concat(progName.Split(
+                System.IO.Path.GetInvalidFileNameChars())).Replace(" ", "_") + "_FanProfile.xml";
             using var dlg = new SaveFileDialog {
                 Title = "Export Fan Profile — " + progName,
                 Filter = "OmenMon Fan Profile (*.xml)|*.xml",
-                FileName = progName.Replace(" ", "_") + "_FanProfile.xml",
+                FileName = safeFileName,
                 DefaultExt = "xml"
             };
             if(dlg.ShowDialog() != DialogResult.OK) return;
