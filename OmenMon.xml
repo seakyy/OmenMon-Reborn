@@ -289,10 +289,40 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8BAD: HP Omen 17 (2023) — FanLevel at 0x34/0x35, confirmed via probe EC[0x34]=0x0D=CPU, EC[0x35]=0x0D=GPU (matches BIOS GetFanLevel) -->
+            <Model ProductId="8BAD" DisplayName="HP Omen 17 (2023)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
             <!-- 8BAB: HP Omen 16 (2025) — same fan level register layout as 8BBE, confirmed via probe EC[0x11]=BIOS CPU level -->
             <Model ProductId="8BAB" DisplayName="HP Omen 16 (2025)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A25: HP Victus 16-d1xxx (2022, 12th gen Intel) — GetMaxFan=True sets 0xFF at 0x34/0x35; rate regs confirmed at 0x2E/0x2F; Fan2=Unsupported -->
+            <Model ProductId="8A25" DisplayName="HP Victus 16 (2022, d1xxx)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
                 <FanRateReadReg0>46</FanRateReadReg0>
                 <FanRateReadReg1>47</FanRateReadReg1>
                 <FanRateWriteReg0>58</FanRateWriteReg0>

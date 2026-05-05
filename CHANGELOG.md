@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.2.1-reborn] - 2026-05-04 (Hotfix)
+## [1.2.1-reborn] - 2026-05-05 (Hotfix)
 
 ### Fixed
 
@@ -15,6 +15,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`ThermalPanicEnabled` default changed to `false`** (was `true`). Thermal Panic is an opt-in feature. Enabling it with `ThermalPanicEnabled=true` in `OmenMon.xml` also requires `GuiDynamicIcon=true` so that sensor readings are already being taken. Without the dynamic icon, no panic check runs.
 
 - **Tray tooltip** now shows only CPU/GPU temperatures from cached values — fan RPM is intentionally omitted to avoid WinRing0 EC reads outside the dynamic-icon hardware-access budget.
+- **Tray tooltip CPU temp fallback:** On devices where the EC CPUT register (0x57) overlaps with firmware data and returns 0xFF (8C9C, 8BBE, and similar 2023+ models), the tray tooltip now falls back to the WMI BIOS temperature sensor instead of showing `--`.
+- **Tooltip crash fix:** `SetNotifyText` now clamps the tooltip to 127 characters before calling `Os.SetNotifyIconText`, preventing an `ArgumentOutOfRangeException` crash when a long fan program name causes the string to exceed the OS limit.
+- **Thermal Panic stuck-fans fix:** If `GuiDynamicIcon` is disabled while Thermal Panic is active, the stuck state is now cleared immediately (fans restored from max).
+- **Config validation:** `ThermalPanicEnabled` is automatically disabled when `ThermalPanicTemperature` is 0 or `ThermalPanicHysteresis` ≥ `ThermalPanicTemperature`, preventing fans from being stuck at max due to nonsensical config values.
+
+### Added
+
+- **Model support: HP Omen 17 (2023, 8BAD)** — EC register layout confirmed via probe data (FanLevel at 0x34/0x35, matching BIOS GetFanLevel CPU=0x0D GPU=0x0D).
+- **Model support: HP Victus 16 (2022, d1xxx / 8A25)** — added with standard register layout (FanRate confirmed at 0x2E/0x2F); note that Fan2 is unsupported on this model.
 
 ## [1.2.0-reborn] - 2026-05-04
 

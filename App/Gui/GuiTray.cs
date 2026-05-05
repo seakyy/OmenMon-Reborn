@@ -391,13 +391,18 @@ namespace OmenMon.AppGui {
             try {
                 // Temperature: use LastMaxTemperature (set by GetMaxTemperature or fan program)
                 // GetValue() on each sensor returns the last Update()-cached result — no EC access
-                int cpuTemp = 0, gpuTemp = 0;
+                int cpuTemp = 0, gpuTemp = 0, biosTemp = 0;
                 for(int i = 0; i < this.Op.Platform.Temperature.Length; i++) {
                     string name = this.Op.Platform.Temperature[i].GetName();
                     int val = this.Op.Platform.Temperature[i].GetValue();
                     if(name == "CPUT" && val > 0) cpuTemp = val;
                     else if(name == "GPTM" && val > 0) gpuTemp = val;
+                    else if(name == "BIOS" && val > 0) biosTemp = val;
                 }
+                // On devices where EC CPUT register (0x57) overlaps with firmware data and
+                // returns 0xFF (filtered out by MaxBelievableTemperature), fall back to the
+                // WMI BIOS temperature — the only valid CPU-temp proxy on those models (8C9C, 8BBE, …)
+                if(cpuTemp == 0 && biosTemp > 0) cpuTemp = biosTemp;
 
                 string unit = Config.TemperatureUseFahrenheit ? "°F" : "°C";
                 int cpu = Config.TemperatureUseFahrenheit && cpuTemp > 0 ? (cpuTemp * 9 / 5) + 32 : cpuTemp;
