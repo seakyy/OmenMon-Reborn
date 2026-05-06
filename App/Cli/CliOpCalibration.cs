@@ -209,10 +209,17 @@ namespace OmenMon.AppCli {
                 return;
             }
             fans.SetMax(false);
-            // Translate % to krpm. Most HP fans top out near 5.5 krpm; this gives us
-            // a coarse-but-distinct level per profile step, which is all the heuristic needs.
-            byte krpm = (byte) Math.Round(percent * 5.5 / 100.0);
-            try { fans.SetLevels(new byte[] { krpm, krpm }); } catch { }
+            // SetLevels takes the same units as the GUI trackbars: integer steps
+            // up to Config.FanLevelMax (default 55, i.e. units of 100 RPM →
+            // ~5.5k RPM full scale). The previous "percent * 5.5 / 100" produced
+            // values 0–6 instead of 0–55, so the sweep barely moved the fans and
+            // the EC diff was too small to reliably pick a tach register out of
+            // the noise. Clamp to the configured maximum and convert through it.
+            int clamped = Math.Max(0, Math.Min(100, percent));
+            int level = (int) Math.Round(clamped * Config.FanLevelMax / 100.0);
+            level = Math.Max(0, Math.Min(Config.FanLevelMax, level));
+            byte fanLevel = (byte) level;
+            try { fans.SetLevels(new byte[] { fanLevel, fanLevel }); } catch { }
             // Also drive the rate registers so we cover both 2022 and 2023+ layouts.
             try { fans.Fan[0].SetRate((byte) percent); } catch { }
             try { fans.Fan[1].SetRate((byte) percent); } catch { }

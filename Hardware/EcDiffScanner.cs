@@ -140,7 +140,7 @@ namespace OmenMon.Hardware.Ec {
                 if(values[0] > RpmIdleCeiling) continue;       // idle reading too high
                 if(max - min < 500) continue;                  // delta too small for a tach
 
-                int score = MonotonicScore(values, ascending: true);
+                int score = MonotonicScore(values, ascending: true, RpmInversionTolerance);
                 if(score <= 0) continue;
                 score += (max - min) / 100;                    // bigger swing → higher confidence
 
@@ -169,7 +169,7 @@ namespace OmenMon.Hardware.Ec {
                 if(min < PeriodMin || max > PeriodMax) continue;
                 if(values[0] < values[n - 1]) continue;        // period-encoded must DECREASE with load
 
-                int score = MonotonicScore(values, ascending: false);
+                int score = MonotonicScore(values, ascending: false, ByteInversionTolerance);
                 if(score <= 0) continue;
                 score += (max - min);
 
@@ -201,7 +201,7 @@ namespace OmenMon.Hardware.Ec {
                 if(values[n - 1] < DirectMultMaxFloor) continue;    // top step never reached real RPM
                 if(values[n - 1] <= values[0]) continue;            // must rise with load
 
-                int score = MonotonicScore(values, ascending: true);
+                int score = MonotonicScore(values, ascending: true, ByteInversionTolerance);
                 if(score <= 0) continue;
                 // Score the implied RPM swing in the same "hundreds of RPM" unit
                 // as the 16-bit pass (which divides by 100). DirectMultiplier values
@@ -221,21 +221,34 @@ namespace OmenMon.Hardware.Ec {
 
         // Returns a positive score for a sequence that moves consistently in the
         // expected direction. Allows one minor inversion to tolerate sensor jitter.
-        private static int MonotonicScore(int[] values, bool ascending) {
+        //
+        // The inversion tolerance must match the value scale: 16-bit RPM values can
+        // jitter by tens of RPM between samples and still be the same monotonic
+        // signal, but 8-bit byte encodings (period / direct-multiplier) move in
+        // single-digit steps and a tolerance of 50 would silently swallow real
+        // backward steps — admitting noise registers as plausible candidates.
+        // Each caller passes the tolerance appropriate to its unit.
+        private static int MonotonicScore(int[] values, bool ascending, int inversionTolerance) {
             int inversions = 0, runs = 0;
             for(int i = 1; i < values.Length; i++) {
                 int d = values[i] - values[i - 1];
                 if(ascending) {
-                    if(d < -50) inversions++;
+                    if(d < -inversionTolerance) inversions++;
                     else if(d > 0) runs++;
                 } else {
-                    if(d > 50) inversions++;
+                    if(d > inversionTolerance) inversions++;
                     else if(d < 0) runs++;
                 }
             }
             if(inversions > 1) return 0;
             return 10 * runs - 5 * inversions;
         }
+
+        // Tolerances picked to absorb expected sensor jitter without masking real
+        // backward steps. RpmTolerance is in raw RPM; ByteTolerance is in raw byte
+        // units (so for DirectMultiplier8 it lets ±200 RPM slip through).
+        private const int RpmInversionTolerance = 50;
+        private const int ByteInversionTolerance = 2;
 
         private static List<Candidate> Deduplicate(List<Candidate> hits) {
             var le16 = hits.Where(h => h.Mode == Mode.LittleEndian16).ToList();
