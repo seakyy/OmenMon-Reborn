@@ -278,7 +278,7 @@ Some firmware versions require a specific adapter wattage. If you see "AC Power 
 
 ### CPU temperature not displayed
 
-Your device's EC register layout may differ from the default. Run **Contribute Hardware Data** from the tray menu to help identify the correct registers for your model.
+Your device's EC register layout may differ from the default. Run **Auto-Calibrate & Diagnose...** from the tray menu — the wizard sweeps the fans through four speed steps, scans the EC for the registers that behave like tachometers, and applies the correct ones to the live session automatically. The override is saved to `OmenMon-AutoCal.xml` next to the executable and reloaded on the next launch.
 
 ### CPU temperature not shown or wrong zone count (RGB)
 
@@ -298,9 +298,9 @@ OmenMon uses `WinRing0.sys` for EC access. If BSOD occurs:
 
 ## Reporting Issues
 
-1. Open OmenMon → right-click tray → **Contribute Hardware Data** (attaches your EC register layout).
-2. Run `OmenMon.exe -Probe` and copy the output.
-3. File a bug at: **https://github.com/seakyy/OmenMon-Reborn/issues/new**
+1. Open OmenMon → right-click tray → **Auto-Calibrate & Diagnose...** and run the wizard. It applies the discovered EC registers to the live session and copies a Markdown report (board ID, BIOS born-date, ranked candidates, full 4-step EC sweep) to the clipboard.
+2. If the issue is unrelated to fan readings, you can also run `OmenMon.exe -Probe` for a static snapshot.
+3. File a bug at: **https://github.com/seakyy/OmenMon-Reborn/issues/new** and paste the wizard's report (or the `-Probe` output) into the issue body.
 
 Include:
 - Your HP model (e.g., `HP OMEN 16-b0075ng`)

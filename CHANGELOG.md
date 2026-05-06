@@ -3,6 +3,32 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0-reborn] - 2026-05-05
+
+### Added
+
+- **Auto-Calibration Wizard:** Replaces the old manual "Contribute Hardware Data" flow on boards where HP has shuffled the EC register layout (Victus 2024+, post-8BD4 generation). Open the tray menu → **Auto-Calibrate & Diagnose…** to launch a guided 4-step stress sweep (0 → 30 → 70 → 100 % fan rate, ~12 s settle each). At every step OmenMon snapshots all 256 EC bytes, runs a heuristic diff scanner across the samples, and identifies the registers that behave like fan tachometers.
+
+- **Heuristic scanner with three RPM-format detectors** (`Hardware/EcDiffScanner.cs`):
+  - **Pattern A (16-bit Little-Endian):** classic Omen layout — `(r, r+1)` ushort that idles low and rises monotonically into the 1.5–8 krpm window.
+  - **Pattern B (Period-Encoded 8-bit):** newer boards — single byte that **falls** monotonically with load (higher value = slower fan).
+  - **Pattern C (Direct Multiplier 8-bit):** HP Victus 2024+ (e.g. 8BD4) — single byte that **rises** monotonically with load and where `byte * 100 = RPM`. Filters: byte ∈ \[10, 80\], idle ≤ 22, max ≥ 25, swing ≥ 10.
+  - Every candidate must clear a monotonic-direction score across all sweep steps before being accepted, so a single noisy reading can't poison the result. Static bytes, slow-movers (Δ < 15, typical temperature sensors), and OmenMon's own write registers (XSS1/2, SRP1/2, 0x3A/B, OMCC, XFCD, FFFF, SFAN) are excluded up front.
+
+- **Live read-path override:** On a successful scan, `Fan.GetSpeed()` immediately switches to the discovered registers + mode for the current session — no restart required. Pattern-specific math (×100, period, or 16-bit LE) is applied before the value reaches the UI. Persisted to a sidecar `OmenMon-AutoCal.xml` so the override survives a restart without the wizard touching the main `OmenMon.xml`.
+
+- **Markdown report generator:** Wizard output is auto-copied to the clipboard, saved as `OmenMon-Calibration-<timestamp>.md` next to the executable, and (opt-in) opens the GitHub new-issue page. Report includes WMI baseboard, BIOS born-date, the full 4-step EC sweep as 16×16 hex grids, ranked candidates with scores, and the picked CPU/GPU registers.
+
+- **Background-app priority guard:** Optional checkbox in the wizard dialog drops the priority of well-known CPU/GPU hogs (OBS, ffmpeg, Premiere, Photoshop, Blender, Unity, IDEs, MsMpEng, Spotify, VLC, ollama) for the duration of the test, then restores it. **Does not close user windows** — losing unsaved state for a 60-second sensor sweep is not a fair trade.
+
+- **Safety guard-rails:** Wizard engages manual fan control with a 600 s firmware auto-restore countdown so the system self-recovers even on a hard crash mid-test. Prior fan state (levels / max / off / manual) is captured up front and restored in `finally{}` regardless of how the run exits. Cancellation honoured on every 1 s tick.
+
+- **Model support: HP Victus 16-S0053NT (8BD4)** — added to the built-in model database and to `AutoCal.Prime()` known-board mappings. On this board the legacy tachometer offsets `0xB0/0xB2` have been repurposed as temperature sensors; the actual fan RPM tracks the level register (`EC[0x11]` for CPU, `EC[0x14]` for GPU mirror) decoded as Pattern C (`byte × 100`). Owners get correct readings out of the box without running the wizard.
+
+### Changed
+
+- Tray menu item "Contribute Hardware Data..." renamed to **"Auto-Calibrate & Diagnose..."**, now routed to the wizard. Old menu identifier preserved so existing config doesn't break.
+
 ## [1.2.1-reborn] - 2026-05-05 (Hotfix)
 
 ### Fixed

@@ -52,6 +52,15 @@ namespace OmenMon.Hardware.Platform {
                 ? Config.Models[product]
                 : PlatformPreset.Default;
 
+            // Restore overrides from a previous wizard run, then fall back to a known-good
+            // built-in mapping for boards where the legacy tachometer offsets are unreliable
+            // (e.g. 8BD4 repurposes 0xB0/0xB2 as temperature sensors). Load() is keyed by
+            // ProductId so a sidecar from a different machine is rejected; Prime() fills
+            // in any fan the sidecar did not cover. User-run calibrations always outrank
+            // built-in defaults on a per-fan basis.
+            AutoCal.Load(product);
+            AutoCal.Prime(product);
+
             this.Fans = new FanArray(
                 new IFan[] {
 

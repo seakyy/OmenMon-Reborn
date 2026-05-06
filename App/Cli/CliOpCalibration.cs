@@ -1,0 +1,408 @@
+  //\\   OmenMon: Hardware Monitoring & Control Utility
+ //  \\  Copyright © 2023 Piotr Szczepański * License: GPL3
+     //  https://omenmon.github.io/
+// OmenMon-Reborn additions © 2026 seakyy
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using OmenMon.Hardware.Bios;
+using OmenMon.Hardware.Ec;
+using OmenMon.Hardware.Platform;
+using OmenMon.Library;
+
+namespace OmenMon.AppCli {
+
+    // Auto-Calibration Wizard.
+    //
+    // Drives the fans through a series of speed steps, takes an EC dump at each
+    // step, runs the EcDiffScanner heuristic, applies any plausible result to
+    // the running session, and produces a Markdown report for upstream.
+    public static partial class CliOp {
+
+#region Public API
+        // Progress callback signature. Phase is a short tag ("baseline", "step50%", …),
+        // detail is a free-form message, and percent is 0..100 for the overall run.
+        public delegate void CalibrationProgress(string phase, string detail, int percent);
+
+        public sealed class CalibrationOutcome {
+            public bool Success;
+            public string FailureReason;
+            public EcDiffScanner.Result Scan;
+            public string Markdown;            // ready to paste into a GitHub issue
+            public string ProductId;
+            public string BiosBornDate;
+            public List<EcDiffScanner.Sample> Samples = new List<EcDiffScanner.Sample>();
+            // Non-null when the sidecar XML could not be written (e.g. installed under
+            // C:\Program Files without admin rights). The session keeps its in-memory
+            // override but a restart will lose it — surfaced in the Markdown report so
+            // the user knows persistence didn't happen.
+            public string SidecarError;
+        }
+
+        // Default profile: idle, two intermediate steps, full speed.
+        // Multiple steps make the heuristic far more robust than a binary idle/max diff,
+        // because each candidate must move monotonically with the commanded level.
+        private static readonly int[] DefaultProfile = { 0, 30, 70, 100 };
+
+        // Settle time per step. Fans need ~10 s to physically reach the commanded RPM
+        // before the EC tachometer reading stabilises; 12 s gives a small safety margin.
+        private const int StepSettleMs = 12000;
+
+        internal static CalibrationOutcome AutoCalibrate(
+            CalibrationProgress progress = null,
+            CancellationToken cancel = default(CancellationToken),
+            int[] profile = null,
+            IFanArray fans = null,
+            FanProgram program = null) {
+
+            var outcome = new CalibrationOutcome();
+            profile = profile ?? DefaultProfile;
+            progress = progress ?? ((p, d, pct) => { });
+
+            // Snapshot prior fan state so we can restore it no matter how this exits.
+            byte[] priorLevels = null;
+            bool priorMax = false;
+            bool priorManual = false;
+            bool priorOff = false;
+            int priorCountdown = 0;
+            bool priorCountdownCaptured = false;
+
+            // If the tray's fan program is running, suspend it for the duration of
+            // the sweep — otherwise its periodic Update() ticks will overwrite our
+            // commanded 0/30/70/100 % steps and the EC snapshots will reflect the
+            // program's adjustments instead of ours, making the heuristic unreliable.
+            bool programWasSuspendedByUs = false;
+
+            try {
+                if(Hw.Bios == null) Hw.Bios = Hw.BiosInterface();
+                if(Hw.Ec == null)   Hw.Ec   = Hw.EcInterface();
+
+                if(Hw.Bios == null || !Hw.Bios.IsInitialized) {
+                    outcome.FailureReason = "BIOS interface unavailable. Run as administrator and retry.";
+                    return outcome;
+                }
+                if(Hw.Ec == null || !Hw.Ec.IsInitialized) {
+                    outcome.FailureReason = "Embedded Controller unavailable. The kernel driver failed to load — verify HVCI / Memory Integrity is off and retry.";
+                    return outcome;
+                }
+
+                outcome.ProductId   = SafeProductId();
+                outcome.BiosBornDate = SafeBiosBornDate();
+
+                // Use the caller-supplied fan array (the GUI passes its live one). When
+                // invoked from the CLI we build a fresh Platform to get a working handle —
+                // this exercises exactly the same control surface the GUI uses day-to-day.
+                if(fans == null)
+                    fans = new Platform().Fans;
+                if(fans == null) {
+                    outcome.FailureReason = "Could not obtain fan-array handle.";
+                    return outcome;
+                }
+
+                try { priorLevels = fans.GetLevels(); }   catch { }
+                try { priorMax    = fans.GetMax(); }      catch { }
+                try { priorManual = fans.GetManual(); }   catch { }
+                try { priorOff    = fans.GetOff(); }      catch { }
+                try {
+                    priorCountdown = fans.GetCountdown();
+                    priorCountdownCaptured = true;
+                } catch { }
+
+                if(program != null) {
+                    try {
+                        if(program.IsEnabled && !program.IsSuspended) {
+                            program.Suspend();
+                            programWasSuspendedByUs = true;
+                        }
+                    } catch { }
+                }
+
+                progress("init", "Engaging manual fan control…", 2);
+                fans.SetManual(true);
+                // Clear the global fan-off latch — if the user had 'Fan Off' selected,
+                // SetLevels/SetMax below would silently no-op and the wizard would
+                // collect flat EC dumps and either fail or calibrate against bogus data.
+                try { fans.SetOff(false); } catch { }
+                fans.SetCountdown(600);  // 10 minutes — well over our worst-case run time
+
+                int totalSteps = profile.Length;
+                for(int i = 0; i < totalSteps; i++) {
+                    cancel.ThrowIfCancellationRequested();
+                    int level = profile[i];
+                    int basePct = 5 + (90 * i) / totalSteps;
+
+                    progress($"step{level}%", $"Setting fans to {level}%…", basePct);
+                    ApplyLevel(fans, level);
+
+                    // Settle window — split into 1 s ticks so we can honour cancellation
+                    // and feed live progress back to the UI.
+                    int ticks = StepSettleMs / 1000;
+                    for(int t = 0; t < ticks; t++) {
+                        cancel.ThrowIfCancellationRequested();
+                        Thread.Sleep(1000);
+                        progress($"step{level}%", $"Settling at {level}%… {ticks - t} s", basePct + (5 * t) / ticks);
+                    }
+
+                    progress($"step{level}%", $"Reading EC at {level}%…", basePct + 6);
+                    byte[] dump = SnapshotEc();
+                    outcome.Samples.Add(new EcDiffScanner.Sample(level, dump));
+                }
+
+                progress("scan", "Analysing register diffs…", 96);
+                outcome.Scan = EcDiffScanner.Scan(outcome.Samples);
+
+                if(outcome.Scan.IsPlausible) {
+                    progress("apply", "Applying detected registers to live session…", 98);
+                    outcome.SidecarError = ApplyToLiveSession(outcome.Scan, outcome.ProductId);
+                }
+
+                outcome.Markdown = BuildReport(outcome);
+                outcome.Success = true;
+                progress("done", "Calibration complete.", 100);
+                return outcome;
+
+            } catch(OperationCanceledException) {
+                outcome.FailureReason = "Cancelled by user.";
+                return outcome;
+            } catch(Exception ex) {
+                outcome.FailureReason = ex.GetType().Name + ": " + ex.Message;
+                return outcome;
+            } finally {
+                // Best-effort restore — we never want to leave the user stuck on
+                // 100 % fans because something blew up halfway through. Order matters:
+                // SetLevels must run before SetMax / SetOff, otherwise it would
+                // overwrite the just-restored max/off mode and leave the user in a
+                // different fan state than they had before the run.
+                if(fans != null) {
+                    if(priorLevels != null && !priorMax && !priorOff) {
+                        try { fans.SetLevels(priorLevels); }             catch { }
+                    }
+                    try { fans.SetMax(priorMax); }                       catch { }
+                    try { fans.SetOff(priorOff); }                       catch { }
+                    try { fans.SetManual(priorManual); }                 catch { }
+                    // Hard-coding SetCountdown(0) here would overwrite a non-zero
+                    // user countdown (constant-speed mode, an active fan program)
+                    // and silently change their state after the wizard exits. Only
+                    // restore if we actually managed to read the prior value;
+                    // otherwise leave the EC alone — the firmware's own auto-restore
+                    // will end manual mode at the natural ten-minute mark.
+                    if(priorCountdownCaptured) {
+                        try { fans.SetCountdown(priorCountdown); }       catch { }
+                    }
+                }
+
+                if(programWasSuspendedByUs && program != null) {
+                    try { program.Resume(); } catch { }
+                }
+            }
+        }
+#endregion
+
+#region Helpers
+        private static void ApplyLevel(IFanArray fans, int percent) {
+            if(percent >= 100) {
+                fans.SetMax(true);
+                return;
+            }
+            fans.SetMax(false);
+            // SetLevels takes the same units as the GUI trackbars: integer steps
+            // up to Config.FanLevelMax (default 55, i.e. units of 100 RPM →
+            // ~5.5k RPM full scale). The previous "percent * 5.5 / 100" produced
+            // values 0–6 instead of 0–55, so the sweep barely moved the fans and
+            // the EC diff was too small to reliably pick a tach register out of
+            // the noise. Clamp to the configured maximum and convert through it.
+            int clamped = Math.Max(0, Math.Min(100, percent));
+            int level = (int) Math.Round(clamped * Config.FanLevelMax / 100.0);
+            level = Math.Max(0, Math.Min(Config.FanLevelMax, level));
+            byte fanLevel = (byte) level;
+            try { fans.SetLevels(new byte[] { fanLevel, fanLevel }); } catch { }
+            // Also drive the rate registers so we cover both 2022 and 2023+ layouts.
+            try { fans.Fan[0].SetRate((byte) percent); } catch { }
+            try { fans.Fan[1].SetRate((byte) percent); } catch { }
+        }
+
+        private static byte[] SnapshotEc() {
+            byte[] snap = new byte[256];
+            for(int r = 0; r < 256; r++)
+                snap[r] = Hw.EcGetByte((byte) r);
+            return snap;
+        }
+
+        private static string SafeProductId() {
+            try { return new Settings().GetProduct() ?? "?"; }
+            catch { return "?"; }
+        }
+
+        private static string SafeBiosBornDate() {
+            // BIOS born-date (yyyymmdd, e.g. 20240625) — the same field the existing Probe
+            // report uses, and reliably available without pulling in System.Management.
+            // Reported as "BIOS Build Date" in the Markdown so maintainers don't mistake
+            // it for an SMBIOS firmware version string.
+            try { return Hw.Bios?.GetBornDate() ?? "?"; }
+            catch { return "?"; }
+        }
+#endregion
+
+#region Apply to Live Session
+        // Publishes the scan result to OmenMon.Library.AutoCal — read by Fan.GetSpeed()
+        // on every refresh tick — and persists it to a sidecar XML so the override
+        // survives a restart without us touching the main OmenMon.xml.
+        // Returns null on success, or a human-readable error string if the sidecar
+        // write failed (typically ACL/UAC on a Program Files install). The in-memory
+        // overrides are still applied either way — only persistence is at risk.
+        private static string ApplyToLiveSession(EcDiffScanner.Result scan, string productId) {
+            // Wipe any prior override (from a previous wizard run, the sidecar XML, or a
+            // known-board prime) before publishing this run's results. Otherwise a scan
+            // that finds only the CPU fan would leave a stale GPU mapping in place.
+            // Then re-Prime() with the known-board defaults so a partial scan (one fan
+            // detected) still leaves the *other* fan with a valid mapping instead of
+            // falling back to the placeholder FanSpeedReg* in OmenMon.xml. The scan's
+            // own results are written *after* Prime() so they always outrank the
+            // built-in defaults on the fans that were actually detected.
+            AutoCal.Clear();
+            AutoCal.Prime(productId);
+
+            // Each SetCpu/SetGpu call is an atomic reference swap, so the
+            // GUI refresh tick reading concurrently never observes a half-written
+            // (offset, mode) pair — it sees either the prior value or the new one.
+            if(scan.CpuFan != null)
+                AutoCal.SetCpu(scan.CpuFan.Offset, scan.CpuFan.Mode);
+            if(scan.GpuFan != null)
+                AutoCal.SetGpu(scan.GpuFan.Offset, scan.GpuFan.Mode);
+
+            try {
+                // Single source of truth for the sidecar path — same constant the
+                // reader uses, so a rename can never cause a write/read mismatch.
+                string path = AutoCal.SidecarPath;
+                var sb = new StringBuilder();
+                // ProductId is stamped into the root element so AutoCal.Load() can reject
+                // a sidecar that came from a different machine (USB-stick installs, OneDrive
+                // sync, swapped drives). XML-encode it defensively even though baseboard IDs
+                // are alphanumeric in every sample we've seen — never trust an external string.
+                string safeId = System.Security.SecurityElement.Escape(productId ?? "");
+                sb.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+                sb.AppendLine($"<AutoCalibration ProductId=\"{safeId}\">");
+                if(scan.CpuFan != null)
+                    sb.AppendLine($"  <CpuFan offset=\"0x{scan.CpuFan.Offset:X2}\" mode=\"{scan.CpuFan.Mode}\" />");
+                if(scan.GpuFan != null)
+                    sb.AppendLine($"  <GpuFan offset=\"0x{scan.GpuFan.Offset:X2}\" mode=\"{scan.GpuFan.Mode}\" />");
+                sb.AppendLine("</AutoCalibration>");
+                File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+                return null;
+            } catch(UnauthorizedAccessException ex) {
+                return "Access denied writing " + AutoCal.SidecarFileName + ": " + ex.Message;
+            } catch(IOException ex) {
+                return "I/O error writing " + AutoCal.SidecarFileName + ": " + ex.Message;
+            } catch(Exception ex) {
+                return ex.GetType().Name + " writing " + AutoCal.SidecarFileName + ": " + ex.Message;
+            }
+        }
+#endregion
+
+#region Markdown Report
+        private static string BuildReport(CalibrationOutcome o) {
+            var sb = new StringBuilder();
+            string ts = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            sb.AppendLine("# OmenMon Auto-Calibration Report");
+            sb.AppendLine();
+            sb.AppendLine($"> Generated: {ts}");
+            sb.AppendLine("> Paste this into a new GitHub issue at https://github.com/seakyy/OmenMon-Reborn/issues to add your board to the model database.");
+            sb.AppendLine();
+
+            // Hoist persistence failures to the top of the report. The session keeps
+            // its in-memory override but a restart will lose it — users on a
+            // C:\Program Files install without elevated rights are the most likely
+            // to hit this and the symptom (next launch reverts to garbage RPM) is
+            // confusing without the explicit heads-up here.
+            if(!string.IsNullOrEmpty(o.SidecarError)) {
+                sb.AppendLine("> **WARNING:** Could not save `" + AutoCal.SidecarFileName + "` — " + o.SidecarError + ".");
+                sb.AppendLine("> Your calibration is active for this session but **will not survive a restart**.");
+                sb.AppendLine("> Re-run OmenMon as Administrator, or move the install out of `C:\\Program Files`, then run the wizard again.");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("## Device");
+            sb.AppendLine();
+            sb.AppendLine($"- **Product ID:** `{o.ProductId}`");
+            sb.AppendLine($"- **BIOS Build Date:** `{o.BiosBornDate}`");
+            sb.AppendLine($"- **EC Read Method:** ACPI/Omen kernel driver");
+            sb.AppendLine($"- **Profile:** {string.Join(" → ", o.Samples.Select(s => s.LevelPercent + "%"))}");
+            sb.AppendLine();
+
+            sb.AppendLine("## Scan Results");
+            sb.AppendLine();
+            if(o.Scan == null) {
+                sb.AppendLine("_Scan did not complete._");
+            } else {
+                AppendCandidate(sb, "CPU", o.Scan.CpuFan);
+                AppendCandidate(sb, "GPU", o.Scan.GpuFan);
+                if(o.Scan.Notes.Count > 0) {
+                    sb.AppendLine();
+                    foreach(var note in o.Scan.Notes)
+                        sb.AppendLine("> " + note);
+                }
+                if(o.Scan.All.Count > 0) {
+                    sb.AppendLine();
+                    sb.AppendLine("<details><summary>All ranked candidates</summary>");
+                    sb.AppendLine();
+                    sb.AppendLine("| Offset | Mode | Score | Values |");
+                    sb.AppendLine("|--------|------|-------|--------|");
+                    foreach(var c in o.Scan.All)
+                        sb.AppendLine($"| `0x{c.Offset:X2}` | {c.Mode} | {c.Score} | `{string.Join(", ", c.Values)}` |");
+                    sb.AppendLine();
+                    sb.AppendLine("</details>");
+                }
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("## Raw EC Dumps");
+            sb.AppendLine();
+            foreach(var sample in o.Samples) {
+                sb.AppendLine($"### Fan @ {sample.LevelPercent}%");
+                sb.AppendLine();
+                sb.AppendLine("```");
+                sb.AppendLine("0x _0 _1 _2 _3 _4 _5 _6 _7 _8 _9 _a _b _c _d _e _f");
+                for(int hi = 0; hi <= 0xF0; hi += 0x10) {
+                    var row = new StringBuilder();
+                    row.Append(((byte) (hi >> 4)).ToString("x"));
+                    row.Append("_ ");
+                    for(int lo = 0; lo <= 0xF; lo++) {
+                        row.Append(sample.Memory[hi | lo].ToString("X2"));
+                        if(lo < 0xF) row.Append(' ');
+                    }
+                    sb.AppendLine(row.ToString());
+                }
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+
+        private static void AppendCandidate(StringBuilder sb, string label, EcDiffScanner.Candidate c) {
+            if(c == null) {
+                sb.AppendLine($"- **{label} Fan Register:** _not detected_");
+                return;
+            }
+            sb.AppendLine($"- **{label} Fan Register:** `0x{c.Offset:X2}` (Mode: `{c.Mode}`) — {c.Description}");
+        }
+
+        // Persist the report next to the executable so the user has a copy even if
+        // they accidentally clear the clipboard before pasting into the issue.
+        internal static string SaveCalibrationReport(string markdown) {
+            string path = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "OmenMon-Calibration-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".md");
+            File.WriteAllText(path, markdown, Encoding.UTF8);
+            return path;
+        }
+#endregion
+
+    }
+
+}

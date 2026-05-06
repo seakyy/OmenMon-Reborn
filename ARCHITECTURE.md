@@ -59,7 +59,7 @@ The standard 2022+ Omen EC layout is characterised by two invariants that hold a
 
 If both conditions are met, the device is mapped to `PlatformPreset.Default` (i.e. it uses the same register layout as the confirmed 2022/2023 hardware). The result is stored in `Config.Models` and written to `OmenMon.xml` via `Config.SaveModel()`. On the next launch, `Platform.InitFans()` finds the entry in the dictionary and the auto-detect prompt never fires again.
 
-If neither condition is met — for example, if `CPUT` at `0x57` reads zero or above 95 °C, or `RPM1` reads an implausible value — `DetectHeuristic` returns `null`. The GUI then directs the user to the "Contribute Hardware Data..." tray menu item to file a report with a full EC dump, so a correct preset can be added to the database manually.
+If neither condition is met — for example, if `CPUT` at `0x57` reads zero or above 95 °C, or `RPM1` reads an implausible value — `DetectHeuristic` returns `null`. The GUI then directs the user to the **"Auto-Calibrate & Diagnose..."** tray menu item, which runs an active 4-step fan stress sweep (`CliOpCalibration.cs` → `EcDiffScanner.cs`) to identify the correct RPM registers heuristically and apply them to the live session. The wizard supports three encodings — 16-bit little-endian, period-encoded 8-bit, and direct-multiplier 8-bit — and persists its result to a sidecar `OmenMon-AutoCal.xml` that's reloaded on the next launch via `AutoCal.Load()` in `Platform.InitFans()`. A Markdown report is copied to the clipboard so the user can also share the result upstream for inclusion in `OmenMon.xml`'s `<Models>` block.
 
 ### Integration point
 
