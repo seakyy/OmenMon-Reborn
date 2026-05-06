@@ -63,6 +63,8 @@ namespace OmenMon.AppCli {
             bool priorMax = false;
             bool priorManual = false;
             bool priorOff = false;
+            int priorCountdown = 0;
+            bool priorCountdownCaptured = false;
 
             // If the tray's fan program is running, suspend it for the duration of
             // the sweep — otherwise its periodic Update() ticks will overwrite our
@@ -100,6 +102,10 @@ namespace OmenMon.AppCli {
                 try { priorMax    = fans.GetMax(); }      catch { }
                 try { priorManual = fans.GetManual(); }   catch { }
                 try { priorOff    = fans.GetOff(); }      catch { }
+                try {
+                    priorCountdown = fans.GetCountdown();
+                    priorCountdownCaptured = true;
+                } catch { }
 
                 if(program != null) {
                     try {
@@ -173,7 +179,15 @@ namespace OmenMon.AppCli {
                     try { fans.SetMax(priorMax); }                       catch { }
                     try { fans.SetOff(priorOff); }                       catch { }
                     try { fans.SetManual(priorManual); }                 catch { }
-                    try { fans.SetCountdown(0); }                        catch { }
+                    // Hard-coding SetCountdown(0) here would overwrite a non-zero
+                    // user countdown (constant-speed mode, an active fan program)
+                    // and silently change their state after the wizard exits. Only
+                    // restore if we actually managed to read the prior value;
+                    // otherwise leave the EC alone — the firmware's own auto-restore
+                    // will end manual mode at the natural ten-minute mark.
+                    if(priorCountdownCaptured) {
+                        try { fans.SetCountdown(priorCountdown); }       catch { }
+                    }
                 }
 
                 if(programWasSuspendedByUs && program != null) {
@@ -229,7 +243,13 @@ namespace OmenMon.AppCli {
             // Wipe any prior override (from a previous wizard run, the sidecar XML, or a
             // known-board prime) before publishing this run's results. Otherwise a scan
             // that finds only the CPU fan would leave a stale GPU mapping in place.
+            // Then re-Prime() with the known-board defaults so a partial scan (one fan
+            // detected) still leaves the *other* fan with a valid mapping instead of
+            // falling back to the placeholder FanSpeedReg* in OmenMon.xml. The scan's
+            // own results are written *after* Prime() so they always outrank the
+            // built-in defaults on the fans that were actually detected.
             AutoCal.Clear();
+            AutoCal.Prime(productId);
 
             if(scan.CpuFan != null) {
                 AutoCal.CpuFanReg  = scan.CpuFan.Offset;

@@ -38,7 +38,9 @@ namespace OmenMon.Library {
                     // RPM = 60 / (period_ticks * tick_seconds). Tick base differs per board;
                     // an empirical 60_000_000 / (period * 256) lands close to observed values
                     // on the boards we've tested. Caller can replace if a better mapping is known.
-                    if(period <= 0) return 0;
+                    // Return -1 (not 0) so callers can distinguish a bad/uninitialised
+                    // read from a genuinely stopped fan and fall back to the preset.
+                    if(period <= 0) return -1;
                     return 60_000_000 / (period * 256);
                 }
                 case EcDiffScanner.Mode.DirectMultiplier8:
@@ -140,7 +142,18 @@ namespace OmenMon.Library {
             }
             if(parsed < 0 || parsed > 0xFF) return false;
 
-            if(!Enum.TryParse(modeStr, out EcDiffScanner.Mode parsedMode)) return false;
+            // Reject numeric mode strings ("123") and require an exact named-member
+            // match. Enum.TryParse otherwise accepts any int that fits the underlying
+            // type, which would set HasCpu/HasGpu and block Prime() from filling in
+            // known-board mappings while ReadRpm() silently fell back to -1.
+            modeStr = modeStr.Trim();
+            if(modeStr.Length == 0) return false;
+            if(char.IsDigit(modeStr[0]) || modeStr[0] == '-' || modeStr[0] == '+')
+                return false;
+            if(!Enum.TryParse(modeStr, ignoreCase: true, out EcDiffScanner.Mode parsedMode))
+                return false;
+            if(!Enum.IsDefined(typeof(EcDiffScanner.Mode), parsedMode))
+                return false;
 
             reg = (byte) parsed;
             mode = parsedMode;
