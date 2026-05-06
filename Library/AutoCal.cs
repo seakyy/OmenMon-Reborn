@@ -25,11 +25,14 @@ namespace OmenMon.Library {
     public static class AutoCal {
 
         // Immutable per-fan override snapshot — published as a single reference so
-        // (offset, mode) is always observed as a coherent pair.
+        // (offset, mode, multiplier) is always observed as a coherent triple.
         public sealed class Override {
             public readonly byte Reg;
             public readonly EcDiffScanner.Mode Mode;
-            public Override(byte reg, EcDiffScanner.Mode mode) { Reg = reg; Mode = mode; }
+            public readonly int Multiplier; // 0 = use mode default (e.g. 100 for DirectMultiplier8)
+            public Override(byte reg, EcDiffScanner.Mode mode, int multiplier = 0) {
+                Reg = reg; Mode = mode; Multiplier = multiplier;
+            }
         }
 
         // Reference assignment is atomic on every CLR target; volatile keeps the
@@ -40,32 +43,33 @@ namespace OmenMon.Library {
         public static bool HasCpu => _cpu != null;
         public static bool HasGpu => _gpu != null;
 
-        public static bool TryGetCpu(out byte reg, out EcDiffScanner.Mode mode) {
+        public static bool TryGetCpu(out byte reg, out EcDiffScanner.Mode mode, out int multiplier) {
             var snap = _cpu;
-            if(snap == null) { reg = 0; mode = default(EcDiffScanner.Mode); return false; }
-            reg = snap.Reg; mode = snap.Mode; return true;
+            if(snap == null) { reg = 0; mode = default(EcDiffScanner.Mode); multiplier = 0; return false; }
+            reg = snap.Reg; mode = snap.Mode; multiplier = snap.Multiplier; return true;
         }
 
-        public static bool TryGetGpu(out byte reg, out EcDiffScanner.Mode mode) {
+        public static bool TryGetGpu(out byte reg, out EcDiffScanner.Mode mode, out int multiplier) {
             var snap = _gpu;
-            if(snap == null) { reg = 0; mode = default(EcDiffScanner.Mode); return false; }
-            reg = snap.Reg; mode = snap.Mode; return true;
+            if(snap == null) { reg = 0; mode = default(EcDiffScanner.Mode); multiplier = 0; return false; }
+            reg = snap.Reg; mode = snap.Mode; multiplier = snap.Multiplier; return true;
         }
 
-        // Publishes a new pair atomically. Pass null to clear that fan's override.
+        // Publishes a new triple atomically. Pass null to clear that fan's override.
         // Wizard / Load / Prime / Clear all funnel through here so concurrent readers
-        // never observe a half-written register/mode pair.
-        public static void SetCpu(byte? reg, EcDiffScanner.Mode? mode) {
-            _cpu = (reg.HasValue && mode.HasValue) ? new Override(reg.Value, mode.Value) : null;
+        // never observe a half-written register/mode/multiplier triple.
+        public static void SetCpu(byte? reg, EcDiffScanner.Mode? mode, int multiplier = 0) {
+            _cpu = (reg.HasValue && mode.HasValue) ? new Override(reg.Value, mode.Value, multiplier) : null;
         }
 
-        public static void SetGpu(byte? reg, EcDiffScanner.Mode? mode) {
-            _gpu = (reg.HasValue && mode.HasValue) ? new Override(reg.Value, mode.Value) : null;
+        public static void SetGpu(byte? reg, EcDiffScanner.Mode? mode, int multiplier = 0) {
+            _gpu = (reg.HasValue && mode.HasValue) ? new Override(reg.Value, mode.Value, multiplier) : null;
         }
 
         // Reads the current RPM using the override at <offset> in <mode>.
+        // <multiplier> overrides the per-mode default for DirectMultiplier8 (0 = use default of 100).
         // Returns -1 if any of the inputs are not valid.
-        public static int ReadRpm(byte offset, EcDiffScanner.Mode mode) {
+        public static int ReadRpm(byte offset, EcDiffScanner.Mode mode, int multiplier = 0) {
             switch(mode) {
                 case EcDiffScanner.Mode.LittleEndian16:
                     return Hw.EcGetWord(offset);
@@ -80,7 +84,7 @@ namespace OmenMon.Library {
                     return 60_000_000 / (period * 256);
                 }
                 case EcDiffScanner.Mode.DirectMultiplier8:
-                    return Hw.EcGetByte(offset) * 100;
+                    return Hw.EcGetByte(offset) * (multiplier > 0 ? multiplier : 100);
                 default:
                     return -1;
             }
@@ -218,10 +222,11 @@ namespace OmenMon.Library {
         // Saves owners of these boards from having to run the wizard themselves and gives
         // the heuristic a known-good reference to compare against.
         //
-        // Format: ProductId → (CpuOffset, CpuMode, GpuOffset, GpuMode)
+        // Format: ProductId → (CpuOffset, CpuMode, CpuMul, GpuOffset, GpuMode, GpuMul)
+        // CpuMul/GpuMul: override the per-mode default multiplier (0 = use default).
         private struct Mapping {
-            public byte CpuReg; public EcDiffScanner.Mode CpuMode;
-            public byte GpuReg; public EcDiffScanner.Mode GpuMode;
+            public byte CpuReg; public EcDiffScanner.Mode CpuMode; public int CpuMul;
+            public byte GpuReg; public EcDiffScanner.Mode GpuMode; public int GpuMul;
         }
 
         private static readonly Dictionary<string, Mapping> KnownBoards =
@@ -231,8 +236,17 @@ namespace OmenMon.Library {
             // 0xB0/0xB2 are repurposed as temperature sensors. The actual fan tachometer
             // tracks the level register (EC[0x11] / EC[0x14]) and reads as byte ×100 RPM.
             ["8BD4"] = new Mapping {
-                CpuReg = 0x11, CpuMode = EcDiffScanner.Mode.DirectMultiplier8,
-                GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8
+                CpuReg = 0x11, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
+                GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
+            },
+
+            // HP Victus 16 (8C9C, 1034NF, 2024) — single shared tachometer at EC[0xF1].
+            // Byte value × 60 = RPM (e.g. 0x5C = 92 → 5520 RPM at full load, confirmed via
+            // probe dumps across 0 / 30 / 70 / 100 % fan profiles). Both CPU and GPU fans
+            // report through the same register; 0xB0/0xB2 are temperature sensors, not RPM.
+            ["8C9C"] = new Mapping {
+                CpuReg = 0xF1, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 60,
+                GpuReg = 0xF1, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 60,
             },
         };
 
@@ -247,8 +261,8 @@ namespace OmenMon.Library {
         public static void Prime(string productId) {
             if(string.IsNullOrEmpty(productId)) return;
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
-            if(!HasCpu) SetCpu(m.CpuReg, m.CpuMode);
-            if(!HasGpu) SetGpu(m.GpuReg, m.GpuMode);
+            if(!HasCpu) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
+            if(!HasGpu) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
         }
 #endregion
 
