@@ -16,16 +16,52 @@ namespace OmenMon.Library {
     // Lives in OmenMon.Library so the hot read-path in Hardware/Fan.cs can consult
     // it without taking a dependency on the App layer. Populated by CliOpCalibration
     // on a successful scan; read by Fan.GetSpeed() on every refresh tick.
+    //
+    // Threading: the calibration worker writes overrides from a thread-pool task
+    // while Fan.GetSpeed() reads them from the GUI refresh tick. To prevent torn
+    // reads (offset from one update + mode from another) the override is published
+    // as a single immutable Override reference and swapped atomically. Readers
+    // observe either the previous value or the new value, never a mix.
     public static class AutoCal {
 
-        public static byte? CpuFanReg;
-        public static EcDiffScanner.Mode? CpuFanMode;
+        // Immutable per-fan override snapshot — published as a single reference so
+        // (offset, mode) is always observed as a coherent pair.
+        public sealed class Override {
+            public readonly byte Reg;
+            public readonly EcDiffScanner.Mode Mode;
+            public Override(byte reg, EcDiffScanner.Mode mode) { Reg = reg; Mode = mode; }
+        }
 
-        public static byte? GpuFanReg;
-        public static EcDiffScanner.Mode? GpuFanMode;
+        // Reference assignment is atomic on every CLR target; volatile keeps the
+        // store/load from being reordered. No lock needed for read-mostly use.
+        private static volatile Override _cpu;
+        private static volatile Override _gpu;
 
-        public static bool HasCpu => CpuFanReg.HasValue && CpuFanMode.HasValue;
-        public static bool HasGpu => GpuFanReg.HasValue && GpuFanMode.HasValue;
+        public static bool HasCpu => _cpu != null;
+        public static bool HasGpu => _gpu != null;
+
+        public static bool TryGetCpu(out byte reg, out EcDiffScanner.Mode mode) {
+            var snap = _cpu;
+            if(snap == null) { reg = 0; mode = default(EcDiffScanner.Mode); return false; }
+            reg = snap.Reg; mode = snap.Mode; return true;
+        }
+
+        public static bool TryGetGpu(out byte reg, out EcDiffScanner.Mode mode) {
+            var snap = _gpu;
+            if(snap == null) { reg = 0; mode = default(EcDiffScanner.Mode); return false; }
+            reg = snap.Reg; mode = snap.Mode; return true;
+        }
+
+        // Publishes a new pair atomically. Pass null to clear that fan's override.
+        // Wizard / Load / Prime / Clear all funnel through here so concurrent readers
+        // never observe a half-written register/mode pair.
+        public static void SetCpu(byte? reg, EcDiffScanner.Mode? mode) {
+            _cpu = (reg.HasValue && mode.HasValue) ? new Override(reg.Value, mode.Value) : null;
+        }
+
+        public static void SetGpu(byte? reg, EcDiffScanner.Mode? mode) {
+            _gpu = (reg.HasValue && mode.HasValue) ? new Override(reg.Value, mode.Value) : null;
+        }
 
         // Reads the current RPM using the override at <offset> in <mode>.
         // Returns -1 if any of the inputs are not valid.
@@ -51,8 +87,8 @@ namespace OmenMon.Library {
         }
 
         public static void Clear() {
-            CpuFanReg = null; CpuFanMode = null;
-            GpuFanReg = null; GpuFanMode = null;
+            _cpu = null;
+            _gpu = null;
         }
 
 #region Persistence
@@ -108,13 +144,13 @@ namespace OmenMon.Library {
 
                 XmlNode cpu = doc.SelectSingleNode("/AutoCalibration/CpuFan");
                 if(cpu != null && TryParseEntry(cpu, out byte cReg, out EcDiffScanner.Mode cMode)) {
-                    CpuFanReg = cReg; CpuFanMode = cMode;
+                    SetCpu(cReg, cMode);
                     anyApplied = true;
                 }
 
                 XmlNode gpu = doc.SelectSingleNode("/AutoCalibration/GpuFan");
                 if(gpu != null && TryParseEntry(gpu, out byte gReg, out EcDiffScanner.Mode gMode)) {
-                    GpuFanReg = gReg; GpuFanMode = gMode;
+                    SetGpu(gReg, gMode);
                     anyApplied = true;
                 }
 
@@ -195,8 +231,8 @@ namespace OmenMon.Library {
         public static void Prime(string productId) {
             if(string.IsNullOrEmpty(productId)) return;
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
-            if(!HasCpu) { CpuFanReg = m.CpuReg; CpuFanMode = m.CpuMode; }
-            if(!HasGpu) { GpuFanReg = m.GpuReg; GpuFanMode = m.GpuMode; }
+            if(!HasCpu) SetCpu(m.CpuReg, m.CpuMode);
+            if(!HasGpu) SetGpu(m.GpuReg, m.GpuMode);
         }
 #endregion
 

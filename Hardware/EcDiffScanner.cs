@@ -203,9 +203,11 @@ namespace OmenMon.Hardware.Ec {
 
                 int score = MonotonicScore(values, ascending: true);
                 if(score <= 0) continue;
-                // Score the implied RPM swing — same units as the 16-bit pass so the two
-                // can be ranked against each other on equal footing.
-                score += (max - min) * 100 / 100;
+                // Score the implied RPM swing in the same "hundreds of RPM" unit
+                // as the 16-bit pass (which divides by 100). DirectMultiplier values
+                // are bytes that decode to RPM via ×100, so (max-min) is already in
+                // the right unit — no further scaling needed.
+                score += (max - min);
 
                 hits.Add(new Candidate {
                     Offset = (byte) r,

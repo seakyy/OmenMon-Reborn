@@ -251,14 +251,13 @@ namespace OmenMon.AppCli {
             AutoCal.Clear();
             AutoCal.Prime(productId);
 
-            if(scan.CpuFan != null) {
-                AutoCal.CpuFanReg  = scan.CpuFan.Offset;
-                AutoCal.CpuFanMode = scan.CpuFan.Mode;
-            }
-            if(scan.GpuFan != null) {
-                AutoCal.GpuFanReg  = scan.GpuFan.Offset;
-                AutoCal.GpuFanMode = scan.GpuFan.Mode;
-            }
+            // Each SetCpu/SetGpu call is an atomic reference swap, so the
+            // GUI refresh tick reading concurrently never observes a half-written
+            // (offset, mode) pair — it sees either the prior value or the new one.
+            if(scan.CpuFan != null)
+                AutoCal.SetCpu(scan.CpuFan.Offset, scan.CpuFan.Mode);
+            if(scan.GpuFan != null)
+                AutoCal.SetGpu(scan.GpuFan.Offset, scan.GpuFan.Mode);
 
             try {
                 string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "OmenMon-AutoCal.xml");

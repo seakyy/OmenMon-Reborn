@@ -85,16 +85,16 @@ namespace OmenMon.Hardware.Platform {
         // override is wrong the user will see it immediately and can recalibrate, which
         // is far less confusing than a silent flip-flop between the two readings.
         public virtual int GetSpeed() {
-            byte? reg = null;
-            EcDiffScanner.Mode? mode = null;
-            if(this.FanType == BiosData.FanType.Cpu && AutoCal.HasCpu) {
-                reg = AutoCal.CpuFanReg; mode = AutoCal.CpuFanMode;
-            } else if(this.FanType == BiosData.FanType.Gpu && AutoCal.HasGpu) {
-                reg = AutoCal.GpuFanReg; mode = AutoCal.GpuFanMode;
-            }
+            // Pull (offset, mode) as a single atomic snapshot — see AutoCal for why.
+            byte reg = 0;
+            EcDiffScanner.Mode mode = default(EcDiffScanner.Mode);
+            bool have =
+                this.FanType == BiosData.FanType.Cpu ? AutoCal.TryGetCpu(out reg, out mode) :
+                this.FanType == BiosData.FanType.Gpu ? AutoCal.TryGetGpu(out reg, out mode) :
+                false;
 
-            if(reg.HasValue && mode.HasValue) {
-                int rpm = AutoCal.ReadRpm(reg.Value, mode.Value);
+            if(have) {
+                int rpm = AutoCal.ReadRpm(reg, mode);
                 if(rpm >= 0) return rpm;
             }
 
