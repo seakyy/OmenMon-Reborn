@@ -334,11 +334,12 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
-            <!-- 8BD4: HP Victus 16-S0053NT (2024) — fan level at 0x11/0x14 (single fan controller, both fans  -->
-            <!-- run synchronised). Legacy 0xB0/0xB2 RPM offsets are repurposed as temperature sensors on    -->
-            <!-- this board; the fan tachometer is the level register itself, read as byte ×100 RPM         -->
-            <!-- (Pattern C / DirectMultiplier8). AutoCal.Prime() applies that mapping at Platform init —    -->
-            <!-- FanSpeedReg0/1 below are placeholders kept for the underlying read component constructor.   -->
+            <!-- 8BD4: HP Victus 16-S0053NT (2024) — fan level at 0x11/0x14. -->
+            <!-- Single fan controller; both fans run synchronised. Legacy 0xB0/0xB2 RPM offsets are -->
+            <!-- repurposed as temperature sensors on this board. The fan tachometer is the level -->
+            <!-- register itself, read as byte ×100 RPM (Pattern C / DirectMultiplier8). -->
+            <!-- AutoCal.Prime() applies that mapping at platform init; FanSpeedReg0/1 below are -->
+            <!-- placeholders kept for the underlying read component constructor. -->
             <Model ProductId="8BD4" DisplayName="HP Victus 16-S0053NT (2024)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>20</FanLevelReg1>

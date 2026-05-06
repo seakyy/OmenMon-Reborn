@@ -121,8 +121,18 @@ namespace OmenMon.Library {
             if(!File.Exists(path)) return false;
 
             try {
-                var doc = new XmlDocument();
-                doc.Load(path);
+                // Harden the parser against XXE / external-entity expansion. The
+                // sidecar is technically user-writable on disk and we have no reason
+                // to honour DTDs or fetch external resources from it.
+                var settings = new XmlReaderSettings {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null
+                };
+                var doc = new XmlDocument { XmlResolver = null };
+                using(var stream = File.OpenRead(path))
+                using(var reader = XmlReader.Create(stream, settings)) {
+                    doc.Load(reader);
+                }
 
                 string fileProductId = doc.DocumentElement?.GetAttribute("ProductId");
 

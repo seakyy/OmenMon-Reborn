@@ -233,37 +233,76 @@ namespace OmenMon.AppGui {
             }
         }
 
+        // Re-entrancy guard: while a close-wait is already in flight, any further
+        // close attempts must just cancel out — we don't want to spawn parallel
+        // shutdown waits or pile up message-pump nesting.
+        private bool IsWaitingForCloseAfterWorkerStop;
+
         // Cancels any in-flight calibration cleanly and waits for the worker to
         // exit before the form's handle is destroyed. Without this the worker
         // keeps invoking into a disposed form and the fan sweep continues
         // headless — which is exactly the "ghost background task" failure mode.
-        private void OnFormClosing(object sender, FormClosingEventArgs e) {
+        //
+        // Implemented as an async handler so we can `await Task.WhenAny(...)`
+        // instead of pumping messages with Application.DoEvents() + Sleep —
+        // the old loop allowed re-entrant UI events (timers, paint, key input)
+        // to fire while shutdown was in progress, which made lifecycle bugs
+        // genuinely hard to reason about. The async path keeps the message
+        // loop natural and yields back to it cleanly.
+        private async void OnFormClosing(object sender, FormClosingEventArgs e) {
             if(WorkerTask == null || WorkerTask.IsCompleted) return;
+
+            // A close wait is already running — keep the form alive and let
+            // that path finish. The user's repeated close click is a no-op.
+            if(IsWaitingForCloseAfterWorkerStop) {
+                e.Cancel = true;
+                return;
+            }
 
             // Tell the worker to stand down on the next 1 s tick, and stop accepting
             // any further UI marshals from progress callbacks.
             IsClosingDown = true;
             try { Cts?.Cancel(); } catch { }
 
+            // Cancel this close attempt — we'll trigger a fresh Close() once the
+            // worker actually exits. Disable controls so the form looks busy and
+            // the user can't kick off a new run while we're shutting down.
+            e.Cancel = true;
+            IsWaitingForCloseAfterWorkerStop = true;
+            try {
+                BtnStart.Enabled = false;
+                BtnCancel.Enabled = false;
+                BtnClose.Enabled = false;
+                BtnCopyAgain.Enabled = false;
+                ChkCloseApps.Enabled = false;
+                ChkOpenIssue.Enabled = false;
+                LblPhase.Text = "Stopping calibration… please wait.";
+            } catch { }
+
             // Wait up to 20 s for the worker to clean up — long enough to cover the
-            // worst-case "between two 12 s settle ticks" window. We do this on the UI
-            // thread (which is fine because the worker no longer needs Invoke), and
-            // pump messages so the form doesn't appear frozen during the wait.
-            var deadline = DateTime.UtcNow.AddSeconds(20);
-            while(!WorkerTask.IsCompleted && DateTime.UtcNow < deadline) {
-                Application.DoEvents();
-                System.Threading.Thread.Sleep(50);
+            // worst-case "between two 12 s settle ticks" window — without blocking
+            // the message loop. The timeout branch covers a wedged worker.
+            var completed = await Task.WhenAny(WorkerTask, Task.Delay(TimeSpan.FromSeconds(20)));
+
+            IsWaitingForCloseAfterWorkerStop = false;
+
+            if(completed != WorkerTask && !WorkerTask.IsCompleted) {
+                // Wedged worker. Refuse to close (destroying the form's handle now
+                // would leave the fans driven by a headless task) and let the user
+                // try again. Re-enable Close so the next click can attempt another
+                // 20 s wait — by then the worker has usually finished its current
+                // settle tick and observed the cancellation.
+                try {
+                    LblPhase.Text = "Still stopping calibration… please wait, then close again.";
+                    BtnClose.Enabled = true;
+                } catch { }
+                return;
             }
 
-            // If the worker still hasn't stopped, refuse to close. Destroying the
-            // form's handle while the sweep is mid-step would leave the fans driven
-            // by a headless task with no UI to observe or cancel it. Surface a
-            // "still stopping" hint so the user knows the dialog hasn't frozen.
-            if(!WorkerTask.IsCompleted) {
-                e.Cancel = true;
-                try {
-                    LblPhase.Text = "Still stopping calibration… please wait.";
-                } catch { }
+            // Worker is done — schedule the actual close on the next message-loop
+            // tick so the in-flight FormClosing event unwinds cleanly first.
+            if(!IsDisposed) {
+                try { BeginInvoke((Action) (() => Close())); } catch { }
             }
         }
 
