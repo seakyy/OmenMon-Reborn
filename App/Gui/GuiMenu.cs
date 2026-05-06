@@ -147,7 +147,8 @@ namespace OmenMon.AppGui {
         private void EventActionAutoCalibrate(object sender, EventArgs e) {
             try {
                 var fans = Context.Op?.Platform?.Fans;
-                using(var dlg = new GuiFormCalibration(fans)) {
+                var program = Context.Op?.Program;
+                using(var dlg = new GuiFormCalibration(fans, program)) {
                     dlg.ShowDialog();
                 }
             } catch(Exception ex) {

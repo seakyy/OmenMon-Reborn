@@ -40,6 +40,7 @@ namespace OmenMon.AppGui {
         private CancellationTokenSource Cts;
         private CliOp.CalibrationOutcome LastOutcome;
         private readonly IFanArray Fans;
+        private readonly FanProgram Program;
 
         // Worker handle so FormClosing can wait for a clean exit before the form is
         // disposed. Without this the worker keeps Invoke()-ing into a destroyed handle
@@ -51,8 +52,9 @@ namespace OmenMon.AppGui {
         // even though the cancellation token may take a tick or two to be observed.
         private volatile bool IsClosingDown;
 
-        public GuiFormCalibration(IFanArray fans) {
+        public GuiFormCalibration(IFanArray fans, FanProgram program = null) {
             this.Fans = fans;
+            this.Program = program;
             BuildUi();
             this.FormClosing += OnFormClosing;
         }
@@ -186,6 +188,7 @@ namespace OmenMon.AppGui {
             Cts = new CancellationTokenSource();
             var token = Cts.Token;
             var fans = this.Fans;
+            var program = this.Program;
 
             // Run on a thread-pool task so the UI thread stays responsive. Progress is
             // marshalled back via Invoke; we never touch controls from the worker. Every
@@ -200,7 +203,8 @@ namespace OmenMon.AppGui {
                             Log($"[{pct,3}%] {detail}");
                         }),
                         cancel: token,
-                        fans: fans);
+                        fans: fans,
+                        program: program);
 
                     SafeInvoke(() => Finished(outcome));
                 } catch(Exception ex) {

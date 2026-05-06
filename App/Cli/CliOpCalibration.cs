@@ -51,7 +51,8 @@ namespace OmenMon.AppCli {
             CalibrationProgress progress = null,
             CancellationToken cancel = default(CancellationToken),
             int[] profile = null,
-            IFanArray fans = null) {
+            IFanArray fans = null,
+            FanProgram program = null) {
 
             var outcome = new CalibrationOutcome();
             profile = profile ?? DefaultProfile;
@@ -62,6 +63,12 @@ namespace OmenMon.AppCli {
             bool priorMax = false;
             bool priorManual = false;
             bool priorOff = false;
+
+            // If the tray's fan program is running, suspend it for the duration of
+            // the sweep — otherwise its periodic Update() ticks will overwrite our
+            // commanded 0/30/70/100 % steps and the EC snapshots will reflect the
+            // program's adjustments instead of ours, making the heuristic unreliable.
+            bool programWasSuspendedByUs = false;
 
             try {
                 if(Hw.Bios == null) Hw.Bios = Hw.BiosInterface();
@@ -94,8 +101,21 @@ namespace OmenMon.AppCli {
                 try { priorManual = fans.GetManual(); }   catch { }
                 try { priorOff    = fans.GetOff(); }      catch { }
 
+                if(program != null) {
+                    try {
+                        if(program.IsEnabled && !program.IsSuspended) {
+                            program.Suspend();
+                            programWasSuspendedByUs = true;
+                        }
+                    } catch { }
+                }
+
                 progress("init", "Engaging manual fan control…", 2);
                 fans.SetManual(true);
+                // Clear the global fan-off latch — if the user had 'Fan Off' selected,
+                // SetLevels/SetMax below would silently no-op and the wizard would
+                // collect flat EC dumps and either fail or calibrate against bogus data.
+                try { fans.SetOff(false); } catch { }
                 fans.SetCountdown(600);  // 10 minutes — well over our worst-case run time
 
                 int totalSteps = profile.Length;
@@ -142,15 +162,22 @@ namespace OmenMon.AppCli {
                 return outcome;
             } finally {
                 // Best-effort restore — we never want to leave the user stuck on
-                // 100 % fans because something blew up halfway through.
+                // 100 % fans because something blew up halfway through. Order matters:
+                // SetLevels must run before SetMax / SetOff, otherwise it would
+                // overwrite the just-restored max/off mode and leave the user in a
+                // different fan state than they had before the run.
                 if(fans != null) {
-                    try { fans.SetMax(priorMax); }                       catch { }
-                    try { fans.SetOff(priorOff); }                       catch { }
-                    if(priorLevels != null) {
+                    if(priorLevels != null && !priorMax && !priorOff) {
                         try { fans.SetLevels(priorLevels); }             catch { }
                     }
+                    try { fans.SetMax(priorMax); }                       catch { }
+                    try { fans.SetOff(priorOff); }                       catch { }
                     try { fans.SetManual(priorManual); }                 catch { }
                     try { fans.SetCountdown(0); }                        catch { }
+                }
+
+                if(programWasSuspendedByUs && program != null) {
+                    try { program.Resume(); } catch { }
                 }
             }
         }

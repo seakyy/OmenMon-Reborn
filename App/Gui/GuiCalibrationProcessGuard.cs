@@ -35,26 +35,45 @@ namespace OmenMon.AppGui {
         };
 
         private sealed class Saved {
+            // Holding the Process instance preserves its native handle for the
+            // duration of the suspend window. Without this, if the throttled
+            // process exits during the ~1-minute sweep, Windows may recycle its
+            // PID and ResumeHeavyHitters() would apply our saved priority to an
+            // unrelated process. We additionally check StartTime on restore as
+            // a belt-and-braces guard in case the OS recycles a handle too.
+            public Process Process;
             public int Pid;
+            public DateTime StartTime;
             public ProcessPriorityClass PriorityClass;
         }
 
         private static readonly List<Saved> Suspended = new List<Saved>();
 
         public static void PauseHeavyHitters(Action<string> log) {
-            Suspended.Clear();
+            DisposeAndClear();
             foreach(var name in HeavyHitterNames) {
                 Process[] hits;
                 try { hits = Process.GetProcessesByName(name); }
                 catch { continue; }
 
                 foreach(var p in hits) {
+                    bool kept = false;
                     try {
-                        Suspended.Add(new Saved { Pid = p.Id, PriorityClass = p.PriorityClass });
+                        var entry = new Saved {
+                            Process = p,
+                            Pid = p.Id,
+                            StartTime = p.StartTime,
+                            PriorityClass = p.PriorityClass
+                        };
                         p.PriorityClass = ProcessPriorityClass.Idle;
+                        Suspended.Add(entry);
+                        kept = true;
                         log?.Invoke($"Throttled background process: {name} (pid {p.Id})");
                     } catch {
                         // Permission denied is fine — we move on.
+                    }
+                    if(!kept) {
+                        try { p.Dispose(); } catch { }
                     }
                 }
             }
@@ -63,9 +82,21 @@ namespace OmenMon.AppGui {
         public static void ResumeHeavyHitters() {
             foreach(var s in Suspended) {
                 try {
-                    using(var p = Process.GetProcessById(s.Pid))
-                        p.PriorityClass = s.PriorityClass;
+                    // The held Process instance keeps the original handle alive,
+                    // so we operate on the same OS-level process we throttled even
+                    // if its PID has since been reused by another exe.
+                    if(s.Process != null && !s.Process.HasExited
+                        && s.Process.StartTime == s.StartTime) {
+                        s.Process.PriorityClass = s.PriorityClass;
+                    }
                 } catch { }
+            }
+            DisposeAndClear();
+        }
+
+        private static void DisposeAndClear() {
+            foreach(var s in Suspended) {
+                try { s.Process?.Dispose(); } catch { }
             }
             Suspended.Clear();
         }

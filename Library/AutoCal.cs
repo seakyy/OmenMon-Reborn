@@ -81,8 +81,20 @@ namespace OmenMon.Library {
                 doc.Load(path);
 
                 string fileProductId = doc.DocumentElement?.GetAttribute("ProductId");
+
+                // A transient WMI failure on startup turns the current product ID into
+                // "?" (see Settings.GetProduct()). Treat that as "unknown, skip this run"
+                // rather than "foreign machine, nuke the sidecar" — otherwise one bad
+                // WMI read would permanently erase an otherwise valid calibration.
+                bool currentIsUnknown =
+                    string.IsNullOrEmpty(currentProductId)
+                    || currentProductId == "?";
+
+                if(currentIsUnknown) {
+                    return false;
+                }
+
                 if(string.IsNullOrEmpty(fileProductId)
-                    || string.IsNullOrEmpty(currentProductId)
                     || !string.Equals(fileProductId, currentProductId, StringComparison.OrdinalIgnoreCase)) {
                     // File belongs to a different machine — discard it so we don't
                     // poison this board's read-path with foreign offsets.
