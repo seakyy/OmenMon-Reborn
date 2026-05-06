@@ -36,6 +36,11 @@ namespace OmenMon.AppCli {
             public string ProductId;
             public string BiosBornDate;
             public List<EcDiffScanner.Sample> Samples = new List<EcDiffScanner.Sample>();
+            // Non-null when the sidecar XML could not be written (e.g. installed under
+            // C:\Program Files without admin rights). The session keeps its in-memory
+            // override but a restart will lose it — surfaced in the Markdown report so
+            // the user knows persistence didn't happen.
+            public string SidecarError;
         }
 
         // Default profile: idle, two intermediate steps, full speed.
@@ -152,7 +157,7 @@ namespace OmenMon.AppCli {
 
                 if(outcome.Scan.IsPlausible) {
                     progress("apply", "Applying detected registers to live session…", 98);
-                    ApplyToLiveSession(outcome.Scan, outcome.ProductId);
+                    outcome.SidecarError = ApplyToLiveSession(outcome.Scan, outcome.ProductId);
                 }
 
                 outcome.Markdown = BuildReport(outcome);
@@ -239,7 +244,10 @@ namespace OmenMon.AppCli {
         // Publishes the scan result to OmenMon.Library.AutoCal — read by Fan.GetSpeed()
         // on every refresh tick — and persists it to a sidecar XML so the override
         // survives a restart without us touching the main OmenMon.xml.
-        private static void ApplyToLiveSession(EcDiffScanner.Result scan, string productId) {
+        // Returns null on success, or a human-readable error string if the sidecar
+        // write failed (typically ACL/UAC on a Program Files install). The in-memory
+        // overrides are still applied either way — only persistence is at risk.
+        private static string ApplyToLiveSession(EcDiffScanner.Result scan, string productId) {
             // Wipe any prior override (from a previous wizard run, the sidecar XML, or a
             // known-board prime) before publishing this run's results. Otherwise a scan
             // that finds only the CPU fan would leave a stale GPU mapping in place.
@@ -260,7 +268,9 @@ namespace OmenMon.AppCli {
                 AutoCal.SetGpu(scan.GpuFan.Offset, scan.GpuFan.Mode);
 
             try {
-                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "OmenMon-AutoCal.xml");
+                // Single source of truth for the sidecar path — same constant the
+                // reader uses, so a rename can never cause a write/read mismatch.
+                string path = AutoCal.SidecarPath;
                 var sb = new StringBuilder();
                 // ProductId is stamped into the root element so AutoCal.Load() can reject
                 // a sidecar that came from a different machine (USB-stick installs, OneDrive
@@ -275,7 +285,14 @@ namespace OmenMon.AppCli {
                     sb.AppendLine($"  <GpuFan offset=\"0x{scan.GpuFan.Offset:X2}\" mode=\"{scan.GpuFan.Mode}\" />");
                 sb.AppendLine("</AutoCalibration>");
                 File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-            } catch { }
+                return null;
+            } catch(UnauthorizedAccessException ex) {
+                return "Access denied writing " + AutoCal.SidecarFileName + ": " + ex.Message;
+            } catch(IOException ex) {
+                return "I/O error writing " + AutoCal.SidecarFileName + ": " + ex.Message;
+            } catch(Exception ex) {
+                return ex.GetType().Name + " writing " + AutoCal.SidecarFileName + ": " + ex.Message;
+            }
         }
 #endregion
 
@@ -289,6 +306,18 @@ namespace OmenMon.AppCli {
             sb.AppendLine($"> Generated: {ts}");
             sb.AppendLine("> Paste this into a new GitHub issue at https://github.com/seakyy/OmenMon-Reborn/issues to add your board to the model database.");
             sb.AppendLine();
+
+            // Hoist persistence failures to the top of the report. The session keeps
+            // its in-memory override but a restart will lose it — users on a
+            // C:\Program Files install without elevated rights are the most likely
+            // to hit this and the symptom (next launch reverts to garbage RPM) is
+            // confusing without the explicit heads-up here.
+            if(!string.IsNullOrEmpty(o.SidecarError)) {
+                sb.AppendLine("> **WARNING:** Could not save `" + AutoCal.SidecarFileName + "` — " + o.SidecarError + ".");
+                sb.AppendLine("> Your calibration is active for this session but **will not survive a restart**.");
+                sb.AppendLine("> Re-run OmenMon as Administrator, or move the install out of `C:\\Program Files`, then run the wizard again.");
+                sb.AppendLine();
+            }
 
             sb.AppendLine("## Device");
             sb.AppendLine();

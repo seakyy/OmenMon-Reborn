@@ -254,6 +254,17 @@ namespace OmenMon.AppGui {
                 Application.DoEvents();
                 System.Threading.Thread.Sleep(50);
             }
+
+            // If the worker still hasn't stopped, refuse to close. Destroying the
+            // form's handle while the sweep is mid-step would leave the fans driven
+            // by a headless task with no UI to observe or cancel it. Surface a
+            // "still stopping" hint so the user knows the dialog hasn't frozen.
+            if(!WorkerTask.IsCompleted) {
+                e.Cancel = true;
+                try {
+                    LblPhase.Text = "Still stopping calibration… please wait.";
+                } catch { }
+            }
         }
 
         private void Finished(CliOp.CalibrationOutcome outcome) {

@@ -95,8 +95,14 @@ namespace OmenMon.Library {
         // Path of the sidecar file CliOpCalibration writes after a successful scan.
         // Kept separate from OmenMon.xml so the wizard never has to rewrite the main
         // config and so the user can delete it to undo a calibration without losing
-        // anything else.
-        private const string SidecarFileName = "OmenMon-AutoCal.xml";
+        // anything else. Exposed so the writer (CliOpCalibration) and the reader
+        // (this class) can never disagree about the filename.
+        public const string SidecarFileName = "OmenMon-AutoCal.xml";
+
+        // Full sidecar path next to the running executable. Single source of truth
+        // for both the load and save paths.
+        public static string SidecarPath =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SidecarFileName);
 
         // Loads any persisted overrides written by a previous calibration run.
         // Returns true if at least one override was restored.
@@ -111,7 +117,7 @@ namespace OmenMon.Library {
         // Called from Platform construction so the registers discovered last session
         // take effect on the next launch without the user having to re-run the wizard.
         public static bool Load(string currentProductId) {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SidecarFileName);
+            string path = SidecarPath;
             if(!File.Exists(path)) return false;
 
             try {
