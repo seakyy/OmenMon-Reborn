@@ -59,6 +59,14 @@ namespace OmenMon.Hardware.Platform {
         // Stores the manual toggle component
         protected IPlatformReadWriteComponent Manual;
 
+        // Per-model manual-mode trigger values (defaults match legacy FanManual.On/.Off).
+        // Overridden via PlatformPreset for boards that gate manual fan control on a
+        // non-standard register/value pair (e.g. 8BBE — Victus 16 R0053NT — writes 0x08
+        // to EC[0x06] to engage, 0x48 to release). Set by the ctor — no inline default
+        // here so the ctor's assignment is the single source of truth.
+        private byte ManualValueOn;
+        private byte ManualValueOff;
+
         // Stores the fan mode component
         protected IPlatformReadWriteComponent Mode;
 
@@ -71,7 +79,12 @@ namespace OmenMon.Hardware.Platform {
             IPlatformReadWriteComponent fanCountdown,
             IPlatformReadWriteComponent fanManual,
             IPlatformReadWriteComponent fanMode,
-            IPlatformReadWriteComponent fanSwitch) {
+            IPlatformReadWriteComponent fanSwitch,
+            byte manualValueOn  = (byte) PlatformData.FanManual.On,
+            byte manualValueOff = (byte) PlatformData.FanManual.Off) {
+
+            this.ManualValueOn  = manualValueOn;
+            this.ManualValueOff = manualValueOff;
 
             // Initialize the fan array
             this.Fan = new IFan[PlatformData.FanCount];
@@ -150,13 +163,12 @@ namespace OmenMon.Hardware.Platform {
 
         // Retrieves the manual fan speed toggle status
         public bool GetManual() {
-            return this.Manual.GetValue() == (byte) PlatformData.FanManual.On;
+            return this.Manual.GetValue() == this.ManualValueOn;
         }
 
         // Sets the manual fan speed toggle status
         public void SetManual(bool flag) {
-            this.Manual.SetValue(flag ?
-                (byte) PlatformData.FanManual.On : (byte) PlatformData.FanManual.Off);
+            this.Manual.SetValue(flag ? this.ManualValueOn : this.ManualValueOff);
         }
 
         // Retrieves the maximum fan speed status

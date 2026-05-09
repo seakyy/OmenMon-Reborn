@@ -392,6 +392,25 @@ namespace OmenMon.Library {
                             p.ManualReg        = Conv.GetByte(node[XmlElementManualReg].InnerText);
                             p.ModeReg          = Conv.GetByte(node[XmlElementModeReg].InnerText);
                             p.SwitchReg        = Conv.GetByte(node[XmlElementSwitchReg].InnerText);
+                            // Optional per-model manual-trigger overrides (default FanManual.On/.Off).
+                            // Boards that gate manual fan control with a different value pair
+                            // (e.g. 8BBE — Victus 16 R0053NT — writes 0x08 to EC[0x06] to engage,
+                            // 0x48 to release) declare these explicitly; absent elements fall
+                            // back to the standard OMCC pair set on the preset's defaults.
+                            if(node[XmlElementManualValueOn] != null)
+                                p.ManualValueOn = Conv.GetByte(node[XmlElementManualValueOn].InnerText);
+                            if(node[XmlElementManualValueOff] != null)
+                                p.ManualValueOff = Conv.GetByte(node[XmlElementManualValueOff].InnerText);
+                            // Optional per-model temperature-sensor overrides — remap the
+                            // named CPUT / GPTM sensors to a different EC offset than the
+                            // global <Temperature> config. Used by boards that moved the
+                            // real CPU/GPU temp sensors away from legacy 0x57/0xB7 (e.g.
+                            // 8C9C exposes CPU at 0xB0 and GPU at 0xB4). Absent / 0 =
+                            // no override.
+                            if(node[XmlElementTempCpuReg] != null)
+                                p.TempCpuReg = Conv.GetByte(node[XmlElementTempCpuReg].InnerText);
+                            if(node[XmlElementTempGpuReg] != null)
+                                p.TempGpuReg = Conv.GetByte(node[XmlElementTempGpuReg].InnerText);
                             Models[productId]  = p;
                         } catch { }
                     }
@@ -713,6 +732,16 @@ namespace OmenMon.Library {
                         mnode.AppendChild(xml.CreateElement(XmlElementFanSpeedReg1)).InnerText     = Conv.GetString((uint) p.FanSpeedReg1, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementCountdownReg)).InnerText     = Conv.GetString((uint) p.CountdownReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementManualReg)).InnerText        = Conv.GetString((uint) p.ManualReg, 1, 10);
+                        // Only persist the override values when they differ from the legacy
+                        // FanManual.On/Off pair, so existing entries stay clean on round-trip.
+                        if(p.ManualValueOn != (byte) PlatformData.FanManual.On)
+                            mnode.AppendChild(xml.CreateElement(XmlElementManualValueOn)).InnerText = Conv.GetString((uint) p.ManualValueOn, 1, 10);
+                        if(p.ManualValueOff != (byte) PlatformData.FanManual.Off)
+                            mnode.AppendChild(xml.CreateElement(XmlElementManualValueOff)).InnerText = Conv.GetString((uint) p.ManualValueOff, 1, 10);
+                        if(p.TempCpuReg != 0)
+                            mnode.AppendChild(xml.CreateElement(XmlElementTempCpuReg)).InnerText = Conv.GetString((uint) p.TempCpuReg, 1, 10);
+                        if(p.TempGpuReg != 0)
+                            mnode.AppendChild(xml.CreateElement(XmlElementTempGpuReg)).InnerText = Conv.GetString((uint) p.TempGpuReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementModeReg)).InnerText          = Conv.GetString((uint) p.ModeReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementSwitchReg)).InnerText        = Conv.GetString((uint) p.SwitchReg, 1, 10);
                     }

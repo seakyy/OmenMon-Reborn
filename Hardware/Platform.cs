@@ -26,14 +26,27 @@ namespace OmenMon.Hardware.Platform {
         // Temperature sensor array and which of these values are used
         public IPlatformReadComponent[] Temperature { get; private set; }
         public bool[] TemperatureUse { get; private set; }
+
+        // Resolved per-model register layout. Set once in the ctor (after InitSystem)
+        // and shared by InitFans / InitTemperature. Falls back to PlatformPreset.Default
+        // for fan-related fields when the product isn't in the model database; for the
+        // optional override fields (TempCpuReg/Gpu, ManualValueOn/Off) the preset's own
+        // defaults already encode "no override".
+        private PlatformPreset Preset;
 #endregion
 
 #region Initialization
         // Initializes the class
         public Platform() {
 
-            // Initialize the system settings
+            // Initialize the system settings — must run first so GetProduct() is available.
             InitSystem();
+
+            // Resolve the model preset once and reuse for both fans and temperature.
+            string product = this.System.GetProduct();
+            this.Preset = Config.Models.ContainsKey(product)
+                ? Config.Models[product]
+                : PlatformPreset.Default;
 
             // Initialize the fan controls
             InitFans();
@@ -46,11 +59,9 @@ namespace OmenMon.Hardware.Platform {
         // Initializes the fan controls
         private void InitFans() {
 
-            // Look up model-specific register layout; fall back to the default 2022/2023 preset
+            // Use the preset resolved in the ctor.
             string product = this.System.GetProduct();
-            PlatformPreset preset = Config.Models.ContainsKey(product)
-                ? Config.Models[product]
-                : PlatformPreset.Default;
+            PlatformPreset preset = this.Preset;
 
             // Restore overrides from a previous wizard run, then fall back to a known-good
             // built-in mapping for boards where the legacy tachometer offsets are unreliable
@@ -100,7 +111,10 @@ namespace OmenMon.Hardware.Platform {
                     PlatformData.AccessType.Read | PlatformData.AccessType.Write),
 
                 new EcComponent(preset.SwitchReg,
-                    PlatformData.AccessType.Read | PlatformData.AccessType.Write));
+                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
+
+                preset.ManualValueOn,
+                preset.ManualValueOff);
 
         }
 
@@ -111,6 +125,13 @@ namespace OmenMon.Hardware.Platform {
 
         // Initializes the temperature controls
         private void InitTemperature() {
+
+            // Per-model temperature-register overrides come from the preset resolved in
+            // the ctor. 2024+ boards that moved CPU/GPU temp sensors to non-legacy EC
+            // offsets (e.g. 8C9C: CPU at EC[0xB0], GPU at EC[0xB4]) declare TempCpuReg /
+            // TempGpuReg there; for everyone else the values are 0 and we fall through
+            // to the global <Temperature> config.
+            PlatformPreset preset = this.Preset;
 
             // Set up the temperature sensor array based on the configuration data
             this.Temperature = new IPlatformReadComponent[Config.TemperatureSensor.Count];
@@ -126,12 +147,31 @@ namespace OmenMon.Hardware.Platform {
                 // Process each sensor loaded from the configuration
                 switch(Config.TemperatureSensor[name].Source) {
 
-                    // Add an Embedded Controller sensor
-                    case PlatformData.LinkType.EmbeddedController:
-                        this.Temperature[i++] = new EcComponent(
-                            Config.TemperatureSensor[name].Register,
+                    // Add an Embedded Controller sensor. When the model preset declares
+                    // a TempCpuReg / TempGpuReg override, remap the named CPUT / GPTM
+                    // sensors to that address but keep the original sensor name so the
+                    // GUI / tray tooltip lookups (which match on "CPUT" / "GPTM") still
+                    // pick them up. Braces around the case body keep the local variables
+                    // out of the switch's outer scope.
+                    case PlatformData.LinkType.EmbeddedController: {
+                        byte register = Config.TemperatureSensor[name].Register;
+                        bool overridden = false;
+                        if(name == "CPUT" && preset.TempCpuReg != 0) {
+                            register = preset.TempCpuReg;
+                            overridden = true;
+                        } else if(name == "GPTM" && preset.TempGpuReg != 0) {
+                            register = preset.TempGpuReg;
+                            overridden = true;
+                        }
+                        EcComponent comp = new EcComponent(
+                            register,
                             Config.MaxBelievableTemperature);
+                        if(overridden)
+                            comp.SetName(name); // preserve "CPUT" / "GPTM" instead of the
+                                                // auto-derived enum name (e.g. "RPM1")
+                        this.Temperature[i++] = comp;
                         break;
+                    }
 
                     // Add a WMI BIOS sensor
                     case PlatformData.LinkType.WmiBios:

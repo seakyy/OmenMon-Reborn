@@ -35,6 +35,27 @@ namespace OmenMon.Hardware.Platform {
         public byte ManualReg;       // OMCC — manual fan control enable
         public byte ModeReg;         // HPCM — performance mode preset
         public byte SwitchReg;       // SFAN — fan off switch
+
+        // Per-model manual-mode trigger values. The standard OMCC register at 0x62 responds
+        // to FanManual.On / .Off (0x06 / 0x00); some 2023+ HP boards ignore the legacy OMCC
+        // bit and gate manual fan control on a different register/value pair entirely
+        // (e.g. 8BBE — Victus 16 R0053NT — uses EC[0x06] with 0x08 to enable, 0x48 to release;
+        // see OmenMon.xml for the full per-board reasoning). Defaults reproduce the legacy
+        // enum pair so existing entries keep working without a config change.
+        public byte ManualValueOn  = (byte) PlatformData.FanManual.On;
+        public byte ManualValueOff = (byte) PlatformData.FanManual.Off;
+
+        // Per-model temperature-sensor overrides. When non-zero, Platform.InitTemperature()
+        // remaps the named "CPUT" / "GPTM" sensors to read from these EC offsets instead of
+        // the global defaults defined in OmenMon.xml's <Temperature> block. Required for
+        // 2024+ HP boards that moved the real CPU/GPU temperature sensors away from the
+        // legacy EC[0x57]/EC[0xB7] addresses (e.g. 8C9C — Victus 16-1034NF — exposes the
+        // real CPU temp at EC[0xB0] and the GPU hotspot at EC[0xB4]; the legacy addresses
+        // either return 0xFF or a heavily-smoothed BIOS package average that lags 10 °C+
+        // behind the real die temperature). Default 0 = "no override, use the global
+        // <Temperature> config" — leaves every existing model entry unaffected.
+        public byte TempCpuReg = 0;
+        public byte TempGpuReg = 0;
 #endregion
 
 #region Default

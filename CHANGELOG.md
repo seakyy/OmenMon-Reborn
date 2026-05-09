@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.3-reborn] - 2026-05-09
+
+> **Mixed-confidence release.** The 8C9C fix is hardware-validated (eyzinox's HWInfo cross-reference confirmed `EC[0xB0]` matches the live CPU die temperature within ~1 °C). The 8BBE and 8D07 fixes are derived from EC-dump analysis only — no live confirmation yet — and are marked ⚠️ in the wiki accordingly. Issue authors are asked to test and report back so the next hotfix can either lift those to ✅ or correct course.
+
+### Fixed
+
+- **HP Victus 16-1034NF (8C9C) — CPU/GPU temperature sensors remapped** (issue #16, reported by @eyzinox). v1.3.1 added native 8C9C support but kept reading temperature from the legacy `EC[0x57]` (CPUT, returns `0xFF`) and `EC[0xB7]` (GPTM) addresses, plus the WMI BIOS sensor at `EC[0xB2]`. None of those return the live die temperature on this board: the WMI reading is a heavily-smoothed package average that lags 10 °C+ behind reality (eyzinox saw HWInfo report 84 °C while WMI was stuck at 73 °C). Confirmed against eyzinox's hot probe that the real CPU temp lives at `EC[0xB0]` (`0x53` = 83 °C, matching HWInfo's 84 °C within polling jitter) and the GPU hotspot at `EC[0xB4]` (`0x58` = 88 °C). The 8C9C entry now declares `TempCpuReg=176` / `TempGpuReg=180` to remap the named CPUT / GPTM sensors to those addresses. Fan RPM display remains best-effort via `EC[0xF1] × 60` (the wizard-detected register actually mirrors the commanded rate %, not a real tach pulse) — documented in the XML comment.
+
+- **HP Victus 15 (8D07) — corrected register layout** (issue #23 follow-up, reported by @ghend-oss). The v1.3.2 entry copied the 2023+ default (FanLevel at `0x11`/`0x12`, rate write at `0x3A`/`0x3B`), but re-checking ghend-oss's EC dumps showed those addresses stay constant on this board — the live FanLevel pair is `0x34`/`0x35` and the live rate-write pair is `0x2C`/`0x2D` (classic 2022 layout). Also corrected the display name from "HP Omen 16 (2026)" to "HP Victus 15 (2024, AMD)" — the 8D07 board is the AMD Ryzen 5 7535HS + RX 6550M Victus 15, not an Omen. Caveat: the 0x2C/0x2D ramp observed during the wizard sweep may have come from the BIOS WMI path rather than from EC writes — if so, switching the FanRateWrite address won't on its own raise the 3789 RPM peak ghend-oss saw. Awaiting a re-run of the calibration wizard under sustained gaming load to confirm.
+
+- **HP Victus 16 R0053NT (8BBE) — manual fan control gate identified at `EC[0x06]`** (issue #19, reported by @yunusemreyl). Re-reading all six of yunusemreyl's hardware probes pinned the actual manual-mode gate at `EC[0x06]`, not `EC[0x59]` as a first pass suggested:
+
+  | Mode | `EC[0x06]` | `EC[0x59]` | Fans |
+  |------|-----------|------------|------|
+  | Fan Max (Omen Hub)        | `0x08` | `0x30` | spin to max |
+  | Custom Fan (Omen Hub)     | `0x08` | `0x11` | manual override |
+  | Eco / Balanced / Auto     | `0x48` | `0x30` | BIOS auto |
+  | Performance               | `0x48` | `0x31` | BIOS auto |
+
+  `EC[0x59]` is just the BIOS *profile* selector (Custom=`0x11`, Performance=`0x31`, everything-else=`0x30`) — it does **not** gate fan control: Fan Max with `0x59=0x30` still drives fans to mechanical max. The real gate is `EC[0x06]`: `0x08` when manual override is active (Fan Max **and** Custom Fan modes both set this), `0x48` when the BIOS is doing automatic control. The legacy OMCC at `0x62` stays at `0x16` on every probe regardless of fan state, so the original v1.2.x `ManualReg=98` mapping never engaged anything on this BIOS. The 8BBE entry now declares `ManualReg=6 / ManualValueOn=8 / ManualValueOff=72`. Needs hardware confirmation by yunusemreyl — instructions in the OmenMon.xml comment.
+
+### Added
+
+- **Per-model manual-trigger overrides** in the `<Model>` schema: `ManualValueOn` / `ManualValueOff` are values written to `ManualReg` to engage / release manual fan control. Default to `FanManual.On` / `.Off` (`0x06` / `0x00`), so existing entries keep working unchanged. Plumbed through `PlatformPreset` → `Platform.cs` → `FanArray` constructor and used by `Get/SetManual()`.
+
+- **Per-model temperature-sensor overrides** in the `<Model>` schema: `TempCpuReg` / `TempGpuReg` remap the named CPUT / GPTM sensors to a non-default EC offset, for boards that moved the real CPU/GPU temp registers away from the legacy `0x57` / `0xB7` addresses (e.g. 8C9C above). `Platform.InitTemperature()` swaps the address while preserving the `"CPUT"` / `"GPTM"` sensor name, so the GUI-form display, tray tooltip and Thermal-Panic logic all keep matching them by name.
+
+  All four optional fields are only persisted on save when they differ from the defaults — existing model entries round-trip cleanly without picking up new noise.
+
 ## [1.3.2-reborn] - 2026-05-09
 
 ### Added
