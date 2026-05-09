@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.3.3-reborn] - 2026-05-09
 
-> **Both fixes below are tentative — derived from EC-dump analysis without live hardware testing.** Issue authors are asked to update and confirm; the model database entries are marked ⚠️ in the wiki accordingly.
+> **Mixed-confidence release.** The 8C9C fix is hardware-validated (eyzinox's HWInfo cross-reference confirmed `EC[0xB0]` matches the live CPU die temperature within ~1 °C). The 8BBE and 8D07 fixes are derived from EC-dump analysis only — no live confirmation yet — and are marked ⚠️ in the wiki accordingly. Issue authors are asked to test and report back so the next hotfix can either lift those to ✅ or correct course.
 
 ### Fixed
 
