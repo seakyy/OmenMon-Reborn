@@ -477,6 +477,32 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8DD0: HP Omen (2025 BIOS, build date 20250807) — issue #26, DreamStare0.            -->
+            <!-- Standard 2023+ layout, RPM tachometers at 0xB0/0xB2 (16-bit LE), confirmed by      -->
+            <!-- the user's first Auto-Calibration run on 2026-05-07 (CPU max ~3789, GPU max        -->
+            <!-- ~3654 RPM). The user's second wizard run two days later misfired due to a          -->
+            <!-- transient EC-read alignment glitch — the snapshot came back shifted by 1 byte      -->
+            <!-- (row 0 started with `00 30 80 16 1A 31` instead of `00 80 16 1A 31`), so the        -->
+            <!-- wizard locked onto 0xB3 / 0xD9 and persisted those bogus offsets to the sidecar,    -->
+            <!-- producing the "50k RPM" GUI display until the sidecar was deleted. Adding 8DD0     -->
+            <!-- to the native database means out-of-the-box correctness without running the       -->
+            <!-- wizard, and the new sanity check in AutoCal.Load() will reject sidecars whose      -->
+            <!-- CPU and GPU registers fall >16 bytes apart (which is unprecedented across every    -->
+            <!-- known board layout) when a native entry exists for the same product ID.            -->
+            <Model ProductId="8DD0" DisplayName="HP Omen (2025)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>
