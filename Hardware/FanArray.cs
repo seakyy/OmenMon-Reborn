@@ -62,8 +62,18 @@ namespace OmenMon.Hardware.Platform {
         // Per-model manual-mode trigger values (defaults match legacy FanManual.On/.Off).
         // Overridden via PlatformPreset for boards that gate manual control on a
         // non-standard register/value pair (e.g. 8BBE writes 0x11 to 0x59).
-        protected byte ManualValueOn  = (byte) PlatformData.FanManual.On;
-        protected byte ManualValueOff = (byte) PlatformData.FanManual.Off;
+        // Initialised in the ctor — declared without inline values so the ctor's
+        // assignment is the single source of truth.
+        protected byte ManualValueOn;
+        protected byte ManualValueOff;
+
+        // When true, SetManual(true) snapshots the current ManualReg byte so
+        // SetManual(false) can restore exactly that value instead of writing a
+        // hard-coded ManualValueOff. Needed when ManualReg is shared with another
+        // piece of firmware state (e.g. 8BBE — EC[0x59] is also the perf-profile
+        // selector). Snapshot is invalidated by any explicit ManualValueOff write.
+        protected bool ManualRestorePrevious;
+        private byte? ManualPreviousValue;
 
         // Stores the fan mode component
         protected IPlatformReadWriteComponent Mode;
@@ -79,10 +89,12 @@ namespace OmenMon.Hardware.Platform {
             IPlatformReadWriteComponent fanMode,
             IPlatformReadWriteComponent fanSwitch,
             byte manualValueOn  = (byte) PlatformData.FanManual.On,
-            byte manualValueOff = (byte) PlatformData.FanManual.Off) {
+            byte manualValueOff = (byte) PlatformData.FanManual.Off,
+            bool manualRestorePrevious = false) {
 
-            this.ManualValueOn  = manualValueOn;
-            this.ManualValueOff = manualValueOff;
+            this.ManualValueOn        = manualValueOn;
+            this.ManualValueOff       = manualValueOff;
+            this.ManualRestorePrevious = manualRestorePrevious;
 
             // Initialize the fan array
             this.Fan = new IFan[PlatformData.FanCount];
@@ -166,7 +178,27 @@ namespace OmenMon.Hardware.Platform {
 
         // Sets the manual fan speed toggle status
         public void SetManual(bool flag) {
-            this.Manual.SetValue(flag ? this.ManualValueOn : this.ManualValueOff);
+            if(flag) {
+                // Snapshot the current ManualReg byte before we override it, when the
+                // model declares ManualReg shared with other firmware state (e.g. 8BBE
+                // 0x59 = perf-profile selector). Avoids silently rewriting the user's
+                // chosen profile on the matching SetManual(false). Skip the snapshot
+                // if manual is already engaged — otherwise we'd overwrite a valid
+                // pre-engage snapshot with our own ManualValueOn byte.
+                if(this.ManualRestorePrevious) {
+                    this.Manual.Update();
+                    byte current = (byte) this.Manual.GetValue();
+                    if(current != this.ManualValueOn)
+                        this.ManualPreviousValue = current;
+                }
+                this.Manual.SetValue(this.ManualValueOn);
+            } else {
+                byte off = (this.ManualRestorePrevious && this.ManualPreviousValue.HasValue)
+                    ? this.ManualPreviousValue.Value
+                    : this.ManualValueOff;
+                this.Manual.SetValue(off);
+                this.ManualPreviousValue = null;
+            }
         }
 
         // Retrieves the maximum fan speed status

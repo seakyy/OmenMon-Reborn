@@ -43,6 +43,13 @@ Add a `<Model>` element inside `<Config><Models>`:
         <ManualReg>98</ManualReg>
         <ModeReg>149</ModeReg>
         <SwitchReg>244</SwitchReg>
+        <!-- Optional manual-mode override fields (omit when defaults are correct):  -->
+        <!-- <ManualValueOn>17</ManualValueOn>          value written to enable manual -->
+        <!-- <ManualValueOff>0</ManualValueOff>         value written to release manual -->
+        <!-- <ManualRestorePrevious>true</ManualRestorePrevious>                        -->
+        <!--   if true, snapshot the current ManualReg byte on engage and restore it    -->
+        <!--   on release instead of writing ManualValueOff (use when ManualReg is      -->
+        <!--   shared with another piece of firmware state, e.g. perf-profile selector) -->
       </Model>
     </Models>
   </Config>
@@ -66,7 +73,8 @@ All register values are **decimal** integers (0–255). The table below shows th
 | `ModeReg` | HPCM | 149 | `0x95` | Performance mode preset |
 | `SwitchReg` | SFAN | 244 | `0xF4` | Fan off switch |
 | `ManualValueOn` *(opt.)* | — | 6 | `0x06` | Value written to `ManualReg` to enable manual fan control. Override per-board if the BIOS gates it on a different magic value (e.g. 8BBE wants `0x11`). Defaults to `0x06`. |
-| `ManualValueOff` *(opt.)* | — | 0 | `0x00` | Value written to `ManualReg` to release manual fan control. Override per-board if the firmware idles a different value (e.g. 8BBE idles at `0x30`). Defaults to `0x00`. |
+| `ManualValueOff` *(opt.)* | — | 0 | `0x00` | Value written to `ManualReg` to release manual fan control. Defaults to `0x00`. **Ignored when `ManualRestorePrevious=true`.** |
+| `ManualRestorePrevious` *(opt.)* | — | — | `false` | If `true`, snapshot `ManualReg`'s current byte just before engaging manual mode and write that exact byte back on release. Required when `ManualReg` is shared with another piece of firmware state (e.g. on 8BBE, `EC[0x59]` is also the perf-profile selector — Eco/Balanced/Auto=`0x30`, Performance=`0x31`, Custom=`0x11` — so a hard-coded `ManualValueOff` would silently mutate the user's chosen profile). |
 
 > **Note on RPM word layout:** `FanSpeedReg0` points to the low byte of a little-endian 16-bit word. The high byte is at `FanSpeedReg0 + 1` (`RPM2`, `0xB1`). Same pattern for `FanSpeedReg1` / `RPM4`. This is why the GPU fan uses `RPM3` (`0xB2`) and not `RPM2` — `RPM2` is the CPU high byte.
 
@@ -88,7 +96,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8BBE` | Victus 16 R0053NT (2023) | ✅ 2023+ layout, manual gate at `0x59`=`0x11` (issue #19) |
 | `8BD4` | Victus 16-S0053NT (2024) | ✅ Pattern C, single shared fan |
 | `8C9C` | Victus 16 (2024) | ✅ FanSpeed `0xF1` (×60), confirmed |
-| `8D07` | Omen 16 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #23) |
+| `8D07` | Victus 15 (2024, AMD Ryzen 5 7535HS) | ✅ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #23) |
 | `8E71` | Omen 16-am1000 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #22) |
 | `8A3E` | Victus 15 fb0102la | ❓ |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |

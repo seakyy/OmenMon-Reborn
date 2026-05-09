@@ -392,7 +392,7 @@ namespace OmenMon.Library {
                             p.ManualReg        = Conv.GetByte(node[XmlElementManualReg].InnerText);
                             p.ModeReg          = Conv.GetByte(node[XmlElementModeReg].InnerText);
                             p.SwitchReg        = Conv.GetByte(node[XmlElementSwitchReg].InnerText);
-                            // Optional per-model manual-trigger overrides (default 0x06/0x00).
+                            // Optional per-model manual-trigger overrides (default FanManual.On/.Off).
                             // Boards that gate manual fan control with a different value
                             // (e.g. 8BBE — Victus 16 R0053NT writes 0x11 to 0x59) declare
                             // these explicitly; absent elements fall back to the standard
@@ -401,6 +401,16 @@ namespace OmenMon.Library {
                                 p.ManualValueOn = Conv.GetByte(node[XmlElementManualValueOn].InnerText);
                             if(node[XmlElementManualValueOff] != null)
                                 p.ManualValueOff = Conv.GetByte(node[XmlElementManualValueOff].InnerText);
+                            // Opt-in: snapshot ManualReg's current byte on engage and restore
+                            // it on release, instead of writing ManualValueOff. Required for
+                            // boards where ManualReg is shared with other firmware state
+                            // (perf-profile selector, etc.) so SetManual(false) doesn't mutate
+                            // unrelated BIOS settings as a side effect.
+                            if(node[XmlElementManualRestorePrevious] != null) {
+                                bool flag;
+                                if(Conv.GetBool(node[XmlElementManualRestorePrevious].InnerText, out flag))
+                                    p.ManualRestorePrevious = flag;
+                            }
                             Models[productId]  = p;
                         } catch { }
                     }
@@ -728,6 +738,8 @@ namespace OmenMon.Library {
                             mnode.AppendChild(xml.CreateElement(XmlElementManualValueOn)).InnerText = Conv.GetString((uint) p.ManualValueOn, 1, 10);
                         if(p.ManualValueOff != (byte) PlatformData.FanManual.Off)
                             mnode.AppendChild(xml.CreateElement(XmlElementManualValueOff)).InnerText = Conv.GetString((uint) p.ManualValueOff, 1, 10);
+                        if(p.ManualRestorePrevious)
+                            mnode.AppendChild(xml.CreateElement(XmlElementManualRestorePrevious)).InnerText = XmlSaveBoolTrue;
                         mnode.AppendChild(xml.CreateElement(XmlElementModeReg)).InnerText          = Conv.GetString((uint) p.ModeReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementSwitchReg)).InnerText        = Conv.GetString((uint) p.SwitchReg, 1, 10);
                     }

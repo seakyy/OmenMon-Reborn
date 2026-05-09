@@ -510,9 +510,10 @@ namespace OmenMon.Library {
         private const string XmlElementFanSpeedReg0     = "FanSpeedReg0";
         private const string XmlElementFanSpeedReg1     = "FanSpeedReg1";
         private const string XmlElementCountdownReg     = "CountdownReg";
-        private const string XmlElementManualReg        = "ManualReg";
-        private const string XmlElementManualValueOn    = "ManualValueOn";
-        private const string XmlElementManualValueOff   = "ManualValueOff";
+        private const string XmlElementManualReg              = "ManualReg";
+        private const string XmlElementManualValueOn          = "ManualValueOn";
+        private const string XmlElementManualValueOff         = "ManualValueOff";
+        private const string XmlElementManualRestorePrevious  = "ManualRestorePrevious";
         private const string XmlElementModeReg          = "ModeReg";
         private const string XmlElementSwitchReg        = "SwitchReg";
 
