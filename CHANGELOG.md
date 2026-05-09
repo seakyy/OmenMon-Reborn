@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.4-reborn] - 2026-05-09
+
+### Fixed
+
+- **HP Omen (8DD0) — "50k RPM" GUI display after a wizard re-run** (issue #26, reported by @DreamStare0). The Auto-Calibration Wizard misfired on this user's second run because the EC dump came back shifted by one byte (a transient EC-read alignment glitch — row 0 started with `00 30 80 16 1A 31` instead of `00 80 16 1A 31`), so the wizard locked onto `EC[0xB3]` (CPU) and `EC[0xD9]` (GPU) and persisted those bogus offsets to `OmenMon-AutoCal.xml`. On the next launch OmenMon happily read 16-bit values from those addresses — `EC[0xD9]` happens to contain memory noise that decodes as ~50000 RPM. Two-part fix:
+
+  1. **Native database entry for 8DD0** added with the standard 2023+ register layout (`FanSpeedReg0/1 = 0xB0 / 0xB2`), confirmed against the user's first wizard run on 2026-05-07 (CPU max ~3789, GPU max ~3654 RPM). Owners get correct readings out of the box without the wizard.
+
+  2. **Sanity check in `AutoCal.Load()`** for sidecar files. Across every shipped board layout the CPU and GPU fan tachometer offsets sit within a few bytes of each other (0 for shared single-fan SKUs, 2 for canonical `0xB0`/`0xB2`, 3 for 8BD4's `0x11`/`0x14`). When the persisted offsets are >16 bytes apart **and** a native model entry exists for this board, the file is treated as a wizard misfire and deleted, so the next launch falls through to the native database / `Prime()` mapping. Boards without a native entry still trust the sidecar — they have nothing else to fall back to.
+
 ## [1.3.3-reborn] - 2026-05-09
 
 > **Mixed-confidence release.** The 8C9C fix is hardware-validated (eyzinox's HWInfo cross-reference confirmed `EC[0xB0]` matches the live CPU die temperature within ~1 °C). The 8BBE and 8D07 fixes are derived from EC-dump analysis only — no live confirmation yet — and are marked ⚠️ in the wiki accordingly. Issue authors are asked to test and report back so the next hotfix can either lift those to ✅ or correct course.

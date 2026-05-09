@@ -97,6 +97,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8C9C` | Victus 16-1034NF (2024) | ✅ CPU temp `0xB0` / GPU temp `0xB4` (HWInfo-validated, issue #16); RPM display via `EC[0xF1] × 60` is best-effort (mirrors commanded rate, not a real tachometer — may lag the physical fan during BIOS thermal ramps) |
 | `8D07` | Victus 15 (2024, AMD Ryzen 5 7535HS) | ⚠️ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #23, **needs gaming-load verification**) |
 | `8E71` | Omen 16-am1000 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #22) |
+| `8DD0` | Omen (2025) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #26) |
 | `8A3E` | Victus 15 fb0102la | ❓ |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |
 | `88FE` | Omen 17 ck0xxx (2020) | ❓ |

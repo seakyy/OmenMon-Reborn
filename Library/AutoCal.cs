@@ -160,16 +160,47 @@ namespace OmenMon.Library {
                     return false;
                 }
 
-                bool anyApplied = false;
-
                 XmlNode cpu = doc.SelectSingleNode("/AutoCalibration/CpuFan");
-                if(cpu != null && TryParseEntry(cpu, out byte cReg, out EcDiffScanner.Mode cMode)) {
+                XmlNode gpu = doc.SelectSingleNode("/AutoCalibration/GpuFan");
+                // Hoist the out-vars so the sanity check below can read cReg / gReg
+                // without tripping C#'s definite-assignment analysis (it can't tie the
+                // haveCpu / haveGpu booleans to TryParseEntry's success path).
+                byte cReg = 0;
+                EcDiffScanner.Mode cMode = EcDiffScanner.Mode.LittleEndian16;
+                byte gReg = 0;
+                EcDiffScanner.Mode gMode = EcDiffScanner.Mode.LittleEndian16;
+                bool haveCpu = cpu != null && TryParseEntry(cpu, out cReg, out cMode);
+                bool haveGpu = gpu != null && TryParseEntry(gpu, out gReg, out gMode);
+
+                // Sanity check: across every shipped board layout the CPU and GPU fan
+                // tachometer offsets sit within a few bytes of each other (0 for shared
+                // single-fan SKUs, 2 for the canonical 0xB0/0xB2 pair, 3 for 8BD4's
+                // 0x11/0x14, never more). When the persisted offsets are >16 bytes apart
+                // *and* a native model entry already exists for this board, that's a
+                // strong signal the wizard misfired on a transient EC-read glitch
+                // (issue #26: 8DD0 sidecar locked onto 0xB3 / 0xD9 = 38 bytes apart from
+                // a 1-byte-shifted dump, which then displayed as "50k RPM" until the
+                // sidecar was deleted). Discard the file in that case so the next launch
+                // falls through to the native database / Prime() mapping. Boards without
+                // a native entry still trust the sidecar — they have nothing else to fall
+                // back to.
+                bool hasNative = !currentIsUnknown
+                    && Config.Models != null
+                    && Config.Models.ContainsKey(currentProductId);
+                if(hasNative && haveCpu && haveGpu) {
+                    int distance = Math.Abs((int) cReg - (int) gReg);
+                    if(distance > 16) {
+                        try { File.Delete(path); } catch { }
+                        return false;
+                    }
+                }
+
+                bool anyApplied = false;
+                if(haveCpu) {
                     SetCpu(cReg, cMode);
                     anyApplied = true;
                 }
-
-                XmlNode gpu = doc.SelectSingleNode("/AutoCalibration/GpuFan");
-                if(gpu != null && TryParseEntry(gpu, out byte gReg, out EcDiffScanner.Mode gMode)) {
+                if(haveGpu) {
                     SetGpu(gReg, gMode);
                     anyApplied = true;
                 }
