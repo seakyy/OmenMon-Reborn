@@ -52,12 +52,24 @@ namespace OmenMon.AppCli {
                         gui.Start();
                     }
 
-                    // Broadcast a message to the GUI that this is an automatic run
+                    // Broadcast a message to the GUI that this is an automatic run.
+                    // For the Omen Key path: when no per-key action is configured (color cycle,
+                    // fan-program toggle, custom action), send the explicit ToggleGui IPC so
+                    // the running instance reliably shows/hides the main window — restoring
+                    // the original OmenMon behaviour (issue #21). Users who *have* configured
+                    // a key action still get the original Key path through KeyHandler.
                     Gui.Initialize();
-                    Gui.BroadcastMessage(
-                        Gui.MessageId,
-                        taskId == Config.TaskId.Gui ?
-                            Gui.MessageParam.Gui : Gui.MessageParam.Key);
+                    Gui.MessageParam param;
+                    if(taskId == Config.TaskId.Gui) {
+                        param = Gui.MessageParam.Gui;
+                    } else if(!Config.KeyToggleColorPreset
+                              && !Config.KeyToggleFanProgram
+                              && !Config.KeyCustomActionEnabled) {
+                        param = Gui.MessageParam.ToggleGui;
+                    } else {
+                        param = Gui.MessageParam.Key;
+                    }
+                    Gui.BroadcastMessage(Gui.MessageId, param);
                     break;
 
                 case Config.TaskId.Mux: // Apply the Advanced Optimus bug fix

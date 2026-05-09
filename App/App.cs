@@ -55,15 +55,26 @@ namespace OmenMon {
 
                         } else {
 
-                            // Unless the application was run automatically
-                            if(Environment.GetEnvironmentVariable(Config.EnvVarSelfName) == null
-                                || Environment.GetEnvironmentVariable(Config.EnvVarSelfName).Contains(Config.EnvVarSelfValueGui))
+                            // Decide what to broadcast to the running instance based on why
+                            // this second copy was launched (env var set by the caller).
+                            string envVar = Environment.GetEnvironmentVariable(Config.EnvVarSelfName);
 
-                                // Send a message to the running instance
-                                // to bring itself to the user's attention
+                            if(envVar == null
+                                || envVar.Contains(Config.EnvVarSelfValueGui))
+
+                                // Manual relaunch (or autorun): bring the running instance
+                                // to the user's attention.
                                 Gui.BroadcastMessage(
                                     Gui.MessageId,
                                     Gui.MessageParam.AnotherInstance);
+
+                            else if(envVar.Contains(Config.EnvVarSelfValueKey))
+
+                                // Omen Key spawned us while another instance is already running.
+                                // Toggle the main window instead of silently failing (issue #21).
+                                Gui.BroadcastMessage(
+                                    Gui.MessageId,
+                                    Gui.MessageParam.ToggleGui);
 
                         }
 

@@ -64,6 +64,14 @@ namespace OmenMon.AppGui {
                         Context.Op.KeyHandler(LastParam);
                         break;
 
+                    // Explicit GUI toggle request — restores the original OmenMon behaviour
+                    // where pressing the Omen key shows/hides the main window (issue #21).
+                    // Bypasses KeyHandler's configurable actions so the toggle is unconditional.
+                    case Gui.MessageParam.ToggleGui:
+
+                        Context.ToggleFormMain();
+                        break;
+
                 }
 
                 // Store the previous parameter values

@@ -374,6 +374,40 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8D07: HP Omen 16 (2025/2026 BIOS) — confirmed via Auto-Calibration Wizard (issue #23). -->
+            <!-- Classic 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3789, GPU max ~3648 RPM).      -->
+            <!-- Fan level at 0x11/0x12, rate write at 0x3A/0x3B — standard 2023+ layout.                -->
+            <Model ProductId="8D07" DisplayName="HP Omen 16 (2026)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8E71: HP Omen 16-am1000 (2026 BIOS) — confirmed via Auto-Calibration Wizard (issue #22). -->
+            <!-- Classic 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3660, GPU max ~3630 RPM).       -->
+            <!-- Fan level at 0x11/0x12, rate write at 0x3A/0x3B — standard 2023+ layout.                 -->
+            <Model ProductId="8E71" DisplayName="HP Omen 16-am1000 (2026)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>
