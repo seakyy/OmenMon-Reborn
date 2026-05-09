@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Omen Key now toggles the main window again** (issue #21). The original OmenMon used an inter-process message to show/hide the GUI when the Omen key was pressed; Reborn's strict single-instance lock silently dropped that message because no IPC handler had been wired up yet. Added an explicit `ToggleGui` window-message that is broadcast both from the `-run Key` task path and from any second-instance launch carrying the Omen Key environment marker. Users who have configured `KeyToggleColorPreset`, `KeyToggleFanProgram`, or `KeyCustomActionEnabled` keep the original `Key` IPC path so their custom action still fires; users with no key action configured get a reliable show/hide toggle.
 
+## [1.3.1-reborn] - 2026-05-06
+
+### Fixed
+- **Model Support:** Native support for HP Victus 16 (8C9C). Fixed the "5500 RPM ghost fans" bug by implementing a dynamic 60x multiplier for `DirectMultiplier8` sensors in `AutoCal.cs` and `Fan.cs`. Corrected temperature registers to `0xB0` (CPU) and `0xB4` (GPU).
+
 ## [1.3.0-reborn] - 2026-05-05
 
 ### Added

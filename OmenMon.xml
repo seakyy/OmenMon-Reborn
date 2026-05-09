@@ -394,7 +394,7 @@
             <!-- 8E71: HP Omen 16-am1000 (2026 BIOS) — confirmed via Auto-Calibration Wizard (issue #22). -->
             <!-- Classic 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3660, GPU max ~3630 RPM).       -->
             <!-- Fan level at 0x11/0x12, rate write at 0x3A/0x3B — standard 2023+ layout.                 -->
-            <Model ProductId="8E71" DisplayName="HP Omen 16-am1000 (2026)">
+            <Model ProductId="8E71" DisplayName="HP Omen / Victus (8D07, 2026)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
                 <FanRateReadReg0>46</FanRateReadReg0>
