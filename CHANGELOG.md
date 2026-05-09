@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0-reborn] - 2026-05-09
+
+> **Security release.** OmenMon no longer ships the WinRing0 kernel driver. The kernel-mode access layer has been replaced with [PawnIO](https://pawnio.eu/), whose Microsoft-signed, HVCI-compatible driver does not trigger Windows Defender warnings the way WinRing0 did. Functionality is preserved; the public `Ring0` API is unchanged so `Hardware/Ec.cs` and every other caller stayed put.
+
+### Changed
+
+- **WinRing0 driver removed in favour of PawnIO.** The whole rationale: WinRing0.sys is well-known to AV/EDR (CVE-2020-14979 in older bundled versions, plus an arbitrary-MSR-write surface) and Defender flags it on every install — a worsening UX. PawnIO instead ships a single Microsoft-signed driver shared across applications; modules are sandboxed Pawn bytecode that the driver verifies against the maintainer's RSA-2048 public key before loading. From the user's perspective: install PawnIO once from <https://pawnio.eu/> and the Defender prompt is gone.
+
+- **Kernel-mode I/O is now mediated by `Driver/PawnIo.cs`** — a thin user-mode wrapper around `PawnIOLib.dll` that locates the library via `HKLM\SOFTWARE\PawnIO\InstallDir` (with a Program-Files fallback), opens a PawnIO executor handle, and loads the embedded module blob via `pawnio_load`. Each kernel operation is invoked by name through `pawnio_execute`.
+
+- **`Driver/Ring0.cs` rewritten to delegate to PawnIO** while keeping its public surface (`Open` / `Close` / `IsOpen` / `GetStatus` / `ReadIoPort` / `WriteIoPort` / `GetPciAddress` etc.) byte-compatible with v1.3.x. `Hardware/Ec.cs` and every existing caller compile and run unchanged. The MSR / PCI-config / physical-memory methods OmenMon never actually called are now no-op stubs (kept on the surface for source compatibility with anything outside this codebase that might link against `Ring0`).
+
+### Added
+
+- **`Resources/LpcACPIEC.bin`** — the official, namazso-signed PawnIO module ([source](https://github.com/namazso/PawnIO.Modules/blob/main/LpcACPIEC.p)) is bundled as embedded resource `OmenMon.LpcACPIEC.bin`. It exposes `ioctl_pio_read` / `ioctl_pio_write` restricted to ACPI EC ports `0x62` (data) and `0x66` (command) — exactly the two ports OmenMon's EC handshake (`Hardware/Ec.cs` `ReadByteImpl` / `WriteByteImpl`) talks to. The mutex name LpcACPIEC expects (`\BaseNamedObjects\Access_EC`) coincides with OmenMon's existing `Config.LockPathEc` (`Global\Access_EC`), so coordination with HP Omen Gaming Hub continues to work.
+
+- **`Resources/PAWN_BUILD.md`** — module rotation guide. When namazso publishes a new PawnIO.Modules release, drop the new `LpcACPIEC.bin` into `Resources/` and rebuild — no code changes needed.
+
+- **Dev notes (`docs/DEV_NOTES_v1.4.0.md`)** — full architecture write-up: why we use someone else's signed module rather than ship a custom one, what the wire format of `pawnio_load` looks like, how to extend OmenMon to additional kernel operations later, and what to do when the upstream module file rotates.
+
+### Removed
+
+- `Driver/Driver.cs` — the WinRing0 service-management plumbing (extract `.sys.gz`, register kernel service, IOCTL marshalling) is no longer needed.
+
+- `Resources/Driver.sys.gz` — the embedded WinRing0 kernel driver. OmenMon does not extract or install any `.sys` file at runtime any more; the signed PawnIO driver is installed by its own MSI on the user's machine.
+
+- The `IOCTL_OLS_*` constants and `Kernel32.DeviceIoControl` P/Invoke in `External/Kernel.cs` are now unused but left in place — they're harmless dead code and removing them brings no functional benefit.
+
+### End-user upgrade path from 1.3.x
+
+1. Uninstall OmenMon 1.3.x as usual (or just overwrite the binaries — there is no installer to migrate).
+2. Install PawnIO once from <https://pawnio.eu/> (signed MSI, no Defender warning).
+3. Run `OmenMon.exe` as administrator. You will not be asked to allow a kernel driver any more — the existing PawnIO.sys handles every EC read/write.
+4. Existing `OmenMon.xml`, `OmenMon-AutoCal.xml`, and fan-program XMLs are forward-compatible — the migration touches only the `Driver/` layer.
+
 ## [1.3.4-reborn] - 2026-05-09
 
 ### Fixed

@@ -39,11 +39,27 @@ The feature takes priority over `KeyToggleFanProgram` and `KeyCustomAction` in t
   * `Hardware/Platform.cs`: Removed hardcoded `switch` statement for device IDs; implemented dynamic preset loading.
 * **Hardware Interfacing:**
   * `Hardware/FanArray.cs`: Modified `SetOff()` to use BIOS calls instead of EC when `FanLevelUseEc` is false.
-  * `Driver/Driver.cs` & `Driver/Ring0.cs`: Added HVCI (Memory Integrity) hints to EC initialization error messages.
+  * `Driver/Ring0.cs`: Rewritten in v1.4.0 to delegate to PawnIO instead of WinRing0 (see Phase 8 below). Public API preserved.
   * `Library/Os.cs`: Added `GetAvailableRefreshRates` using `EnumDisplaySettings`.
 * **User Interface:**
   * `App/Gui/GuiFormMain.cs` & `App/Gui/GuiFormMainInit.cs`: Added startup hook to trigger `AutoDetector` if the device is unknown.
   * `App/Gui/GuiMenu.cs`: Added the "Auto-Calibrate & Diagnose..." tray entry that launches the Auto-Calibration Wizard (`App/Gui/GuiFormCalibration.cs`). The wizard runs an active 4-step fan stress sweep, scans the EC dumps via `Hardware/EcDiffScanner.cs` to discover RPM-tachometer registers (16-bit LE / period-encoded / direct-multiplier), applies the result to the live session through `Library/AutoCal.cs`, persists it to a sidecar XML, and copies a Markdown report to the clipboard for upstream contribution. Replaces the older static "Contribute Hardware Data" dump-and-paste flow.
   * `App/Gui/GuiTray.cs`: Implemented a background heartbeat timer to prevent Performance Control from sleeping.
 * **Build System:**
-  * `OmenMon.csproj`: Included new `.cs` files in the compilation target.
+  * `OmenMon.csproj`: Included new `.cs` files in the compilation target. v1.4.0 swaps the embedded resource `OmenMon.Driver.sys.gz` (WinRing0) for `OmenMon.LpcACPIEC.bin` (PawnIO).
+
+## Phase 8 — WinRing0 → PawnIO Migration (v1.4.0)
+
+Replaces the WinRing0 kernel driver with [PawnIO](https://pawnio.eu/), whose Microsoft-signed driver no longer triggers Windows Defender warnings. The migration is invisible to higher layers: `Driver/Ring0.cs` keeps its original public API and `Hardware/Ec.cs` is unchanged.
+
+### New Files Created
+
+* `Driver/PawnIo.cs`: User-mode wrapper around `PawnIOLib.dll`. Locates the library via the registry / Program Files, pre-loads it via `LoadLibraryW`, opens a PawnIO executor handle, loads the embedded module blob, and exposes a `PawnIo.Execute(name, in[], out[])` entry point used by `Ring0.cs`.
+* `Resources/LpcACPIEC.bin`: The official namazso-signed PawnIO module from [PawnIO.Modules releases](https://github.com/namazso/PawnIO.Modules/releases). Embedded as resource `OmenMon.LpcACPIEC.bin`. Provides byte-granular ACPI EC port I/O (ports `0x62` / `0x66` only). LGPL-2.1-or-later, redistribution allowed unmodified — see `Resources/PAWN_BUILD.md` for module rotation procedure.
+* `Resources/PAWN_BUILD.md`: Operational documentation for the embedded PawnIO module (where it comes from, how to update it, troubleshooting).
+* `docs/DEV_NOTES_v1.4.0.md`: Full architecture and rotation notes for the PawnIO migration.
+
+### Removed Files
+
+* `Driver/Driver.cs`: WinRing0 service installation / kernel-driver IOCTL plumbing — obsolete.
+* `Resources/Driver.sys.gz`: Compressed WinRing0 kernel driver — obsolete; the user installs the signed PawnIO driver themselves.

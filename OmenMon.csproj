@@ -83,7 +83,7 @@
     <Compile Include="App\Gui\GuiCalibrationProcessGuard.cs" />
     <Compile Include="App\Gui\GuiKbd.cs" />
     <Compile Include="App\Gui\GuiTray.cs" />
-    <Compile Include="Driver\Driver.cs" />
+    <Compile Include="Driver\PawnIo.cs" />
     <Compile Include="Driver\Ring0.cs" />
     <Compile Include="External\AdvApi.cs" />
     <Compile Include="External\ColorMgmt.cs" />
@@ -150,8 +150,8 @@
       <StronglyTypedNamespace>OmenMon</StronglyTypedNamespace>
       <StronglyTypedClassName>Resources</StronglyTypedClassName>
     </EmbeddedResource>
-    <EmbeddedResource Include="Resources\Driver.sys.gz">
-      <LogicalName>OmenMon.Driver.sys.gz</LogicalName>
+    <EmbeddedResource Include="Resources\LpcACPIEC.bin" Condition="Exists('Resources\LpcACPIEC.bin')">
+      <LogicalName>OmenMon.LpcACPIEC.bin</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
   <!-- <ItemGroup>
