@@ -80,7 +80,14 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8A14` | Omen 16 2022 (b1xxx) | ✅ Default layout |
 | `8A4C` | Omen 16 2022 (k0xxx) | ✅ Default layout |
 | `8A4D` | Omen 16 2022 refresh | ❓ |
-| `8C9C` | Victus 16 s1023dx (2024) | ❓ |
+| `8A25` | Victus 16 (2022, d1xxx) | ✅ Default layout (Fan2 unsupported) |
+| `8BAB` | Omen 16 (2025) | ✅ 2023+ layout, RPM at `0xE3`/`0xE5` |
+| `8BAD` | Omen 17 (2023) | ✅ FanLevel `0x34`/`0x35` |
+| `8BBE` | Victus 16 R0053NT (2023) | ✅ 2023+ layout |
+| `8BD4` | Victus 16-S0053NT (2024) | ✅ Pattern C, single shared fan |
+| `8C9C` | Victus 16 (2024) | ✅ FanSpeed `0xF1` (×60), confirmed |
+| `8D07` | Omen 16 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #23) |
+| `8E71` | Omen 16-am1000 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #22) |
 | `8A3E` | Victus 15 fb0102la | ❓ |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |
 | `88FE` | Omen 17 ck0xxx (2020) | ❓ |

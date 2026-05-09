@@ -6,7 +6,7 @@ using System.Reflection;
 
 // Project version metadata is set dynamically
 // These are just the defaults to be overriden
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
-[assembly: AssemblyInformationalVersion("1.3.0-reborn")]
+[assembly: AssemblyVersion("1.3.2.0")]
+[assembly: AssemblyFileVersion("1.3.2.0")]
+[assembly: AssemblyInformationalVersion("1.3.2-reborn")]
 [assembly: AssemblyMetadata("Timestamp", "Undefined")]

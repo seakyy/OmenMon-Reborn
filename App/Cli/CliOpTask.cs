@@ -40,8 +40,13 @@ namespace OmenMon.AppCli {
                 case Config.TaskId.Gui: // The application is starting during boot
                 case Config.TaskId.Key: // Responding to the Omen Key being pressed
 
-                    // Start the OmenMon GUI if not running
-                    if(Process.GetProcessesByName(Config.AppName).Length == 1) {
+                    // Start the OmenMon GUI if not running. Process.GetProcessesByName counts
+                    // the current -run process as well, so == 1 means "no GUI is running yet".
+                    // In that case the spawned GUI handles its own initial show via the env-var
+                    // marker (KeyHandler / GuiTray ctor) and we must NOT broadcast — racing the
+                    // broadcast against a still-initializing GUI risks a show-then-toggle flicker.
+                    bool guiAlreadyRunning = Process.GetProcessesByName(Config.AppName).Length > 1;
+                    if(!guiAlreadyRunning) {
                         Process gui = new Process();
                         gui.StartInfo.Environment.Add(Config.EnvVarSelfName, taskId == Config.TaskId.Gui ?
                                 Config.EnvVarSelfValueGui : Config.EnvVarSelfValueKey);
@@ -50,14 +55,27 @@ namespace OmenMon.AppCli {
                         gui.StartInfo.WindowStyle = taskId == Config.TaskId.Gui ?
                             ProcessWindowStyle.Minimized : ProcessWindowStyle.Normal;
                         gui.Start();
+                        break;
                     }
 
-                    // Broadcast a message to the GUI that this is an automatic run
+                    // GUI is already running — broadcast the appropriate IPC message.
+                    // For the Omen Key path: when no per-key action is configured (color cycle,
+                    // fan-program toggle, custom action), send the explicit ToggleGui IPC so
+                    // the running instance reliably shows/hides the main window — restoring
+                    // the original OmenMon behaviour (issue #21). Users who *have* configured
+                    // a key action still get the original Key path through KeyHandler.
                     Gui.Initialize();
-                    Gui.BroadcastMessage(
-                        Gui.MessageId,
-                        taskId == Config.TaskId.Gui ?
-                            Gui.MessageParam.Gui : Gui.MessageParam.Key);
+                    Gui.MessageParam param;
+                    if(taskId == Config.TaskId.Gui) {
+                        param = Gui.MessageParam.Gui;
+                    } else if(!Config.KeyToggleColorPreset
+                              && !Config.KeyToggleFanProgram
+                              && !Config.KeyCustomActionEnabled) {
+                        param = Gui.MessageParam.ToggleGui;
+                    } else {
+                        param = Gui.MessageParam.Key;
+                    }
+                    Gui.BroadcastMessage(Gui.MessageId, param);
                     break;
 
                 case Config.TaskId.Mux: // Apply the Advanced Optimus bug fix

@@ -33,6 +33,7 @@ namespace OmenMon.AppGui {
             AnotherInstance =   1,  // Another instance has been launched
             Gui             =   2,  // Autorun task has been launched
             Key             =   3,  // Omen Key event has been registered
+            ToggleGui       =   4,  // Explicit show/hide-window IPC (Omen Key toggle, issue #21)
             NoLastParam     = 255,  // Launched not as a message response
         }
 
