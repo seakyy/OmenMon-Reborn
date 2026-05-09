@@ -65,6 +65,8 @@ All register values are **decimal** integers (0–255). The table below shows th
 | `ManualReg` | OMCC | 98 | `0x62` | Manual fan control enable |
 | `ModeReg` | HPCM | 149 | `0x95` | Performance mode preset |
 | `SwitchReg` | SFAN | 244 | `0xF4` | Fan off switch |
+| `ManualValueOn` *(opt.)* | — | 6 | `0x06` | Value written to `ManualReg` to enable manual fan control. Override per-board if the BIOS gates it on a different magic value (e.g. 8BBE wants `0x11`). Defaults to `0x06`. |
+| `ManualValueOff` *(opt.)* | — | 0 | `0x00` | Value written to `ManualReg` to release manual fan control. Override per-board if the firmware idles a different value (e.g. 8BBE idles at `0x30`). Defaults to `0x00`. |
 
 > **Note on RPM word layout:** `FanSpeedReg0` points to the low byte of a little-endian 16-bit word. The high byte is at `FanSpeedReg0 + 1` (`RPM2`, `0xB1`). Same pattern for `FanSpeedReg1` / `RPM4`. This is why the GPU fan uses `RPM3` (`0xB2`) and not `RPM2` — `RPM2` is the CPU high byte.
 
@@ -83,7 +85,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8A25` | Victus 16 (2022, d1xxx) | ✅ Default layout (Fan2 unsupported) |
 | `8BAB` | Omen 16 (2025) | ✅ 2023+ layout, RPM at `0xE3`/`0xE5` |
 | `8BAD` | Omen 17 (2023) | ✅ FanLevel `0x34`/`0x35` |
-| `8BBE` | Victus 16 R0053NT (2023) | ✅ 2023+ layout |
+| `8BBE` | Victus 16 R0053NT (2023) | ✅ 2023+ layout, manual gate at `0x59`=`0x11` (issue #19) |
 | `8BD4` | Victus 16-S0053NT (2024) | ✅ Pattern C, single shared fan |
 | `8C9C` | Victus 16 (2024) | ✅ FanSpeed `0xF1` (×60), confirmed |
 | `8D07` | Omen 16 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #23) |

@@ -274,7 +274,14 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
-            <!-- 8BBE: HP Victus 16 R0053NT (2023) — fan level regs at 0x11/0x12, confirmed via probe EC[0x11]=BIOS CPU level -->
+            <!-- 8BBE: HP Victus 16 R0053NT (2023) — fan level regs at 0x11/0x12, confirmed via probe EC[0x11]=BIOS CPU level. -->
+            <!-- Manual-mode quirk (issue #19, yunusemreyl):                                                                  -->
+            <!--   The legacy OMCC bit at 0x62 is ignored on this BIOS. Omen Gaming Hub's "Custom Fan" profile               -->
+            <!--   instead writes 0x11 to EC[0x59]; all other profiles (Eco/Balanced/Performance/Auto) leave that            -->
+            <!--   register at 0x30. Comparing the user's hardware probes pinned that as the actual gate for                  -->
+            <!--   manual fan control, so ManualReg points at 0x59 here with a per-model on/off pair. Once unlocked,          -->
+            <!--   running the Auto-Calibration Wizard will pick up the RPM tachometers (which the original 0%→100%           -->
+            <!--   sweep missed because the fans never spun up while the override wasn't engaged).                            -->
             <Model ProductId="8BBE" DisplayName="HP Victus 16 (2023, R0053NT)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
@@ -285,7 +292,9 @@
                 <FanSpeedReg0>176</FanSpeedReg0>
                 <FanSpeedReg1>178</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>
-                <ManualReg>98</ManualReg>
+                <ManualReg>89</ManualReg>
+                <ManualValueOn>17</ManualValueOn>
+                <ManualValueOff>48</ManualValueOff>
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>

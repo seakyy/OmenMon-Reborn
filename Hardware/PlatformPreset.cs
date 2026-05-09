@@ -35,6 +35,15 @@ namespace OmenMon.Hardware.Platform {
         public byte ManualReg;       // OMCC — manual fan control enable
         public byte ModeReg;         // HPCM — performance mode preset
         public byte SwitchReg;       // SFAN — fan off switch
+
+        // Per-model manual-mode trigger values. Standard OMCC (0x62) responds to
+        // 0x06 / 0x00; some 2023+ Victus boards (e.g. 8BBE) ignore the legacy OMCC
+        // bit and instead gate manual control via a different register that wants a
+        // different magic value (see OmenMon.xml comments for the per-board specifics).
+        // Defaults reproduce the legacy FanManual.On / .Off pair so existing entries
+        // keep working without a config change.
+        public byte ManualValueOn  = 0x06;
+        public byte ManualValueOff = 0x00;
 #endregion
 
 #region Default

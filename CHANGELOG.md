@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.3-reborn] - 2026-05-09
+
+### Fixed
+
+- **HP Victus 16 R0053NT (8BBE) — manual fan control unlocked** (issue #19, reported by @yunusemreyl). On this BIOS the legacy `OMCC` bit at `0x62` is ignored: Omen Gaming Hub's "Custom Fan" profile gates manual control by writing `0x11` to `EC[0x59]`, all other profiles (Eco/Balanced/Performance/Auto) leave that register at `0x30`. The 8BBE entry in the model database now points `ManualReg` at `0x59` and uses the matching on/off pair, so `Fans.SetManual(true)` triggers the same hardware unlock that Omen Gaming Hub does. Once manual is engaged the Auto-Calibration Wizard will pick up the RPM tachometers (the original 0%→100% sweep missed them because the fans never actually spun up while OmenMon was being ignored).
+
+### Added
+
+- **Per-model `ManualValueOn` / `ManualValueOff` overrides** in the `<Model>` schema. Boards that use a non-standard manual-trigger value (like 8BBE above) declare it explicitly; absent elements fall back to the legacy `FanManual.On` / `.Off` pair (`0x06` / `0x00`), so existing entries keep working unchanged. Plumbed through `PlatformPreset` → `Platform.cs` → `FanArray` constructor and used by `Get/SetManual()`.
+
 ## [1.3.2-reborn] - 2026-05-09
 
 ### Added

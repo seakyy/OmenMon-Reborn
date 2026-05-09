@@ -392,6 +392,15 @@ namespace OmenMon.Library {
                             p.ManualReg        = Conv.GetByte(node[XmlElementManualReg].InnerText);
                             p.ModeReg          = Conv.GetByte(node[XmlElementModeReg].InnerText);
                             p.SwitchReg        = Conv.GetByte(node[XmlElementSwitchReg].InnerText);
+                            // Optional per-model manual-trigger overrides (default 0x06/0x00).
+                            // Boards that gate manual fan control with a different value
+                            // (e.g. 8BBE — Victus 16 R0053NT writes 0x11 to 0x59) declare
+                            // these explicitly; absent elements fall back to the standard
+                            // OMCC pair set on the preset's defaults.
+                            if(node[XmlElementManualValueOn] != null)
+                                p.ManualValueOn = Conv.GetByte(node[XmlElementManualValueOn].InnerText);
+                            if(node[XmlElementManualValueOff] != null)
+                                p.ManualValueOff = Conv.GetByte(node[XmlElementManualValueOff].InnerText);
                             Models[productId]  = p;
                         } catch { }
                     }
@@ -713,6 +722,12 @@ namespace OmenMon.Library {
                         mnode.AppendChild(xml.CreateElement(XmlElementFanSpeedReg1)).InnerText     = Conv.GetString((uint) p.FanSpeedReg1, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementCountdownReg)).InnerText     = Conv.GetString((uint) p.CountdownReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementManualReg)).InnerText        = Conv.GetString((uint) p.ManualReg, 1, 10);
+                        // Only persist the override values when they differ from the legacy
+                        // FanManual.On/Off pair, so existing entries stay clean on round-trip.
+                        if(p.ManualValueOn != (byte) PlatformData.FanManual.On)
+                            mnode.AppendChild(xml.CreateElement(XmlElementManualValueOn)).InnerText = Conv.GetString((uint) p.ManualValueOn, 1, 10);
+                        if(p.ManualValueOff != (byte) PlatformData.FanManual.Off)
+                            mnode.AppendChild(xml.CreateElement(XmlElementManualValueOff)).InnerText = Conv.GetString((uint) p.ManualValueOff, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementModeReg)).InnerText          = Conv.GetString((uint) p.ModeReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementSwitchReg)).InnerText        = Conv.GetString((uint) p.SwitchReg, 1, 10);
                     }
