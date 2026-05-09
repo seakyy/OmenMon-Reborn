@@ -103,8 +103,7 @@ namespace OmenMon.Hardware.Platform {
                     PlatformData.AccessType.Read | PlatformData.AccessType.Write),
 
                 preset.ManualValueOn,
-                preset.ManualValueOff,
-                preset.ManualRestorePrevious);
+                preset.ManualValueOff);
 
         }
 

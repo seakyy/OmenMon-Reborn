@@ -290,13 +290,17 @@
             <!--   BIOS auto control. Bit 6 (0x40) toggles between the two. The legacy OMCC at 0x62 stays at 0x16 on every      -->
             <!--   probe regardless of fan state, so the original v1.2.x ManualReg=98 never actually engaged anything here.     -->
             <!--                                                                                                                -->
-            <!-- How to validate (and what to do if your fans are still locked):                                                -->
-            <!--   1. Update OmenMon and reboot.                                                                                -->
-            <!--   2. Open the GUI → Fan tab → toggle "Manual" on. Fans should now respond to slider input.                     -->
-            <!--   3. If they don't, run `OmenMon.exe -EcMon` and verify EC[0x06] flips between 0x08 and 0x48 when you toggle   -->
-            <!--      "Custom Fan" / "Auto" in Omen Gaming Hub. If it doesn't, the gate is somewhere else — please report on    -->
-            <!--      issue #19 with a fresh hardware probe in each mode.                                                       -->
-            <!--   4. Re-run the Auto-Calibration Wizard — once fans actually spin, the RPM tachometers will be detected.      -->
+            <!-- How to validate the EC[0x06] hypothesis (and what to do if your fans are still locked):                       -->
+            <!--   1. Exit OmenMon completely (right-click tray icon → Exit). This is important — if OmenMon is running         -->
+            <!--      during the next step it will write to EC[0x06] itself and you'll only see our own writes, not the         -->
+            <!--      BIOS's.                                                                                                   -->
+            <!--   2. Run `OmenMon.exe -EcMon` from a console and watch EC[0x06] while flipping "Custom Fan" ↔ "Auto" in        -->
+            <!--      Omen Gaming Hub. Expected: 0x08 in Custom/Max modes, 0x48 in Auto/Eco/Balanced/Performance.                -->
+            <!--   3. If 0x06 stays unchanged, the gate is somewhere else — please post a fresh hardware probe per mode on      -->
+            <!--      issue #19 so we can locate it.                                                                            -->
+            <!--   4. If 0x06 does flip as expected, install the v1.3.3 build, restart OmenMon, toggle Manual in the Fan tab —  -->
+            <!--      fans should now respond to slider input. Then re-run the Auto-Calibration Wizard so it can pick up the    -->
+            <!--      RPM tachometers (which the original sweep missed because the fans never actually spun up).                -->
             <Model ProductId="8BBE" DisplayName="HP Victus 16 (2023, R0053NT)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
@@ -430,7 +434,6 @@
             <!--   ManualReg/ModeReg/SwitchReg = legacy defaults (98/149/244) — untested on this board.    -->
             <!--   ManualValue overrides not used; if SetManual ends up doing nothing, follow the same    -->
             <!--   diagnosis path as 8BBE (compare hardware probes between Custom-fan and Auto modes).     -->
-            <!--     -->
             <Model ProductId="8D07" DisplayName="HP Victus 15 (2024, AMD)">
                 <FanLevelReg0>52</FanLevelReg0>
                 <FanLevelReg1>53</FanLevelReg1>

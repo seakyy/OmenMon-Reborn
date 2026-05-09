@@ -44,12 +44,8 @@ Add a `<Model>` element inside `<Config><Models>`:
         <ModeReg>149</ModeReg>
         <SwitchReg>244</SwitchReg>
         <!-- Optional manual-mode override fields (omit when defaults are correct):  -->
-        <!-- <ManualValueOn>17</ManualValueOn>          value written to enable manual -->
-        <!-- <ManualValueOff>0</ManualValueOff>         value written to release manual -->
-        <!-- <ManualRestorePrevious>true</ManualRestorePrevious>                        -->
-        <!--   if true, snapshot the current ManualReg byte on engage and restore it    -->
-        <!--   on release instead of writing ManualValueOff (use when ManualReg is      -->
-        <!--   shared with another piece of firmware state, e.g. perf-profile selector) -->
+        <!-- <ManualValueOn>8</ManualValueOn>     value written to ManualReg to engage manual -->
+        <!-- <ManualValueOff>72</ManualValueOff>  value written to ManualReg to release manual -->
       </Model>
     </Models>
   </Config>
@@ -72,9 +68,8 @@ All register values are **decimal** integers (0–255). The table below shows th
 | `ManualReg` | OMCC | 98 | `0x62` | Manual fan control enable |
 | `ModeReg` | HPCM | 149 | `0x95` | Performance mode preset |
 | `SwitchReg` | SFAN | 244 | `0xF4` | Fan off switch |
-| `ManualValueOn` *(opt.)* | — | 6 | `0x06` | Value written to `ManualReg` to enable manual fan control. Override per-board if the BIOS gates it on a different magic value (e.g. 8BBE wants `0x11`). Defaults to `0x06`. |
-| `ManualValueOff` *(opt.)* | — | 0 | `0x00` | Value written to `ManualReg` to release manual fan control. Defaults to `0x00`. **Ignored when `ManualRestorePrevious=true`.** |
-| `ManualRestorePrevious` *(opt.)* | — | — | `false` | If `true`, snapshot `ManualReg`'s current byte just before engaging manual mode and write that exact byte back on release. Required when `ManualReg` is shared with another piece of firmware state (e.g. on 8BBE, `EC[0x59]` is also the perf-profile selector — Eco/Balanced/Auto=`0x30`, Performance=`0x31`, Custom=`0x11` — so a hard-coded `ManualValueOff` would silently mutate the user's chosen profile). |
+| `ManualValueOn` *(opt.)* | — | 6 | `0x06` | Value written to `ManualReg` to engage manual fan control. Override per-board if the BIOS gates it on a different magic value (e.g. 8BBE wants `0x08` written to `EC[0x06]`). Defaults to `0x06`. |
+| `ManualValueOff` *(opt.)* | — | 0 | `0x00` | Value written to `ManualReg` to release manual fan control. Override per-board if the BIOS idles a different value (8BBE idles at `0x48`). Defaults to `0x00`. |
 
 > **Note on RPM word layout:** `FanSpeedReg0` points to the low byte of a little-endian 16-bit word. The high byte is at `FanSpeedReg0 + 1` (`RPM2`, `0xB1`). Same pattern for `FanSpeedReg1` / `RPM4`. This is why the GPU fan uses `RPM3` (`0xB2`) and not `RPM2` — `RPM2` is the CPU high byte.
 

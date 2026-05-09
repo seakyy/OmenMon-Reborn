@@ -36,23 +36,14 @@ namespace OmenMon.Hardware.Platform {
         public byte ModeReg;         // HPCM — performance mode preset
         public byte SwitchReg;       // SFAN — fan off switch
 
-        // Per-model manual-mode trigger values. Standard OMCC (0x62) responds to
-        // FanManual.On / .Off; some 2023+ Victus boards (e.g. 8BBE) ignore the legacy
-        // OMCC bit and instead gate manual control via a different register that wants
-        // a different magic value (see OmenMon.xml comments for the per-board specifics).
-        // Defaults reproduce the legacy enum pair so existing entries keep working
-        // unchanged without a config update.
+        // Per-model manual-mode trigger values. The standard OMCC register at 0x62 responds
+        // to FanManual.On / .Off (0x06 / 0x00); some 2023+ HP boards ignore the legacy OMCC
+        // bit and gate manual fan control on a different register/value pair entirely
+        // (e.g. 8BBE — Victus 16 R0053NT — uses EC[0x06] with 0x08 to enable, 0x48 to release;
+        // see OmenMon.xml for the full per-board reasoning). Defaults reproduce the legacy
+        // enum pair so existing entries keep working without a config change.
         public byte ManualValueOn  = (byte) PlatformData.FanManual.On;
         public byte ManualValueOff = (byte) PlatformData.FanManual.Off;
-
-        // When true, FanArray reads ManualReg's current value just before engaging manual
-        // mode and writes that exact byte back when manual is released — instead of using
-        // ManualValueOff. Required for boards where ManualReg is shared with another piece
-        // of firmware state (e.g. 8BBE: EC[0x59] doubles as the BIOS performance-profile
-        // selector — Eco=0x30, Balanced=0x30, Performance=0x31, Custom=0x11). Hard-coding
-        // ManualValueOff there would silently rewrite the user's chosen profile on every
-        // SetManual(false). Default false → legacy behaviour (write ManualValueOff).
-        public bool ManualRestorePrevious = false;
 #endregion
 
 #region Default

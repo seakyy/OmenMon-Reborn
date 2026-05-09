@@ -24,10 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Per-model manual-trigger overrides** in the `<Model>` schema:
-  - `ManualValueOn` / `ManualValueOff` — values written to `ManualReg` to engage / release manual fan control. Default to `FanManual.On` / `.Off` (`0x06` / `0x00`), so existing entries keep working unchanged.
-  - `ManualRestorePrevious` (bool, default `false`) — when set, `FanArray.SetManual(true)` snapshots `ManualReg`'s current byte before writing `ManualValueOn`, and `SetManual(false)` writes that snapshotted byte back instead of `ManualValueOff`. Reserved for boards where `ManualReg` is genuinely shared with another piece of firmware state (perf-profile selector, fan-speed mode word, etc.); not used by any shipped model entry yet, but kept as infrastructure for future reports.
-  - All three fields are optional and only persisted on save when they differ from the defaults; existing model entries round-trip cleanly without picking up new noise.
+- **Per-model manual-trigger overrides** in the `<Model>` schema: `ManualValueOn` / `ManualValueOff` are values written to `ManualReg` to engage / release manual fan control. Default to `FanManual.On` / `.Off` (`0x06` / `0x00`), so existing entries keep working unchanged. Plumbed through `PlatformPreset` → `Platform.cs` → `FanArray` constructor and used by `Get/SetManual()`. Both fields are optional and only persisted on save when they differ from the defaults — existing model entries round-trip cleanly without picking up new noise.
 
 ## [1.3.2-reborn] - 2026-05-09
 
