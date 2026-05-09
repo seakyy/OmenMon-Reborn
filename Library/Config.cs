@@ -401,6 +401,16 @@ namespace OmenMon.Library {
                                 p.ManualValueOn = Conv.GetByte(node[XmlElementManualValueOn].InnerText);
                             if(node[XmlElementManualValueOff] != null)
                                 p.ManualValueOff = Conv.GetByte(node[XmlElementManualValueOff].InnerText);
+                            // Optional per-model temperature-sensor overrides — remap the
+                            // named CPUT / GPTM sensors to a different EC offset than the
+                            // global <Temperature> config. Used by boards that moved the
+                            // real CPU/GPU temp sensors away from legacy 0x57/0xB7 (e.g.
+                            // 8C9C exposes CPU at 0xB0 and GPU at 0xB4). Absent / 0 =
+                            // no override.
+                            if(node[XmlElementTempCpuReg] != null)
+                                p.TempCpuReg = Conv.GetByte(node[XmlElementTempCpuReg].InnerText);
+                            if(node[XmlElementTempGpuReg] != null)
+                                p.TempGpuReg = Conv.GetByte(node[XmlElementTempGpuReg].InnerText);
                             Models[productId]  = p;
                         } catch { }
                     }
@@ -728,6 +738,10 @@ namespace OmenMon.Library {
                             mnode.AppendChild(xml.CreateElement(XmlElementManualValueOn)).InnerText = Conv.GetString((uint) p.ManualValueOn, 1, 10);
                         if(p.ManualValueOff != (byte) PlatformData.FanManual.Off)
                             mnode.AppendChild(xml.CreateElement(XmlElementManualValueOff)).InnerText = Conv.GetString((uint) p.ManualValueOff, 1, 10);
+                        if(p.TempCpuReg != 0)
+                            mnode.AppendChild(xml.CreateElement(XmlElementTempCpuReg)).InnerText = Conv.GetString((uint) p.TempCpuReg, 1, 10);
+                        if(p.TempGpuReg != 0)
+                            mnode.AppendChild(xml.CreateElement(XmlElementTempGpuReg)).InnerText = Conv.GetString((uint) p.TempGpuReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementModeReg)).InnerText          = Conv.GetString((uint) p.ModeReg, 1, 10);
                         mnode.AppendChild(xml.CreateElement(XmlElementSwitchReg)).InnerText        = Conv.GetString((uint) p.SwitchReg, 1, 10);
                     }

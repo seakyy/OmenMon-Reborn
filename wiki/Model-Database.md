@@ -43,9 +43,11 @@ Add a `<Model>` element inside `<Config><Models>`:
         <ManualReg>98</ManualReg>
         <ModeReg>149</ModeReg>
         <SwitchReg>244</SwitchReg>
-        <!-- Optional manual-mode override fields (omit when defaults are correct):  -->
-        <!-- <ManualValueOn>8</ManualValueOn>     value written to ManualReg to engage manual -->
+        <!-- Optional override fields (omit each one when the global default is correct): -->
+        <!-- <ManualValueOn>8</ManualValueOn>     value written to ManualReg to engage manual  -->
         <!-- <ManualValueOff>72</ManualValueOff>  value written to ManualReg to release manual -->
+        <!-- <TempCpuReg>176</TempCpuReg>         remap the "CPUT" sensor to a custom EC offset -->
+        <!-- <TempGpuReg>180</TempGpuReg>         remap the "GPTM" sensor to a custom EC offset -->
       </Model>
     </Models>
   </Config>
@@ -70,6 +72,8 @@ All register values are **decimal** integers (0–255). The table below shows th
 | `SwitchReg` | SFAN | 244 | `0xF4` | Fan off switch |
 | `ManualValueOn` *(opt.)* | — | 6 | `0x06` | Value written to `ManualReg` to engage manual fan control. Override per-board if the BIOS gates it on a different magic value (e.g. 8BBE wants `0x08` written to `EC[0x06]`). Defaults to `0x06`. |
 | `ManualValueOff` *(opt.)* | — | 0 | `0x00` | Value written to `ManualReg` to release manual fan control. Override per-board if the BIOS idles a different value (8BBE idles at `0x48`). Defaults to `0x00`. |
+| `TempCpuReg` *(opt.)* | — | 0 | `0x00` | Remap the named `CPUT` temperature sensor to read from this EC offset instead of the global `<Temperature>` config (which uses `0x57`). Use when the board moved the real CPU temp away from `EC[0x57]` — e.g. 8C9C exposes it at `EC[0xB0]`. `0` = no override. |
+| `TempGpuReg` *(opt.)* | — | 0 | `0x00` | Remap the named `GPTM` sensor to a custom EC offset (default global is `0xB7`). Use when the board moved the real GPU temp / hotspot away from the legacy address — e.g. 8C9C exposes it at `EC[0xB4]`. `0` = no override. |
 
 > **Note on RPM word layout:** `FanSpeedReg0` points to the low byte of a little-endian 16-bit word. The high byte is at `FanSpeedReg0 + 1` (`RPM2`, `0xB1`). Same pattern for `FanSpeedReg1` / `RPM4`. This is why the GPU fan uses `RPM3` (`0xB2`) and not `RPM2` — `RPM2` is the CPU high byte.
 
@@ -90,7 +94,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8BAD` | Omen 17 (2023) | ✅ FanLevel `0x34`/`0x35` |
 | `8BBE` | Victus 16 R0053NT (2023) | ⚠️ 2023+ layout, manual gate at `0x06`=`0x08` (issue #19, **needs hardware confirmation**) |
 | `8BD4` | Victus 16-S0053NT (2024) | ✅ Pattern C, single shared fan |
-| `8C9C` | Victus 16 (2024) | ✅ FanSpeed `0xF1` (×60), confirmed |
+| `8C9C` | Victus 16-1034NF (2024) | ✅ FanSpeed `0xF1` (×60), CPU temp `0xB0` / GPU temp `0xB4` (issue #16) |
 | `8D07` | Victus 15 (2024, AMD Ryzen 5 7535HS) | ⚠️ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #23, **needs gaming-load verification**) |
 | `8E71` | Omen 16-am1000 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #22) |
 | `8A3E` | Victus 15 fb0102la | ❓ |

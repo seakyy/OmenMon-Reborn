@@ -44,6 +44,18 @@ namespace OmenMon.Hardware.Platform {
         // enum pair so existing entries keep working without a config change.
         public byte ManualValueOn  = (byte) PlatformData.FanManual.On;
         public byte ManualValueOff = (byte) PlatformData.FanManual.Off;
+
+        // Per-model temperature-sensor overrides. When non-zero, Platform.InitTemperature()
+        // remaps the named "CPUT" / "GPTM" sensors to read from these EC offsets instead of
+        // the global defaults defined in OmenMon.xml's <Temperature> block. Required for
+        // 2024+ HP boards that moved the real CPU/GPU temperature sensors away from the
+        // legacy EC[0x57]/EC[0xB7] addresses (e.g. 8C9C — Victus 16-1034NF — exposes the
+        // real CPU temp at EC[0xB0] and the GPU hotspot at EC[0xB4]; the legacy addresses
+        // either return 0xFF or a heavily-smoothed BIOS package average that lags 10 °C+
+        // behind the real die temperature). Default 0 = "no override, use the global
+        // <Temperature> config" — leaves every existing model entry unaffected.
+        public byte TempCpuReg = 0;
+        public byte TempGpuReg = 0;
 #endregion
 
 #region Default

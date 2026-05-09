@@ -115,6 +115,15 @@ namespace OmenMon.Hardware.Platform {
         // Initializes the temperature controls
         private void InitTemperature() {
 
+            // Resolve any per-model temperature-register overrides from the preset, so 2024+
+            // boards that moved CPU/GPU temp sensors to non-legacy EC offsets (e.g. 8C9C:
+            // CPU at EC[0xB0], GPU at EC[0xB4]) can remap the named CPUT/GPTM sensors to
+            // the right addresses. Lookup by product is the same one InitFans() already does.
+            string product = this.System.GetProduct();
+            PlatformPreset preset = Config.Models.ContainsKey(product)
+                ? Config.Models[product]
+                : null;
+
             // Set up the temperature sensor array based on the configuration data
             this.Temperature = new IPlatformReadComponent[Config.TemperatureSensor.Count];
             this.TemperatureUse = new bool[Config.TemperatureSensor.Count];
@@ -129,11 +138,30 @@ namespace OmenMon.Hardware.Platform {
                 // Process each sensor loaded from the configuration
                 switch(Config.TemperatureSensor[name].Source) {
 
-                    // Add an Embedded Controller sensor
+                    // Add an Embedded Controller sensor. When the model preset declares
+                    // a TempCpuReg / TempGpuReg override, remap the named CPUT / GPTM
+                    // sensors to that address but keep the original sensor name so the
+                    // GUI / tray tooltip lookups (which match on "CPUT" / "GPTM") still
+                    // pick them up.
                     case PlatformData.LinkType.EmbeddedController:
-                        this.Temperature[i++] = new EcComponent(
-                            Config.TemperatureSensor[name].Register,
+                        byte register = Config.TemperatureSensor[name].Register;
+                        bool overridden = false;
+                        if(preset != null) {
+                            if(name == "CPUT" && preset.TempCpuReg != 0) {
+                                register = preset.TempCpuReg;
+                                overridden = true;
+                            } else if(name == "GPTM" && preset.TempGpuReg != 0) {
+                                register = preset.TempGpuReg;
+                                overridden = true;
+                            }
+                        }
+                        EcComponent comp = new EcComponent(
+                            register,
                             Config.MaxBelievableTemperature);
+                        if(overridden)
+                            comp.SetName(name); // preserve "CPUT" / "GPTM" instead of the
+                                                // auto-derived enum name (e.g. "RPM1")
+                        this.Temperature[i++] = comp;
                         break;
 
                     // Add a WMI BIOS sensor
