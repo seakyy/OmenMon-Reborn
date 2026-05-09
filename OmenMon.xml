@@ -276,19 +276,27 @@
             </Model>
             <!-- 8BBE: HP Victus 16 R0053NT (2023) — fan level regs at 0x11/0x12, confirmed via probe EC[0x11]=BIOS CPU level. -->
             <!-- Manual-mode quirk (issue #19, yunusemreyl) — HYPOTHESIS, awaiting hardware confirmation:                      -->
-            <!--   The legacy OMCC bit at 0x62 stays at 0x16 on this BIOS regardless of fan state. Omen Gaming Hub's          -->
-            <!--   "Custom Fan" profile writes 0x11 to EC[0x59]; all other profiles park 0x59 at 0x30 (Eco/Balanced/Auto)     -->
-            <!--   or 0x31 (Performance). 0x59 is therefore the BIOS perf-profile selector AND the manual-fan gate at the    -->
-            <!--   same time, so we cannot just hard-code an "off" value (that would silently mutate the user's chosen        -->
-            <!--   profile on every SetManual(false)). ManualRestorePrevious snapshots the current 0x59 byte before we        -->
-            <!--   write 0x11 and writes that exact byte back on release.                                                    -->
-            <!--                                                                                                              -->
-            <!-- How to validate (and what to do if your fans are still locked):                                              -->
-            <!--   1. Update OmenMon and reboot.                                                                              -->
-            <!--   2. Open the GUI → Fan tab → toggle "Manual" on. Fans should now respond to slider input.                   -->
-            <!--   3. If fans still don't move, run `OmenMon.exe -EcMon` while flipping Custom Fan in Omen Gaming Hub —       -->
-            <!--      look for the byte that changes between profiles, that's the real manual gate. Report it on issue #19.   -->
-            <!--   4. Re-run the Auto-Calibration Wizard — once fans actually spin, the RPM tachometers will be detected.    -->
+            <!--   Re-reading all six of yunusemreyl's hardware probes pinned the manual-fan gate at EC[0x06]:                  -->
+            <!--                                                                                                                -->
+            <!--      Mode (BIOS profile)        EC[0x06]   EC[0x59]   Fans physical                                            -->
+            <!--      Fan Max (Omen Hub)            0x08      0x30     spin to max                                              -->
+            <!--      Custom Fan (Omen Hub)         0x08      0x11     manual override                                          -->
+            <!--      Eco / Balanced / Auto         0x48      0x30     BIOS auto                                                -->
+            <!--      Performance                   0x48      0x31     BIOS auto                                                -->
+            <!--                                                                                                                -->
+            <!--   So 0x59 is just the BIOS *profile* selector (Eco/Balanced=0x30, Performance=0x31, Custom=0x11), and it       -->
+            <!--   doesn't actually control whether the fans honour OmenMon — Fan Max with 0x59=0x30 spins them up just fine.   -->
+            <!--   The real manual gate is 0x06: 0x08 = manual override active (set in both Fan Max and Custom Fan), 0x48 =     -->
+            <!--   BIOS auto control. Bit 6 (0x40) toggles between the two. The legacy OMCC at 0x62 stays at 0x16 on every      -->
+            <!--   probe regardless of fan state, so the original v1.2.x ManualReg=98 never actually engaged anything here.     -->
+            <!--                                                                                                                -->
+            <!-- How to validate (and what to do if your fans are still locked):                                                -->
+            <!--   1. Update OmenMon and reboot.                                                                                -->
+            <!--   2. Open the GUI → Fan tab → toggle "Manual" on. Fans should now respond to slider input.                     -->
+            <!--   3. If they don't, run `OmenMon.exe -EcMon` and verify EC[0x06] flips between 0x08 and 0x48 when you toggle   -->
+            <!--      "Custom Fan" / "Auto" in Omen Gaming Hub. If it doesn't, the gate is somewhere else — please report on    -->
+            <!--      issue #19 with a fresh hardware probe in each mode.                                                       -->
+            <!--   4. Re-run the Auto-Calibration Wizard — once fans actually spin, the RPM tachometers will be detected.      -->
             <Model ProductId="8BBE" DisplayName="HP Victus 16 (2023, R0053NT)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
@@ -299,9 +307,9 @@
                 <FanSpeedReg0>176</FanSpeedReg0>
                 <FanSpeedReg1>178</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>
-                <ManualReg>89</ManualReg>
-                <ManualValueOn>17</ManualValueOn>
-                <ManualRestorePrevious>true</ManualRestorePrevious>
+                <ManualReg>6</ManualReg>
+                <ManualValueOn>8</ManualValueOn>
+                <ManualValueOff>72</ManualValueOff>
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
@@ -391,18 +399,38 @@
                 <SwitchReg>244</SwitchReg>
             </Model>
             <!-- 8D07: HP Victus 15 (2024, AMD Ryzen 5 7535HS + RX 6550M) — issue #23, ghend-oss.        -->
-            <!-- Re-verified from EC dumps: this board uses the 2022-style register layout, NOT 2023+:    -->
-            <!--   * EC[0x34]/[0x35] (SRP1/SRP2) is the live FanLevel pair — went 00→10→26→26 during      -->
-            <!--     the wizard's 0/30/70/100% sweep. Default2023 mapped these to 0x11/0x12, but on this  -->
-            <!--     board EC[0x11] is a constant 0x58 (fan-max threshold, not the runtime level).        -->
-            <!--   * EC[0x2C]/[0x2D] (XSS1/XSS2) is the live FanRateWrite pair — went 00→00→46→46.        -->
-            <!--     EC[0x3A]/[0x3B] (the 2023+ default) stays at 0x00 throughout — writes there are       -->
-            <!--     no-ops on 8D07, which is why ghend-oss's first calibration only reached ~3789 RPM:   -->
-            <!--     the wizard's "100%" command went to a dead register, and fans only spun up because  -->
-            <!--     of natural thermal response during the 60-second sweep, not a real 100% command.    -->
-            <!--   * EC[0xB0]/[0xB2] is correctly 16-bit LE RPM (CPU/GPU). Mechanical max under sustained -->
-            <!--     gaming load is higher than the calibration-time peak — re-running the wizard with    -->
-            <!--     this corrected layout, or stress-testing under load, should push fans further.       -->
+            <!-- TENTATIVE — needs gaming-load verification by the issue reporter. From the wizard's EC   -->
+            <!-- dumps EC[0x34]/[0x35] (SRP1/SRP2) was the only register pair that monotonically tracked  -->
+            <!-- the 0/30/70/100% sweep (00→10→26→26), and EC[0x2C]/[0x2D] (XSS1/XSS2) was the only       -->
+            <!-- register pair that ramped with the rate command (00→00→46→46). EC[0x11]/[0x12] (the      -->
+            <!-- 2023+ default for FanLevel) sits at a constant 0x58 on this board, and EC[0x3A]/[0x3B]   -->
+            <!-- (the 2023+ default for FanRateWrite) stays at 0x00 throughout — both look dead. So this  -->
+            <!-- entry uses the classic 2022 layout.                                                       -->
+            <!--                                                                                           -->
+            <!-- Caveat: the 0x2C/0x2D ramp may actually have come from the BIOS WMI SetFanLevel path      -->
+            <!-- writing internally, not from OmenMon's EC writes. If that's the case, switching the      -->
+            <!-- FanRateWrite address won't on its own change anything (the WMI path runs the same way).  -->
+            <!-- ghend-oss's calibration peaked at ~3789 RPM; if a real 100% command had reached the EC,  -->
+            <!-- fans should have hit several thousand more — so either the BIOS-WMI path is rate-limited -->
+            <!-- on this SKU, or our writes still aren't taking effect. Validation needed:                 -->
+            <!--   1. Update OmenMon to v1.3.3 and re-run the Auto-Calibration Wizard.                    -->
+            <!--   2. If the new peak is materially higher (closer to 5000–5500 RPM under sustained load) -->
+            <!--      the layout fix worked — please post the new calibration report on issue #23.        -->
+            <!--   3. If the peak is still ~3800 RPM, the limit is firmware-side (BIOS clamps fan rate    -->
+            <!--      below 100% on this AMD Victus 15 SKU); not something OmenMon can override from EC.  -->
+            <!--                                                                                           -->
+            <!-- EC[0xB0]/[0xB2] is confirmed 16-bit LE RPM (CPU/GPU) on both calibration runs.            -->
+            <!-- DisplayName corrected from "Omen 16" — 8D07 is the AMD Ryzen 5 7535HS + RX 6550M Victus  -->
+            <!-- 15, not an Omen.                                                                          -->
+            <!--                                                                                           -->
+            <!--   FanLevelReg0/1     = 52/53   (0x34/0x35 = SRP1/SRP2)                                    -->
+            <!--   FanRateReadReg0/1  = 46/47   (0x2E/0x2F = XGS1/XGS2)                                    -->
+            <!--   FanRateWriteReg0/1 = 44/45   (0x2C/0x2D = XSS1/XSS2)                                    -->
+            <!--   FanSpeedReg0/1     = 176/178 (0xB0/0xB2 = RPM1/RPM3 — confirmed via wizard)             -->
+            <!--   ManualReg/ModeReg/SwitchReg = legacy defaults (98/149/244) — untested on this board.    -->
+            <!--   ManualValue overrides not used; if SetManual ends up doing nothing, follow the same    -->
+            <!--   diagnosis path as 8BBE (compare hardware probes between Custom-fan and Auto modes).     -->
+            <!--     -->
             <Model ProductId="8D07" DisplayName="HP Victus 15 (2024, AMD)">
                 <FanLevelReg0>52</FanLevelReg0>
                 <FanLevelReg1>53</FanLevelReg1>

@@ -5,17 +5,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.3.3-reborn] - 2026-05-09
 
+> **Both fixes below are tentative — derived from EC-dump analysis without live hardware testing.** Issue authors are asked to update and confirm; the model database entries are marked ⚠️ in the wiki accordingly.
+
 ### Fixed
 
-- **HP Victus 15 (8D07) — corrected register layout** (issue #23 follow-up, reported by @ghend-oss). The v1.3.2 entry copied the 2023+ default (FanLevel at `0x11`/`0x12`, rate write at `0x3A`/`0x3B`), but re-checking the user's EC dumps showed those registers stay constant on this board — the live FanLevel pair is `0x34`/`0x35` and the live rate-write pair is `0x2C`/`0x2D` (classic 2022 layout). With the wrong layout the wizard's "100%" command went to a dead register, so fans only spun up due to natural thermal response during the 60-second sweep (peaking around 3789 RPM, well below the mechanical maximum). Also corrected the display name from "HP Omen 16 (2026)" to "HP Victus 15 (2024, AMD)" — the 8D07 board is the AMD Ryzen 5 7535HS / RX 6550M Victus 15, not an Omen.
+- **HP Victus 15 (8D07) — corrected register layout** (issue #23 follow-up, reported by @ghend-oss). The v1.3.2 entry copied the 2023+ default (FanLevel at `0x11`/`0x12`, rate write at `0x3A`/`0x3B`), but re-checking ghend-oss's EC dumps showed those addresses stay constant on this board — the live FanLevel pair is `0x34`/`0x35` and the live rate-write pair is `0x2C`/`0x2D` (classic 2022 layout). Also corrected the display name from "HP Omen 16 (2026)" to "HP Victus 15 (2024, AMD)" — the 8D07 board is the AMD Ryzen 5 7535HS + RX 6550M Victus 15, not an Omen. Caveat: the 0x2C/0x2D ramp observed during the wizard sweep may have come from the BIOS WMI path rather than from EC writes — if so, switching the FanRateWrite address won't on its own raise the 3789 RPM peak ghend-oss saw. Awaiting a re-run of the calibration wizard under sustained gaming load to confirm.
 
-- **HP Victus 16 R0053NT (8BBE) — manual fan control unlocked** (issue #19, reported by @yunusemreyl, **needs hardware confirmation**). The legacy `OMCC` bit at `0x62` is ignored on this BIOS: Omen Gaming Hub's "Custom Fan" profile writes `0x11` to `EC[0x59]` instead, with the other profiles parking that same register at `0x30` (Eco/Balanced/Auto) or `0x31` (Performance). `0x59` is therefore both the BIOS perf-profile selector *and* the manual-fan gate, so the 8BBE entry now points `ManualReg` at `0x59` with `ManualValueOn=0x11` and opts into the new `ManualRestorePrevious` mode (see below) so `SetManual(false)` doesn't silently rewrite the user's chosen profile. Once manual is engaged the Auto-Calibration Wizard will pick up the RPM tachometers (the original sweep missed them because the fans never actually spun up while OmenMon was being ignored).
+- **HP Victus 16 R0053NT (8BBE) — manual fan control gate identified at `EC[0x06]`** (issue #19, reported by @yunusemreyl). Re-reading all six of yunusemreyl's hardware probes pinned the actual manual-mode gate at `EC[0x06]`, not `EC[0x59]` as a first pass suggested:
+
+  | Mode | `EC[0x06]` | `EC[0x59]` | Fans |
+  |------|-----------|------------|------|
+  | Fan Max (Omen Hub)        | `0x08` | `0x30` | spin to max |
+  | Custom Fan (Omen Hub)     | `0x08` | `0x11` | manual override |
+  | Eco / Balanced / Auto     | `0x48` | `0x30` | BIOS auto |
+  | Performance               | `0x48` | `0x31` | BIOS auto |
+
+  `EC[0x59]` is just the BIOS *profile* selector (Custom=`0x11`, Performance=`0x31`, everything-else=`0x30`) — it does **not** gate fan control: Fan Max with `0x59=0x30` still drives fans to mechanical max. The real gate is `EC[0x06]`: `0x08` when manual override is active (Fan Max **and** Custom Fan modes both set this), `0x48` when the BIOS is doing automatic control. The legacy OMCC at `0x62` stays at `0x16` on every probe regardless of fan state, so the original v1.2.x `ManualReg=98` mapping never engaged anything on this BIOS. The 8BBE entry now declares `ManualReg=6 / ManualValueOn=8 / ManualValueOff=72`. Needs hardware confirmation by yunusemreyl — instructions in the OmenMon.xml comment.
 
 ### Added
 
 - **Per-model manual-trigger overrides** in the `<Model>` schema:
   - `ManualValueOn` / `ManualValueOff` — values written to `ManualReg` to engage / release manual fan control. Default to `FanManual.On` / `.Off` (`0x06` / `0x00`), so existing entries keep working unchanged.
-  - `ManualRestorePrevious` (bool, default `false`) — when set, `FanArray.SetManual(true)` snapshots `ManualReg`'s current byte before writing `ManualValueOn`, and `SetManual(false)` writes that snapshotted byte back instead of `ManualValueOff`. Required for boards where `ManualReg` is shared with another piece of firmware state (perf-profile selector, fan-speed mode word, etc.) so manual-toggle doesn't mutate unrelated BIOS settings as a side effect.
+  - `ManualRestorePrevious` (bool, default `false`) — when set, `FanArray.SetManual(true)` snapshots `ManualReg`'s current byte before writing `ManualValueOn`, and `SetManual(false)` writes that snapshotted byte back instead of `ManualValueOff`. Reserved for boards where `ManualReg` is genuinely shared with another piece of firmware state (perf-profile selector, fan-speed mode word, etc.); not used by any shipped model entry yet, but kept as infrastructure for future reports.
   - All three fields are optional and only persisted on save when they differ from the defaults; existing model entries round-trip cleanly without picking up new noise.
 
 ## [1.3.2-reborn] - 2026-05-09
