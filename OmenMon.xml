@@ -390,13 +390,13 @@
             <!--     was stuck at 0x49 = 73. Mapped via TempCpuReg below.                            -->
             <!--   * GPU temp / hotspot at EC[0xB4] — same probe shows 0x58 = 88 (GPU hotspot, runs  -->
             <!--     a few degrees above the package temp HWInfo reports). Mapped via TempGpuReg.    -->
-            <!-- The fan tachometer behaviour is still best-effort: the wizard locked onto EC[0xF1]  -->
-            <!-- (8-bit byte × 60 = RPM, scaled 0x0A → 0x5C across the 0/30/70/100 % sweep), which   -->
-            <!-- AutoCal.Prime() applies via DirectMultiplier8. But that register actually mirrors   -->
-            <!-- the *commanded* fan rate, not a real tach pulse — so at idle it correctly shows ~0  -->
-            <!-- RPM, but during BIOS-driven thermal ramps the displayed RPM may lag the physical    -->
-            <!-- fan speed (issue #16 follow-up). FanSpeedReg0/1 still point at 0xF1 to satisfy the  -->
-            <!-- EcComponent ctor; the live read is handled by AutoCal. No backlight                 -->
+            <!-- The fan tachometer is sourced from BIOS GetFanLevel × 100 via AutoCal's              -->
+            <!-- BiosLevelMirror mode. EC[0xF1] tracked the commanded rate during the wizard's       -->
+            <!-- 0/30/70/100 % sweep but reads ~0x02 in real-world OEM-driven operation (issue #28:  -->
+            <!-- OGH visibly at 5800 RPM, OmenMon showed ~120 RPM). The BIOS level returns 58/61 ≈   -->
+            <!-- 5800/6100 RPM at OGH MAX, matching the OGH display exactly. FanSpeedReg0/1 still    -->
+            <!-- point at 0xF1 to satisfy the EcComponent ctor, but AutoCal short-circuits the read  -->
+            <!-- in Fan.GetSpeed() before the EC component is consulted. No backlight                -->
             <!-- (HasBacklight=False).                                                               -->
             <Model ProductId="8C9C" DisplayName="HP Victus 16-1034NF (2024)">
                 <FanLevelReg0>17</FanLevelReg0>
@@ -409,6 +409,34 @@
                 <FanSpeedReg1>241</FanSpeedReg1>
                 <TempCpuReg>176</TempCpuReg>
                 <TempGpuReg>180</TempGpuReg>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8C30: HP Victus 15-fb1000 (2023, AMD) — issue #32, NotDarkn.                              -->
+            <!-- EC layout is identical to 8D07: FanLevel at 0x34/0x35 (SRP1/SRP2), rate write at       -->
+            <!-- 0x2C/0x2D (XSS1/XSS2), rate read at 0x2E/0x2F (XGS1/XGS2).                            -->
+            <!-- Auto-Calibration confirmed 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3776,       -->
+            <!-- GPU max ~3623 RPM). The wizard run got stuck at 70% → 100% due to a known firmware      -->
+            <!-- quirk on this AMD Victus 15 SKU where the EC fan controller freezes when the BIOS       -->
+            <!-- internal rate-limiter is hit; the freeze persists until the next restart. This does     -->
+            <!-- not affect normal operation — only the calibration wizard's 100% sweep step.            -->
+            <!--                                                                                          -->
+            <!--   FanLevelReg0/1     = 52/53   (0x34/0x35 = SRP1/SRP2, confirmed via medium-speed dump) -->
+            <!--   FanRateReadReg0/1  = 46/47   (0x2E/0x2F = XGS1/XGS2)                                  -->
+            <!--   FanRateWriteReg0/1 = 44/45   (0x2C/0x2D = XSS1/XSS2, tracks % directly: 0x1E=30,     -->
+            <!--                                  0x46=70; 0xFF at idle = BIOS-auto)                       -->
+            <!--   FanSpeedReg0/1     = 176/178 (0xB0/0xB2 = RPM1/RPM3 — confirmed via wizard)           -->
+            <Model ProductId="8C30" DisplayName="HP Victus 15-fb1000 (2023, AMD)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>
                 <ManualReg>98</ManualReg>
                 <ModeReg>149</ModeReg>

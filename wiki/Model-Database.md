@@ -94,7 +94,8 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8BAD` | Omen 17 (2023) | ✅ FanLevel `0x34`/`0x35` |
 | `8BBE` | Victus 16 R0053NT (2023) | ⚠️ 2023+ layout, manual gate at `0x06`=`0x08` (issue #19, **needs hardware confirmation**) |
 | `8BD4` | Victus 16-S0053NT (2024) | ✅ Pattern C, single shared fan |
-| `8C9C` | Victus 16-1034NF (2024) | ✅ CPU temp `0xB0` / GPU temp `0xB4` (HWInfo-validated, issue #16); RPM display via `EC[0xF1] × 60` is best-effort (mirrors commanded rate, not a real tachometer — may lag the physical fan during BIOS thermal ramps) |
+| `8C9C` | Victus 16-1034NF (2024) | ✅ CPU temp `0xB0` / GPU temp `0xB4` (HWInfo-validated, issue #16); RPM display sourced from BIOS `GetFanLevel × 100` (issue #28 — EC[0xF1] only tracked during the calibration sweep, read as ~0x02 under real OEM control) |
+| `8C30` | Victus 15-fb1000 (2023, AMD) | ⚠️ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #32); **note:** firmware freezes the fan controller when rate is pushed to 100% — restart required to recover |
 | `8D07` | Victus 15 (2024, AMD Ryzen 5 7535HS) | ⚠️ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #23, **needs gaming-load verification**) |
 | `8E71` | Omen 16-am1000 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #22) |
 | `8DD0` | Omen (2025) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #26) |

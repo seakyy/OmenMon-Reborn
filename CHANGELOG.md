@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Model support: HP Victus 15-fb1000 (2023, AMD / 8C30)** — added to the built-in model database (issue #32, reported by @NotDarkn). Register layout is identical to 8D07: FanLevel at `0x34`/`0x35`, rate write at `0x2C`/`0x2D`, rate read at `0x2E`/`0x2F`, 16-bit LE RPM tachometers at `0xB0`/`0xB2` (CPU max ~3776 RPM, GPU max ~3623 RPM — confirmed by the Auto-Calibration Wizard). Known firmware quirk: pushing the fan rate to 100% locks the EC fan controller until the next restart; normal fan-program operation (≤70%) is unaffected.
+
 - **`Resources/LpcACPIEC.bin`** — the official, namazso-signed PawnIO module ([source](https://github.com/namazso/PawnIO.Modules/blob/main/LpcACPIEC.p)) is bundled as embedded resource `OmenMon.LpcACPIEC.bin`. It exposes `ioctl_pio_read` / `ioctl_pio_write` restricted to ACPI EC ports `0x62` (data) and `0x66` (command) — exactly the two ports OmenMon's EC handshake (`Hardware/Ec.cs` `ReadByteImpl` / `WriteByteImpl`) talks to. The mutex name LpcACPIEC expects (`\BaseNamedObjects\Access_EC`) coincides with OmenMon's existing `Config.LockPathEc` (`Global\Access_EC`), so coordination with HP Omen Gaming Hub continues to work.
 
 - **`Resources/PAWN_BUILD.md`** — module rotation guide. When namazso publishes a new PawnIO.Modules release, drop the new `LpcACPIEC.bin` into `Resources/` and rebuild — no code changes needed.
