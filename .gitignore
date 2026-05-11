@@ -2,6 +2,8 @@
 .claude/
 Bin/
 Obj/
+bin/
+obj/
 OmenMon.manifest
 OmenMon.resx
 OmenMon.exe.config
