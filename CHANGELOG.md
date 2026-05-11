@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Fan programs could appear "stuck" and fans could plateau around ~3600 RPM on some boards (e.g. 8D07) after prior Off/Max actions.** Root cause: `FanProgram` wrote target levels without clearing the global `Fan Off` / `Max Fan` latches first. On affected firmware, a latched max mode can cap RPM lower than the board's level-based ceiling, and a latched off mode makes level writes ineffective. `FanProgram.SetFanLevel()` now explicitly clears both latches before applying per-level targets.
+
 ## [1.4.0-reborn] - 2026-05-09
 
 > **Security release.** OmenMon no longer ships the WinRing0 kernel driver. The kernel-mode access layer has been replaced with [PawnIO](https://pawnio.eu/), whose Microsoft-signed, HVCI-compatible driver does not trigger Windows Defender warnings the way WinRing0 did. Functionality is preserved; the public `Ring0` API is unchanged so `Hardware/Ec.cs` and every other caller stayed put.
