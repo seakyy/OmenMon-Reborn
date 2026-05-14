@@ -63,6 +63,18 @@ namespace OmenMon.AppCli {
             profile = profile ?? DefaultProfile;
             progress = progress ?? ((p, d, pct) => { });
 
+            // Filter out 100% step for models with known firmware freeze at max fan speed.
+            // 8C30 (HP Victus 15-fb1000 2023 AMD) hits an EC controller freeze when the
+            // BIOS internal rate-limiter is triggered at 100%, requiring a restart to recover.
+            string productId = SafeProductId();
+            if(FanArray.HasMaxFanFreeze(productId)) {
+                profile = profile.Where(p => p < 100).ToArray();
+                if(profile.Length == 0) {
+                    outcome.FailureReason = $"Model {productId} has a known 100% fan freeze issue and the profile contains only 100% steps. Calibration aborted.";
+                    return outcome;
+                }
+            }
+
             // Snapshot prior fan state so we can restore it no matter how this exits.
             byte[] priorLevels = null;
             bool priorMax = false;

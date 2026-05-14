@@ -344,6 +344,24 @@ namespace OmenMon.AppGui {
 
                 if(!isFanMax) { // Skip if already maximum speed
 
+                     // Check for models with known 100% fan freeze issue
+                     string productId = Context.Op.Platform.System.GetProduct();
+                     if(FanArray.HasMaxFanFreeze(productId)) {
+                         DialogResult result = MessageBox.Show(
+                             $"Warning: Model {productId} has a known firmware issue where setting fans to 100% can cause an unrecoverable EC freeze requiring a restart.\n\n" +
+                             "Do you want to proceed anyway?",
+                             "Fan Safety Warning",
+                             MessageBoxButtons.YesNo,
+                             MessageBoxIcon.Warning,
+                             MessageBoxDefaultButton.Button2);
+                         
+                         if(result != DialogResult.Yes) {
+                             // User cancelled — revert to previous fan mode
+                             UpdateFanMode();
+                             return;
+                         }
+                     }
+
                      if(isFanOff) // Re-enable fan if off first
                          Context.Op.Platform.Fans.SetOff(false);
 
@@ -373,9 +391,41 @@ namespace OmenMon.AppGui {
                 } else if(this.TrkFan0Lvl.Value == this.TrkFan0Lvl.Maximum
                     && this.TrkFan1Lvl.Value == this.TrkFan1Lvl.Maximum) {
 
-                    // Set the fans to maximum speed
-                    if(!isFanMax) // If not already at maximum speed
+                    // Check for models with known 100% fan freeze issue
+                    string productId = Context.Op.Platform.System.GetProduct();
+                    if(FanArray.HasMaxFanFreeze(productId)) {
+                        DialogResult result = MessageBox.Show(
+                            $"Warning: Model {productId} has a known firmware issue where setting fans to 100% can cause an unrecoverable EC freeze requiring a restart.\n\n" +
+                            "Do you want to proceed anyway?",
+                            "Fan Safety Warning",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning,
+                            MessageBoxDefaultButton.Button2);
+                        
+                        if(result != DialogResult.Yes) {
+                            // User cancelled — revert trackbars to safe values (70%)
+                            int safeMax = (int)(this.TrkFan0Lvl.Maximum * 0.7);
+                            this.TrkFan0Lvl.Value = safeMax;
+                            this.TrkFan1Lvl.Value = safeMax;
+                            // Fall through to set the safe levels
+                        }
+                    }
+
+                    // Set the fans to maximum speed (or safe level if user cancelled above)
+                    if(!isFanMax && this.TrkFan0Lvl.Value == this.TrkFan0Lvl.Maximum
+                        && this.TrkFan1Lvl.Value == this.TrkFan1Lvl.Maximum) // If not already at maximum speed
                         Context.Op.Platform.Fans.SetMax(true);
+                    else if(this.TrkFan0Lvl.Value != this.TrkFan0Lvl.Maximum
+                        || this.TrkFan1Lvl.Value != this.TrkFan1Lvl.Maximum) {
+                        // User chose safe levels — apply them
+                        if(isFanMax)
+                            Context.Op.Platform.Fans.SetMax(false);
+                        if(isFanOff)
+                            Context.Op.Platform.Fans.SetOff(false);
+                        Context.Op.Platform.Fans.SetLevels(new byte[] {
+                            (byte) this.TrkFan0Lvl.Value,
+                            (byte) this.TrkFan1Lvl.Value});
+                    };
 
                 // Otherwise, we just set the speed levels normally
                 } else {

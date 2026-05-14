@@ -217,6 +217,16 @@ namespace OmenMon.Hardware.Platform {
                     (int) PlatformData.FanSwitch.Off : (int) PlatformData.FanSwitch.On);
             }
         }
+
+        // Checks if the current model has a known firmware issue with 100% fan speed.
+        // Returns true for models where SetMax(true) or equivalent 100% commands can
+        // trigger an unrecoverable EC freeze requiring a restart.
+        public static bool HasMaxFanFreeze(string productId) {
+            // 8C30: HP Victus 15-fb1000 (2023, AMD) — EC controller freezes when
+            // the BIOS internal rate-limiter is hit at 100% fan speed. The freeze
+            // persists until the next restart. See OmenMon.xml:420-424.
+            return productId == "8C30";
+        }
 #endregion
 
     }
