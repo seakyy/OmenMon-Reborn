@@ -103,9 +103,10 @@ namespace OmenMon.Driver {
 
             byte[] blob = LoadModuleBlob();
             if(blob == null) {
-                log.AppendLine("OmenMon.bin not found.");
-                log.AppendLine("Run Resources\\build-pawn.cmd to compile the Pawn module,");
-                log.AppendLine("or place OmenMon.bin next to OmenMon.exe.");
+                log.AppendLine("LpcACPIEC.bin not found.");
+                log.Append("Expected embedded resource: ").AppendLine(EmbeddedBlobName);
+                log.Append("Or side-by-side file: ").AppendLine(SideBySideBlobName);
+                log.AppendLine("See PAWN_BUILD.md for the correct module update/embedding procedure.");
                 pawnio_close(handle);
                 handle = IntPtr.Zero;
                 return;
