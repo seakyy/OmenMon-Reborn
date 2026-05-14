@@ -320,13 +320,12 @@ namespace OmenMon.Hardware.Platform {
         // Set the fan levels to the given parameter
         private void SetFanLevel(byte[] level) {
 
-            // Program-level control must take ownership from global latches first.
-            // If "Fan Off" or "Fan Max" is still active (e.g. from a previous action),
-            // SetLevels either no-ops or remains capped by firmware max mode.
+            // Program-level control may clear "Fan Off" before setting explicit levels.
+            // Do not clear the global "Fan Max" latch here: this method can run on each
+            // program tick, and a higher-priority safety path may have asserted max mode.
+            // Clearing max in this loop would fight that override and cause flapping.
             if(this.Platform.Fans.GetOff())
                 this.Platform.Fans.SetOff(false);
-            if(this.Platform.Fans.GetMax())
-                this.Platform.Fans.SetMax(false);
 
             // Set the fan levels
             this.Platform.Fans.SetLevels(level);
