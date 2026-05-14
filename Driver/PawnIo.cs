@@ -3,10 +3,10 @@
      //  https://omenmon.github.io/
 
 // PawnIO replaces the WinRing0 kernel driver.
-// PawnIO ships a Microsoft-signed kernel driver and a user-mode
-// library (PawnIOLib.dll) that loads compiled Pawn modules into the
-// kernel. OmenMon's Pawn module is Resources/OmenMon.p; the compiled
-// blob (OmenMon.bin) is embedded as a resource.
+// This implementation uses PawnIOLib.dll to load the official signed
+// LpcACPIEC PawnIO module into the kernel. The module blob is shipped
+// as the embedded resource OmenMon.LpcACPIEC.bin and may also be
+// provided side-by-side as LpcACPIEC.bin.
 
 using System;
 using System.IO;
