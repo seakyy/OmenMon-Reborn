@@ -23,7 +23,11 @@ namespace OmenMon.Driver {
         [System.ThreadStatic]
         private static ulong[] _readIoOut;
         [System.ThreadStatic]
+        private static bool _readIoBusy;
+        [System.ThreadStatic]
         private static ulong[] _writeIoIn;
+        [System.ThreadStatic]
+        private static bool _writeIoBusy;
 
         public static bool IsOpen => PawnIo.IsOpen;
 
@@ -34,19 +38,41 @@ namespace OmenMon.Driver {
 
 #region Input/Output (I/O) Port Operations
         public static byte ReadIoPort(uint port) {
-            ulong[] inArr  = _readIoIn ?? (_readIoIn = new ulong[1]);
-            ulong[] outArr = _readIoOut ?? (_readIoOut = new ulong[1]);
-            inArr[0] = port;
-            if(!PawnIo.Execute(PawnIo.FnReadIoPortByte, inArr, outArr))
-                return 0;
-            return (byte) (outArr[0] & 0xFF);
+            if(_readIoBusy) {
+                ulong[] nestedIn  = { port };
+                ulong[] nestedOut = new ulong[1];
+                if(!PawnIo.Execute(PawnIo.FnReadIoPortByte, nestedIn, nestedOut))
+                    return 0;
+                return (byte) (nestedOut[0] & 0xFF);
+            }
+
+            _readIoBusy = true;
+            try {
+                ulong[] inArr  = _readIoIn ?? (_readIoIn = new ulong[1]);
+                ulong[] outArr = _readIoOut ?? (_readIoOut = new ulong[1]);
+                inArr[0] = port;
+                if(!PawnIo.Execute(PawnIo.FnReadIoPortByte, inArr, outArr))
+                    return 0;
+                return (byte) (outArr[0] & 0xFF);
+            }
+            finally { _readIoBusy = false; }
         }
 
         public static void WriteIoPort(uint port, byte value) {
-            ulong[] inArr = _writeIoIn ?? (_writeIoIn = new ulong[2]);
-            inArr[0] = port;
-            inArr[1] = value;
-            PawnIo.Execute(PawnIo.FnWriteIoPortByte, inArr, null);
+            if(_writeIoBusy) {
+                ulong[] nestedIn = { port, value };
+                PawnIo.Execute(PawnIo.FnWriteIoPortByte, nestedIn, null);
+                return;
+            }
+
+            _writeIoBusy = true;
+            try {
+                ulong[] inArr = _writeIoIn ?? (_writeIoIn = new ulong[2]);
+                inArr[0] = port;
+                inArr[1] = value;
+                PawnIo.Execute(PawnIo.FnWriteIoPortByte, inArr, null);
+            }
+            finally { _writeIoBusy = false; }
         }
 #endregion
 
