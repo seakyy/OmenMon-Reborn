@@ -85,6 +85,19 @@ jobs:
         -p:Configuration=${{matrix.configuration}}
         -t:Build ${{vars.SOLUTION_FILE}}
 
+    - name: "Set up .NET"
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: "8.0.x"
+
+    - name: "Run model database tests"
+      working-directory: ${{ github.workspace }}
+      run: >
+        dotnet test
+        Tests/OmenMon.Tests/OmenMon.Tests.csproj
+        -c ${{matrix.configuration}}
+        --nologo
+
     - name: "Retrieve Certificate"
       working-directory: ${{ github.workspace }}
       env:
