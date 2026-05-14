@@ -68,6 +68,7 @@ namespace OmenMon.Hardware.Platform {
         // Last fan mode and GPU power data before the program started
         private BiosData.FanMode LastFanMode;
         private BiosData.GpuPowerData LastGpuPowerData;
+        private bool ReclaimControlPending;
 
         // Level list for the current program
         // to facilitate threshold look-ups
@@ -91,6 +92,7 @@ namespace OmenMon.Hardware.Platform {
             this.IsSuspended = false;
             this.LastFanMode = BiosData.FanMode.Default;
             this.LastGpuPowerData = default(BiosData.GpuPowerData);
+            this.ReclaimControlPending = false;
             this.Levels = new List<byte>();
             this.Name = "";
             this.Platform = platform;
@@ -117,6 +119,9 @@ namespace OmenMon.Hardware.Platform {
 
             // Set the state flag
             this.IsSuspended = false;
+
+            // Reclaim control from possible stale global latches once
+            this.ReclaimControlPending = true;
 
             // Update the program
             Update();
@@ -146,6 +151,9 @@ namespace OmenMon.Hardware.Platform {
 
             // Set the state flag
             this.IsEnabled = true;
+
+            // Reclaim control from possible stale global latches once
+            this.ReclaimControlPending = true;
 
             // Save the last fan mode
             this.LastFanMode = Platform.Fans.GetMode();
@@ -314,18 +322,26 @@ namespace OmenMon.Hardware.Platform {
 
             // Clear the level keys
             this.Levels = new List<byte>();
+            this.ReclaimControlPending = false;
 
         }
 
         // Set the fan levels to the given parameter
         private void SetFanLevel(byte[] level) {
 
-            // Program-level control may clear "Fan Off" before setting explicit levels.
-            // Do not clear the global "Fan Max" latch here: this method can run on each
-            // program tick, and a higher-priority safety path may have asserted max mode.
-            // Clearing max in this loop would fight that override and cause flapping.
+            // Program-level control should always clear "Fan Off" before setting
+            // explicit levels, because level writes are ignored when off is latched.
             if(this.Platform.Fans.GetOff())
                 this.Platform.Fans.SetOff(false);
+
+            // Reclaim control from stale global latches only once when a program
+            // starts or resumes, then let higher-priority safety paths keep max.
+            if(this.ReclaimControlPending) {
+                if(this.Platform.Fans.GetMax())
+                    this.Platform.Fans.SetMax(false);
+
+                this.ReclaimControlPending = false;
+            }
 
             // Set the fan levels
             this.Platform.Fans.SetLevels(level);

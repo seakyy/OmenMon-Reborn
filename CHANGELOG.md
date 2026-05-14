@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- **Fan programs could appear "stuck" and fans could plateau around ~3600 RPM on some boards (e.g. 8D07) after prior Off/Max actions.** Root cause: stale global `Fan Off` / `Max Fan` latch state could interfere with later level-based writes. On affected firmware, a latched max mode can cap RPM lower than the board's level-based ceiling, and a latched off mode makes level writes ineffective. `FanProgram.SetFanLevel()` now explicitly clears the `Fan Off` latch before applying per-level targets.
+- **Fan programs could appear "stuck" and fans could plateau around ~3600 RPM on some boards (e.g. 8D07) after prior Off/Max actions.** Root cause: stale global `Fan Off` / `Max Fan` latch state could interfere with later level-based writes. On affected firmware, a latched max mode can cap RPM lower than the board's level-based ceiling, and a latched off mode makes level writes ineffective. `FanProgram` now reclaims control once on program start/resume by clearing stale `Max Fan` (and clears `Fan Off` before each level write), so programs recover without fighting thermal safety max overrides on every tick.
 
 ## [1.4.0-reborn] - 2026-05-09
 
