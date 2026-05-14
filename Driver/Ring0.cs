@@ -18,6 +18,13 @@ namespace OmenMon.Driver {
 
     public static class Ring0 {
 
+        [System.ThreadStatic]
+        private static ulong[] _readIoIn;
+        [System.ThreadStatic]
+        private static ulong[] _readIoOut;
+        [System.ThreadStatic]
+        private static ulong[] _writeIoIn;
+
         public static bool IsOpen => PawnIo.IsOpen;
 
         public static void Open()  => PawnIo.Open();
@@ -27,15 +34,18 @@ namespace OmenMon.Driver {
 
 #region Input/Output (I/O) Port Operations
         public static byte ReadIoPort(uint port) {
-            ulong[] inArr  = { port };
-            ulong[] outArr = new ulong[1];
+            ulong[] inArr  = _readIoIn ?? (_readIoIn = new ulong[1]);
+            ulong[] outArr = _readIoOut ?? (_readIoOut = new ulong[1]);
+            inArr[0] = port;
             if(!PawnIo.Execute(PawnIo.FnReadIoPortByte, inArr, outArr))
                 return 0;
             return (byte) (outArr[0] & 0xFF);
         }
 
         public static void WriteIoPort(uint port, byte value) {
-            ulong[] inArr = { port, value };
+            ulong[] inArr = _writeIoIn ?? (_writeIoIn = new ulong[2]);
+            inArr[0] = port;
+            inArr[1] = value;
             PawnIo.Execute(PawnIo.FnWriteIoPortByte, inArr, null);
         }
 #endregion
