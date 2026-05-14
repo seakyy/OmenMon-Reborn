@@ -182,7 +182,7 @@
   <Target Name="BuildBeginning" BeforeTargets="BeforeBuild">
   </Target>
   <Target Name="EnsurePawnBlobForRelease" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
-    <Error Condition="!Exists('Resources\LpcACPIEC.bin')" Text="Missing required file: Resources\LpcACPIEC.bin. Follow Resources\PAWN_BUILD.md to fetch/build it before creating a Release build." />
+    <Error Condition="!Exists('Resources\LpcACPIEC.bin')" Text="Missing required file: Resources/LpcACPIEC.bin. Follow Resources/PAWN_BUILD.md to fetch/build it before creating a Release build." />
   </Target>
   <Target Name="BuildComplete" AfterTargets="AfterBuild">
     <Copy SourceFiles="OmenMon.xml" DestinationFolder="$(OutDir)" />
