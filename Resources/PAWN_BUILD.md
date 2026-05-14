@@ -63,9 +63,12 @@ will trigger Defender just like WinRing0 did.
 - **`PawnIOLib.dll not found`** at runtime → PawnIO is not installed.
   Install from <https://pawnio.eu/>.
 - **`pawnio_load returned 0x80070057`** → your `LpcACPIEC.bin` is
-  missing, corrupted, or out of date. Re-download from
-  [PawnIO.Modules releases](https://github.com/namazso/PawnIO.Modules/releases)
-  and put it in this folder.
+  missing, corrupted, or out of date. Re-download it from
+  [PawnIO.Modules releases](https://github.com/namazso/PawnIO.Modules/releases).
+  If you're an end user, place `LpcACPIEC.bin` next to `OmenMon.exe`
+  so `Driver/PawnIo.cs` can load it as a side-by-side override. If
+  you're updating the embedded copy in-source, replace
+  `Resources/LpcACPIEC.bin` and rebuild OmenMon.
 - **EC operations time out** → another process holds the
   `Global\Access_EC` mutex. Close HP Omen Gaming Hub and similar
   vendor utilities while running OmenMon.
