@@ -256,9 +256,26 @@ namespace OmenMon.AppGui {
 
         // Toggles the maximum fan speed on and off
         private void EventActionFanMax(object sender, EventArgs e) {
+            bool enableMax = !((ToolStripMenuItem) sender).Checked;
+
+            // Show a safety warning for models where 100% max fan can freeze the EC.
+            if(enableMax) {
+                string productId = Context.Op.Platform.System.GetProduct();
+                if(FanArray.HasMaxFanFreeze(productId)) {
+                    DialogResult result = MessageBox.Show(
+                        $"Warning: Model {productId} has a known firmware issue where setting fans to 100% can cause an unrecoverable EC freeze requiring a restart.\n\n" +
+                        "Do you want to proceed anyway?",
+                        "Fan Safety Warning",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                    if(result != DialogResult.Yes)
+                        return;
+                }
+            }
 
             // Toggle the maximum fan speed
-            Context.Op.Platform.Fans.SetMax(!((ToolStripMenuItem) sender).Checked);
+            Context.Op.Platform.Fans.SetMax(enableMax);
 
             // Update the main form, if available
             if(Context.FormMain != null)
