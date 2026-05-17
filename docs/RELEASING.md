@@ -92,6 +92,12 @@ Three files need to know about the new version. Keep them in sync.
 The CI workflow can override `AssemblyVersion` from the build inputs but the
 local `Rebuild` you do in step 2 uses these defaults. Keep them honest.
 
+> **Note:** CI overrides the 4th segment with the `BUILD_NUMBER` repo
+> variable (auto-incremented by `build_bump.yml` via `VARIABLE_WRITE_TOKEN`),
+> so the published `AssemblyVersion` will read as `X.Y.Z.<build#>` (e.g.
+> `1.5.0.42`) rather than the `X.Y.Z.0` you see locally. The first three
+> segments are what you bump here; the fourth is just a CI counter.
+
 ### `wiki/Home.md`
 
 ```markdown
