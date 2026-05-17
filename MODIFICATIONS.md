@@ -63,3 +63,21 @@ Replaces the WinRing0 kernel driver with [PawnIO](https://pawnio.eu/), whose Mic
 
 * `Driver/Driver.cs`: WinRing0 service installation / kernel-driver IOCTL plumbing — obsolete.
 * `Resources/Driver.sys.gz`: Compressed WinRing0 kernel driver — obsolete; the user installs the signed PawnIO driver themselves.
+
+## Phase 9 — Post-PawnIO Regression Sweep (v1.4.0)
+
+The first week of v1.4.0 field testing surfaced four GUI / fan-control regressions and one hardware compatibility crash that don't belong to the PawnIO migration itself but were uncovered by it. They are bundled into the same v1.4.0 release rather than a 1.4.1 because the migration and these fixes are inseparable from a user's perspective (the migration is what made the regressions visible).
+
+### Modified Files
+
+* `App/Cli/CliOpCalibration.cs`: `ApplyLevel` now disengages BIOS manual mode immediately before calling `SetMaxFan(true)` on the 100% step, then re-engages it on any subsequent sub-100% step. Without this, manual mode pins the fans at `Config.FanLevelMax` (~3.4-3.8 kRPM) and the wizard's calibration plateau is systematically ~30% lower than the fan's physical ceiling (issues #40 / #41 / #52).
+* `App/Gui/GuiFormMain.cs`: Replaced a non-existent `UpdateFanMode()` call (introduced by the 8C30 safety dialog and breaking the build on a clean checkout) with the existing `UpdateFanCtl()`. Also added the missing `SetMode(GetMode())` mode-refresh step in the "user cancelled max → fall back to safe levels" branch, matching the normal constant-speed path.
+* `App/Gui/GuiMenu.cs`: Added missing `using OmenMon.Hardware.Platform;` for the `FanArray.HasMaxFanFreeze` reference (compile-blocking on a clean checkout). Added `SetOff(false)` before `SetMax(true)` in the tray "Max fan" toggle so the BIOS honours the command when the fan-off latch is set.
+* `Hardware/FanProgram.cs`: `SetFanLevel` clears a stale `Fan Off` latch (only when actually set) before writing levels, fixing the GPU fan getting stuck off on some boards while CPU continues to ramp with the curve (issue #39, 8D07). The global `Max Fan` latch is intentionally *not* touched here — clearing it would defeat Thermal Panic's safety override, which is asserted only on the transition into panic and not re-asserted every tick.
+* `Hardware/Bios.cs`: `Check()` no longer throws on BIOS return codes 1, 4, 6 and 46. The original author had noted these codes "were also observed but their exact meaning is not understood"; every reported instance has been a benign "command not supported on this platform" — most recently an Omen Transcend 14 (fb0118TX) crashing the GUI on open with `BIOS call failed: Unknown response from BIOS: 4`. The unknown codes are now treated the same as code 3 (command not available): soft-fail, let the rest of the GUI come up.
+* `Library/AutoCal.cs`: Added a built-in `KnownBoards` mapping for 8DD0 (LE16 RPM at 0xB0 / 0xB2). The Auto-Calibration heuristic occasionally locks onto bogus PeriodEncoded8 offsets on this board (issue #33's "50k RPM" display); the existing >16-byte sidecar distance sanity check now falls through to this known-good layout.
+* `OmenMon.xml`: Added native model database entries for `8D26` (HP Omen 16-ap0007ns, 2026) and `88EB` (HP Victus 16, 2021). Both use the standard 2023+ layout, confirmed via the Auto-Calibration Wizard (issues #52, #48).
+
+### New Files Created
+
+* `.github/workflows/draft-release.yml`: Tag-driven automation. When `v*.*.*` is pushed, extracts the matching `## [version]` / `## [version-reborn]` section from `CHANGELOG.md` and creates a *draft* GitHub release with those notes. The maintainer attaches the locally-built `OmenMon.exe` and publishes manually — at which point the existing `release.yml` builds + zips + attaches the public archive. Idempotent (re-runs refresh the draft body instead of duplicating).
