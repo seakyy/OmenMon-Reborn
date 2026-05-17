@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using OmenMon.AppCli;
 using OmenMon.Hardware.Bios;
 using OmenMon.Hardware.Ec;
+using OmenMon.Hardware.Platform;
 using OmenMon.Library;
 
 namespace OmenMon.AppGui {
@@ -273,6 +274,10 @@ namespace OmenMon.AppGui {
                         return;
                 }
             }
+
+            // Clear fan-off latch before enabling max so the BIOS will honour SetMax
+            if(enableMax && Context.Op.Platform.Fans.GetOff())
+                Context.Op.Platform.Fans.SetOff(false);
 
             // Toggle the maximum fan speed
             Context.Op.Platform.Fans.SetMax(enableMax);

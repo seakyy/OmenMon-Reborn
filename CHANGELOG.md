@@ -3,9 +3,26 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.4.0-reborn] - 2026-05-09
+## [1.4.0-reborn] - 2026-05-17
 
-> **Security release.** OmenMon no longer ships the WinRing0 kernel driver. The kernel-mode access layer has been replaced with [PawnIO](https://pawnio.eu/), whose Microsoft-signed, HVCI-compatible driver does not trigger Windows Defender warnings the way WinRing0 did. Functionality is preserved; the public `Ring0` API is unchanged so `Hardware/Ec.cs` and every other caller stayed put.
+> **Security release + post-PawnIO regression sweep.** OmenMon no longer ships the WinRing0 kernel driver. The kernel-mode access layer has been replaced with [PawnIO](https://pawnio.eu/), whose Microsoft-signed, HVCI-compatible driver does not trigger Windows Defender warnings the way WinRing0 did. Functionality is preserved; the public `Ring0` API is unchanged so `Hardware/Ec.cs` and every other caller stayed put. This release also bundles the user-reported regressions and model-database additions surfaced in the first week of post-PawnIO field testing.
+
+### Fixed (post-PawnIO regressions)
+
+- **Auto-Calibration "100%" step undershot real max RPM by ~30% on multiple boards** (issues #40 / #41 / #52, reported by @ghend-oss / @MartinSalg818 / @ethernetme). The wizard kept the EC in manual fan-level mode throughout the sweep, including the final step that called `SetMaxFan(true)`. On 2022/2024 boards the manual flag pins the fans at `Config.FanLevelMax` (~3.4-3.8 kRPM) and the BIOS max-fan command is silently no-op'd — so the wizard's calibration plateau was systematically lower than the fan's physical ceiling. Fix in `App/Cli/CliOpCalibration.cs`: disengage manual mode immediately before `SetMaxFan(true)` on the 100% step, then re-engage it on any subsequent sub-100% step. Boards already covered by the `HasMaxFanFreeze` guard (8C30) are still skipped at 100% — they keep their `<100%` profile and never reach the manual-toggle code path.
+- **Fan programs left the GPU fan parked while the CPU fan responded normally** (issue #39, reported by @ghend-oss on 8D07). On boards where a prior `SetOff(true)` is still in the EC's switch register, `SetLevels` succeeds for one fan and silently no-ops for the other — most often presenting as a stuck-off GPU fan while CPU continues to ramp with the fan curve. `Hardware/FanProgram.SetFanLevel` now clears the fan-off latch (only if it is actually set) before each level write, so a program tick reliably reaches both fans. The "Max Fan" latch is deliberately not touched here — clearing it would defeat Thermal Panic's safety override, which is asserted only on the transition into panic and not re-asserted every tick.
+- **HP Omen 8DD0 "50000 RPM" after a misfired auto-cal run** (issue #33, reported by @DreamStare0). Adds a built-in `AutoCal.Prime()` mapping for 8DD0 pointing at the canonical 0xB0/0xB2 LE16 tachometers, so the bogus 0x02 / 0x88 PeriodEncoded8 offsets the heuristic occasionally locks onto cannot reach `Fan.GetSpeed()` after the >16-byte distance sanity check in `AutoCal.Load()` discards the bad sidecar.
+- **Tray "Max fan" toggle stayed silently off when the fan-off latch was set** (post-PawnIO regression). `App/Gui/GuiMenu.EventActionFanMax` now clears `SetOff(false)` before `SetMax(true)`, matching the main form's existing sequence so the BIOS command actually takes effect.
+- **GUI "Constant speed" branch lost the post-write mode-refresh when the user cancelled the 100% safety dialog and fell back to safe levels.** Added the same `SetMode(GetMode())` apply step the normal constant-speed path uses, so the safe levels are latched into the EC instead of being overwritten on the next refresh tick.
+- **Build error**: a leftover call to a non-existent `UpdateFanMode()` in `App/Gui/GuiFormMain.cs` (introduced by the 8C30 safety dialog) prevented the project from compiling on a clean checkout. Replaced with `UpdateFanCtl()`, which is the function the surrounding code already uses to refresh fan UI state.
+- **`App/Gui/GuiMenu.cs`** now imports `OmenMon.Hardware.Platform` (the namespace `FanArray` lives in). Without it, the 8C30 warning would have failed to compile on first build.
+
+### Added (model database)
+
+- **HP Omen 16-ap0007ns (8D26)** — added with standard 2023+ layout (`FanLevel 0x11/0x12`, `FanRateWrite 0x3A/0x3B`, RPM `0xB0/0xB2` LE16). Auto-Calibration confirmed CPU max ~3.4 kRPM / GPU max ~3.6 kRPM during the wizard sweep; real-load ceiling reaches ~4.9 kRPM via the new manual-mode toggle on the 100% step (issue #52).
+- **HP Victus 16 (88EB, 2021)** — earliest Victus 16 generation, standard 2023+ layout, LE16 RPM at 0xB0/0xB2 (CPU max ~3134, GPU max ~3385 RPM). Auto-Calibration confirmed by @deadpoolstark (issue #48).
+
+### Original release notes (PawnIO migration)
 
 ### Changed
 

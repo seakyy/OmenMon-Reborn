@@ -356,8 +356,8 @@ namespace OmenMon.AppGui {
                              MessageBoxDefaultButton.Button2);
                          
                          if(result != DialogResult.Yes) {
-                             // User cancelled — revert to previous fan mode
-                             UpdateFanMode();
+                             // User cancelled — revert fan UI to previous state
+                             UpdateFanCtl();
                              return;
                          }
                      }
@@ -425,7 +425,10 @@ namespace OmenMon.AppGui {
                         Context.Op.Platform.Fans.SetLevels(new byte[] {
                             (byte) this.TrkFan0Lvl.Value,
                             (byte) this.TrkFan1Lvl.Value});
-                    };
+                        // Reset the fan mode so the new levels are latched
+                        Context.Op.Platform.Fans.SetMode(
+                            Context.Op.Platform.Fans.GetMode());
+                    }
 
                 // Otherwise, we just set the speed levels normally
                 } else {

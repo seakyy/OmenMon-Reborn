@@ -531,6 +531,42 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8D26: HP Omen 16-ap0007ns (2026) — issue #52, ethernetme.                              -->
+            <!-- Auto-Calibration confirmed 16-bit LE RPM tachometers at 0xB0/0xB2. The 100% step       -->
+            <!-- only reached ~3.4 kRPM (vs. ~4.9 kRPM under real load) because the wizard kept the     -->
+            <!-- EC in manual mode while issuing SetMaxFan — fixed in v1.4.0 by toggling manual off      -->
+            <!-- on the 100% step so BIOS thermal can drive the fans to their physical ceiling.        -->
+            <Model ProductId="8D26" DisplayName="HP Omen 16-ap0007ns (2026)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 88EB: HP Victus 16 (2021) — issue #48, deadpoolstark.                                  -->
+            <!-- Auto-Calibration found 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3134,          -->
+            <!-- GPU max ~3385 RPM). Standard 2023+ register layout — earliest Victus 16 generation.    -->
+            <Model ProductId="88EB" DisplayName="HP Victus 16 (2021)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>

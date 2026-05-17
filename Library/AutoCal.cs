@@ -275,6 +275,19 @@ namespace OmenMon.Library {
                 GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
             },
 
+            // HP Omen (8DD0, 2025) — the auto-calibration heuristic locks onto two
+            // unrelated period-encoded-looking offsets (0x02 / 0x88) on this board
+            // and produces nonsensical RPM (issue #33: "50k RPM"). Manual probes
+            // across idle / medium / max load consistently show real 16-bit LE
+            // tachometers at the canonical 0xB0 / 0xB2 pair (CPU ~3.2 kRPM idle,
+            // ~5.4 kRPM max; GPU ~3.3 / ~5.2). Pin Prime() to that layout so the
+            // built-in mapping outranks the auto-cal's bad guess after the bogus
+            // sidecar has been rejected by the >16-byte distance sanity check.
+            ["8DD0"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
             // HP Victus 16 (8C9C, 1034NF, 2024) — no reliable EC tachometer.
             // The previous EC[0xF1] × 60 mapping only tracked during OmenMon-driven
             // calibration sweeps (where 0xF1 happened to mirror the wizard's commanded

@@ -98,7 +98,9 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8C30` | Victus 15-fb1000 (2023, AMD) | ⚠️ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #32); **note:** firmware freezes the fan controller when rate is pushed to 100% — restart required to recover |
 | `8D07` | Victus 15 (2024, AMD Ryzen 5 7535HS) | ⚠️ 2022 layout (FanLevel `0x34`/`0x35`, rate `0x2C`/`0x2D`), RPM `0xB0`/`0xB2` (issue #23, **needs gaming-load verification**) |
 | `8E71` | Omen 16-am1000 (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #22) |
-| `8DD0` | Omen (2025) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #26) |
+| `8DD0` | Omen (2025) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #26, false-positive auto-cal mitigated via built-in `AutoCal.Prime` in v1.4.0 — issue #33) |
+| `8D26` | Omen 16-ap0007ns (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #52) |
+| `88EB` | Victus 16 (2021) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #48) |
 | `8A3E` | Victus 15 fb0102la | ❓ |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |
 | `88FE` | Omen 17 ck0xxx (2020) | ❓ |
