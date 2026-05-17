@@ -378,6 +378,33 @@ namespace OmenMon.AppGui {
 
         }
 
+        // Shows a modal "are you sure?" dialog for models whose firmware
+        // freezes at 100% fan speed (FanArray.HasMaxFanFreeze), with
+        // consistent wording / title across every entry point that can
+        // request maximum fans (tray menu, main-form slider, anything else
+        // added later). Returns true if the caller should proceed, false
+        // if the user declined or no warning was needed.
+        //
+        // Centralised here so the message stays in sync — previously the
+        // dialog text lived in two GUI files and any tweak to the wording
+        // had to be made in both.
+        public static bool ConfirmMaxFanIfRisky(string productId) {
+
+            if(!FanArray.HasMaxFanFreeze(productId))
+                return true;
+
+            DialogResult result = MessageBox.Show(
+                $"Warning: Model {productId} has a known firmware issue where setting fans to 100% can cause an unrecoverable EC freeze requiring a restart.\n\n" +
+                "Do you want to proceed anyway?",
+                "Fan Safety Warning",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            return result == DialogResult.Yes;
+
+        }
+
     }
 
 }

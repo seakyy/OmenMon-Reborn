@@ -206,8 +206,27 @@ namespace OmenMon.Hardware.Bios {
                 case 5: // Insufficient input or output buffer size
                     throw new BiosException(Config.GetError("ErrBiosCall|ErrBiosSendSize"));
 
-                // Note: Codes 1, 4, 6 and 46 were also observed
-                // but their exact meaning is not understood
+                // Codes 1, 4, 6 and 46 have been observed in the wild on
+                // hardware that doesn't fully implement the HP Omen WMI
+                // contract (e.g. Omen Transcend 14 fb0118TX returns 4 on
+                // startup BIOS calls and crashes the GUI with "Unknown
+                // response from BIOS: 4"). The exact semantics aren't
+                // documented by HP, but every reported instance so far has
+                // been a benign "this call isn't supported on this platform"
+                // rather than a real error. Unlike code 3 — which the
+                // original author chose to escalate to a hard BiosException
+                // even when error reporting is on — these codes are silently
+                // ignored regardless of Config.BiosErrorReporting / force,
+                // because raising any of them on the Transcend 14 startup
+                // path tears down the whole GUI before the user can see any
+                // working readouts. Soft-failing here lets the rest of the
+                // application come up and lets the user inspect what does
+                // work on non-Omen-branded hardware.
+                case 1:
+                case 4:
+                case 6:
+                case 46:
+                    return;
 
                 default: // Unknown error
                     throw new BiosException(String.Format(Config.GetError("ErrBiosCall|ErrBiosSendUnknown"), code));

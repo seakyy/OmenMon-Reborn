@@ -70,6 +70,11 @@ jobs:
         path: ${{ vars.RESOURCES_DIR }}
         repository: ${{ vars.RESOURCES_REPO }}
 
+    - name: "Set up .NET"
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: "8.0.x"
+
     - name: "Set up Microsoft Build"
       uses: microsoft/setup-msbuild@v1.1
       with:
@@ -80,10 +85,19 @@ jobs:
       working-directory: ${{ github.workspace }}
       run: >
         msbuild -m -noLogo
+        /restore
         -p:AssemblyVersion=${{inputs.version_number}}.${{vars.BUILD_NUMBER}}
         -p:AssemblyVersionWord=${{inputs.version_word}}
         -p:Configuration=${{matrix.configuration}}
         -t:Build ${{vars.SOLUTION_FILE}}
+
+    - name: "Run model database tests"
+      working-directory: ${{ github.workspace }}
+      run: >
+        dotnet test
+        Tests/OmenMon.Tests/OmenMon.Tests.csproj
+        -c ${{matrix.configuration}}
+        --nologo
 
     - name: "Retrieve Certificate"
       working-directory: ${{ github.workspace }}

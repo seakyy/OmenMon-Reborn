@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using OmenMon.AppCli;
 using OmenMon.Hardware.Bios;
 using OmenMon.Hardware.Ec;
+using OmenMon.Hardware.Platform;
 using OmenMon.Library;
 
 namespace OmenMon.AppGui {
@@ -111,6 +112,7 @@ namespace OmenMon.AppGui {
         private const string I_TOGGLE_FORM_MAIN = Gui.M_ACT + "ToggleFormMain";
         private const string I_EXIT = Gui.M_ACT + "Exit";
         private const string I_CONTRIBUTE = Gui.M_ACT + "ContributeHwData";
+        private const string I_COPY_DIAG = Gui.M_ACT + "CopyDiag";
 
         // Menu tag identifiers
         internal const string MENU_TAG_PERSIST = "Persist";
@@ -154,6 +156,33 @@ namespace OmenMon.AppGui {
             } catch(Exception ex) {
                 MessageBox.Show(
                     "Could not start Auto-Calibration: " + ex.Message,
+                    Config.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        // Generates the full -Diag diagnostic report (probe + environment +
+        // driver status + AutoCal sidecar + EC trace + crash log inventory)
+        // and copies it to the clipboard so the user can paste it straight
+        // into a GitHub issue. The browser is intentionally not opened here
+        // — this is the "I'm already filing an issue, help me describe it"
+        // entry point, not the discovery one.
+        private void EventActionCopyDiag(object sender, EventArgs e) {
+            try {
+                string markdown = CliOp.DiagGetMarkdown();
+                Clipboard.SetText(markdown);
+                MessageBox.Show(
+                    "Diagnostic report copied to the clipboard.\n\n" +
+                    "Paste it into a new GitHub issue at:\n" +
+                    "https://github.com/seakyy/OmenMon-Reborn/issues\n\n" +
+                    "Nothing has been uploaded — the report only leaves this machine when you paste it yourself.",
+                    Config.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            } catch(Exception ex) {
+                MessageBox.Show(
+                    "Could not generate diagnostic report: " + ex.Message,
                     Config.AppName,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -256,9 +285,20 @@ namespace OmenMon.AppGui {
 
         // Toggles the maximum fan speed on and off
         private void EventActionFanMax(object sender, EventArgs e) {
+            bool enableMax = !((ToolStripMenuItem) sender).Checked;
+
+            // Show a safety warning for models where 100% max fan can freeze the EC.
+            // Centralised in GuiOp.ConfirmMaxFanIfRisky so the wording / title /
+            // default button stay in sync across every entry point.
+            if(enableMax && !GuiOp.ConfirmMaxFanIfRisky(Context.Op.Platform.System.GetProduct()))
+                return;
+
+            // Clear fan-off latch before enabling max so the BIOS will honour SetMax
+            if(enableMax && Context.Op.Platform.Fans.GetOff())
+                Context.Op.Platform.Fans.SetOff(false);
 
             // Toggle the maximum fan speed
-            Context.Op.Platform.Fans.SetMax(!((ToolStripMenuItem) sender).Checked);
+            Context.Op.Platform.Fans.SetMax(enableMax);
 
             // Update the main form, if available
             if(Context.FormMain != null)
@@ -812,6 +852,7 @@ namespace OmenMon.AppGui {
                 MenuSettings,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("Auto-Calibrate && Diagnose...", null, EventActionAutoCalibrate, I_CONTRIBUTE),
+                new ToolStripMenuItem("Copy Diagnostic Info", null, EventActionCopyDiag, I_COPY_DIAG),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_TOGGLE_FORM_MAIN), null, EventActionShowFormMain, I_TOGGLE_FORM_MAIN),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_EXIT), null, EventActionExit, I_EXIT)

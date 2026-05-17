@@ -85,6 +85,10 @@ namespace OmenMon.Library {
                 }
                 case EcDiffScanner.Mode.DirectMultiplier8:
                     return Hw.EcGetByte(offset) * (multiplier > 0 ? multiplier : 100);
+                case EcDiffScanner.Mode.BiosLevelMirror:
+                    // Cannot be serviced from the EC alone — Fan.GetSpeed() handles this
+                    // mode by reading the BIOS-reported fan level directly.
+                    return -1;
                 default:
                     return -1;
             }
@@ -195,6 +199,28 @@ namespace OmenMon.Library {
                     }
                 }
 
+                // Override-conflict check: when this product is in KnownBoards
+                // (hand-verified ground truth — added precisely because the
+                // wizard heuristic gets the layout wrong on this hardware) and
+                // the persisted sidecar disagrees with that ground truth,
+                // discard the sidecar instead of carrying a known-broken
+                // mapping forward across upgrades. Example: 8C9C's previous
+                // released mapping was (0xF1, DirectMultiplier8 ×60) and is
+                // now (BiosLevelMirror); without this guard, users who ran
+                // the wizard on the old version would keep getting bogus RPM
+                // (~120 RPM at audible MAX) until they manually deleted the
+                // sidecar file (issue #28 follow-up).
+                if(KnownBoards.TryGetValue(currentProductId, out Mapping known)) {
+                    bool cpuMismatch = haveCpu
+                        && (cReg != known.CpuReg || cMode != known.CpuMode);
+                    bool gpuMismatch = haveGpu
+                        && (gReg != known.GpuReg || gMode != known.GpuMode);
+                    if(cpuMismatch || gpuMismatch) {
+                        try { File.Delete(path); } catch { }
+                        return false;
+                    }
+                }
+
                 bool anyApplied = false;
                 if(haveCpu) {
                     SetCpu(cReg, cMode);
@@ -271,13 +297,31 @@ namespace OmenMon.Library {
                 GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
             },
 
-            // HP Victus 16 (8C9C, 1034NF, 2024) — single shared tachometer at EC[0xF1].
-            // Byte value × 60 = RPM (e.g. 0x5C = 92 → 5520 RPM at full load, confirmed via
-            // probe dumps across 0 / 30 / 70 / 100 % fan profiles). Both CPU and GPU fans
-            // report through the same register; 0xB0/0xB2 are temperature sensors, not RPM.
+            // HP Omen (8DD0, 2025) — the auto-calibration heuristic locks onto two
+            // unrelated period-encoded-looking offsets (0x02 / 0x88) on this board
+            // and produces nonsensical RPM (issue #33: "50k RPM"). Manual probes
+            // across idle / medium / max load consistently show real 16-bit LE
+            // tachometers at the canonical 0xB0 / 0xB2 pair (CPU ~3.2 kRPM idle,
+            // ~5.4 kRPM max; GPU ~3.3 / ~5.2). Pin Prime() to that layout so the
+            // built-in mapping outranks the auto-cal's bad guess after the bogus
+            // sidecar has been rejected by the >16-byte distance sanity check.
+            ["8DD0"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Victus 16 (8C9C, 1034NF, 2024) — no reliable EC tachometer.
+            // The previous EC[0xF1] × 60 mapping only tracked during OmenMon-driven
+            // calibration sweeps (where 0xF1 happened to mirror the wizard's commanded
+            // step). In real-world operation — fans driven by the OEM (Omen Gaming Hub
+            // / BIOS thermal loop) — EC[0xF1] reads as ~0x02 even at audible MAX, which
+            // produced obviously wrong RPM (issue #28: OGH visibly at 5800 RPM, OmenMon
+            // showed ~120 RPM). Switch to BiosLevelMirror: the BIOS-reported fan level
+            // already returns 58/61 ≈ 5800/6100 RPM at OGH MAX, matching the OGH display
+            // exactly. CpuMul/GpuMul = 100 because the BIOS level is in units of 100 RPM.
             ["8C9C"] = new Mapping {
-                CpuReg = 0xF1, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 60,
-                GpuReg = 0xF1, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 60,
+                CpuReg = 0, CpuMode = EcDiffScanner.Mode.BiosLevelMirror, CpuMul = 100,
+                GpuReg = 0, GpuMode = EcDiffScanner.Mode.BiosLevelMirror, GpuMul = 100,
             },
         };
 

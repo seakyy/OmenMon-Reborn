@@ -77,7 +77,7 @@ namespace OmenMon.AppGui {
 
             LblWarning = new Label {
                 Text =
-                    "This will run your fans through several speed steps (including 100 %) for about a minute.\r\n" +
+                    "This will run your fans through several speed steps (up to 100 %, model-dependent) for about a minute.\r\n" +
                     "Save your work, expect noise, and keep the laptop on a hard surface.\r\n\r\n" +
                     "OmenMon will read the Embedded Controller at each step and figure out\r\n" +
                     "which registers report fan RPM on this specific board.",

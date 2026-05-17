@@ -466,6 +466,13 @@ namespace OmenMon.AppCli {
                     ProbeRun();
                     break;
 
+                    // Bundle a full diagnostic report (probe + environment +
+                    // driver status + AutoCal sidecar + EC trace + crash log
+                    // inventory) for pasting into a GitHub issue.
+                case "-diag":
+                    DiagRun();
+                    break;
+
 // Show help (usage information)
                     case "-h":
                 case "-?":

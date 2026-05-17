@@ -320,6 +320,21 @@ namespace OmenMon.Hardware.Platform {
         // Set the fan levels to the given parameter
         private void SetFanLevel(byte[] level) {
 
+            // Clear a stale fan-off latch before writing levels. On some boards
+            // (e.g. 8D07 — issue #39) the GPU fan stays parked because a prior
+            // SetOff(true) is still in effect; SetLevels would then succeed for
+            // the CPU fan but silently no-op for the GPU. Only clear when the
+            // latch is actually set so we don't trample on intentional state
+            // managed by the user / GUI in between program ticks.
+            // Deliberately do NOT clear the "Max Fan" latch here — that is the
+            // safety override used by Thermal Panic, and clearing it on every
+            // tick would defeat it (GuiOp.CheckThermalPanic asserts max only on
+            // the transition into panic, not on every refresh).
+            try {
+                if(this.Platform.Fans.GetOff())
+                    this.Platform.Fans.SetOff(false);
+            } catch { }
+
             // Set the fan levels
             this.Platform.Fans.SetLevels(level);
 

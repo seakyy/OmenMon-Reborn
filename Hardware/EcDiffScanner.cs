@@ -23,7 +23,11 @@ namespace OmenMon.Hardware.Ec {
     public static class EcDiffScanner {
 
 #region Types
-        public enum Mode { LittleEndian16, PeriodEncoded8, DirectMultiplier8 }
+        // BiosLevelMirror is not produced by the EC scanner — it is reserved for boards
+        // (e.g. 8C9C) where no EC offset reflects real fan tachometer output and the only
+        // reliable RPM signal is the BIOS-reported fan level × multiplier. Fan.GetSpeed()
+        // handles this mode by reading GetLevel() directly; ReadRpm() cannot service it.
+        public enum Mode { LittleEndian16, PeriodEncoded8, DirectMultiplier8, BiosLevelMirror }
 
         public sealed class Candidate {
             public byte Offset;

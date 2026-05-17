@@ -95,6 +95,13 @@ namespace OmenMon.Hardware.Platform {
                 false;
 
             if(have) {
+                // Boards with no real EC tachometer (e.g. 8C9C) advertise their RPM via
+                // the BIOS-reported fan level × multiplier. AutoCal cannot service this
+                // mode without a fan-type context, so we resolve it here using the same
+                // GetLevel() call used by the slider — keeping a single source of truth.
+                if(mode == EcDiffScanner.Mode.BiosLevelMirror)
+                    return GetLevel() * (multiplier > 0 ? multiplier : 100);
+
                 int rpm = AutoCal.ReadRpm(reg, mode, multiplier);
                 if(rpm >= 0) return rpm;
             }

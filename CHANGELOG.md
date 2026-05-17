@@ -3,6 +3,70 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0-reborn] - 2026-05-17
+
+> **Security release + post-PawnIO regression sweep.** OmenMon no longer ships the WinRing0 kernel driver. The kernel-mode access layer has been replaced with [PawnIO](https://pawnio.eu/), whose Microsoft-signed, HVCI-compatible driver does not trigger Windows Defender warnings the way WinRing0 did. Functionality is preserved; the public `Ring0` API is unchanged so `Hardware/Ec.cs` and every other caller stayed put. This release also bundles the user-reported regressions and model-database additions surfaced in the first week of post-PawnIO field testing.
+
+### Fixed (post-PawnIO regressions)
+
+- **GUI crash on open with `BIOS call failed: Unknown response from BIOS: 4`** (Discord report, HP Omen Transcend 14 fb0118TX). The tray icon opened fine but double-clicking it to bring up the main form raised an unhandled `BiosException` and tore the application down. Root cause: `Hardware/Bios.Check` rejected any status code outside `{0, 3, 5}` even though the original author had explicitly noted that codes 1, 4, 6 and 46 had also been observed in the wild but were not understood. Codes 1/4/6/46 are now silently ignored (the call returns instead of throwing) regardless of `Config.BiosErrorReporting`, so the rest of the GUI can come up. Code 3 (`command not available`) keeps its existing behaviour of raising a `BiosException` — only the previously-unclassified codes are downgraded.
+
+- **Auto-Calibration "100%" step undershot real max RPM by ~30% on multiple boards** (issues #40 / #41 / #52, reported by @ghend-oss / @MartinSalg818 / @ethernetme). The wizard kept the EC in manual fan-level mode throughout the sweep, including the final step that called `SetMaxFan(true)`. On 2022/2024 boards the manual flag pins the fans at `Config.FanLevelMax` (~3.4-3.8 kRPM) and the BIOS max-fan command is silently no-op'd — so the wizard's calibration plateau was systematically lower than the fan's physical ceiling. Fix in `App/Cli/CliOpCalibration.cs`: disengage manual mode immediately before `SetMaxFan(true)` on the 100% step, then re-engage it on any subsequent sub-100% step. Boards already covered by the `HasMaxFanFreeze` guard (8C30) are still skipped at 100% — they keep their `<100%` profile and never reach the manual-toggle code path.
+- **Fan programs left the GPU fan parked while the CPU fan responded normally** (issue #39, reported by @ghend-oss on 8D07). On boards where a prior `SetOff(true)` is still in the EC's switch register, `SetLevels` succeeds for one fan and silently no-ops for the other — most often presenting as a stuck-off GPU fan while CPU continues to ramp with the fan curve. `Hardware/FanProgram.SetFanLevel` now clears the fan-off latch (only if it is actually set) before each level write, so a program tick reliably reaches both fans. The "Max Fan" latch is deliberately not touched here — clearing it would defeat Thermal Panic's safety override, which is asserted only on the transition into panic and not re-asserted every tick.
+- **HP Omen 8DD0 "50000 RPM" after a misfired auto-cal run** (issue #33, reported by @DreamStare0). Adds a built-in `AutoCal.Prime()` mapping for 8DD0 pointing at the canonical 0xB0/0xB2 LE16 tachometers, so the bogus 0x02 / 0x88 PeriodEncoded8 offsets the heuristic occasionally locks onto cannot reach `Fan.GetSpeed()` after the >16-byte distance sanity check in `AutoCal.Load()` discards the bad sidecar.
+- **Stale sidecars from v1.3.x kept overriding fixed built-in mappings.** `AutoCal.Load()` previously trusted any sidecar that survived the distance sanity check, so users who had run the wizard on an older release continued to see the broken mapping even after upgrading. `Load()` now also discards a sidecar when it disagrees with a `KnownBoards` entry for the same product — `KnownBoards` is the hand-verified ground truth and only contains products where the wizard heuristic is known to misfire. Real-world effect: 8C9C owners upgrading from v1.3.4 (where the released mapping was `0xF1 × 60` and produced ~120 RPM at audible MAX, issue #28) automatically get the new `BiosLevelMirror` mapping on first launch instead of having to manually delete `OmenMon-AutoCal.xml`.
+- **Tray "Max fan" toggle stayed silently off when the fan-off latch was set** (post-PawnIO regression). `App/Gui/GuiMenu.EventActionFanMax` now clears `SetOff(false)` before `SetMax(true)`, matching the main form's existing sequence so the BIOS command actually takes effect.
+- **GUI "Constant speed" branch lost the post-write mode-refresh when the user cancelled the 100% safety dialog and fell back to safe levels.** Added the same `SetMode(GetMode())` apply step the normal constant-speed path uses, so the safe levels are latched into the EC instead of being overwritten on the next refresh tick.
+- **Build error**: a leftover call to a non-existent `UpdateFanMode()` in `App/Gui/GuiFormMain.cs` (introduced by the 8C30 safety dialog) prevented the project from compiling on a clean checkout. Replaced with `UpdateFanCtl()`, which is the function the surrounding code already uses to refresh fan UI state.
+- **`App/Gui/GuiMenu.cs`** now imports `OmenMon.Hardware.Platform` (the namespace `FanArray` lives in). Without it, the 8C30 warning would have failed to compile on first build.
+
+### Added (diagnostics)
+
+- **Telemetry-free crash dumper.** `App/Crash.cs` registers handlers for `AppDomain.UnhandledException` and `Application.ThreadException` at the earliest possible point in `Main()` (before `Config.Initialize` even runs). When any fatal exception escapes, OmenMon writes `OmenMon-crash-yyyy-mm-dd-HHmmss.log` next to the executable containing the full exception chain, process metadata, **and** the same diagnostic bundle the new `-Diag` verb produces. Falls back to `%LOCALAPPDATA%\OmenMon-Reborn\` if the install directory is read-only (Program Files installs without elevation). **Nothing is uploaded** — the file sits on disk until the user chooses to attach it to a GitHub issue.
+- **`OmenMon.exe -Diag` CLI verb.** Bundles everything the maintainer needs to triage a report into one Markdown blob: OmenMon version, OS version, PawnIO driver status (`Ring0.GetStatus()`), the resolved model preset (or a "no native preset" notice), the AutoCal sidecar contents, a lock-free EC read/write trace covering the last few minutes of activity, an inventory of any crash logs on disk, and a single-snapshot `-Probe` dump. Writes to `OmenMon-Diag-yyyy-mm-dd-HHmmss.md` next to the executable.
+- **Tray menu "Copy Diagnostic Info" entry.** One-click clipboard copy of the same diagnostic bundle, for users who would never open a command prompt but will happily paste into a GitHub issue. Sibling of the existing "Auto-Calibrate & Diagnose…" entry.
+- **EC read/write ring buffer (`Library/EcTrace.cs`).** Records the last 1024 EC operations (timestamp, register, value, op kind) into a lock-free circular buffer hooked into `Hardware/Ec.ReadByte` / `WriteByte`. Costs ~16 KiB of resident memory and the price of one `Interlocked.Increment` per EC op. Surfaces through both the crash log and `-Diag` as a compact Markdown table — invaluable for diagnosing intermittent issues like #49 (random fan spikes), where the symptom is invisible by the time the user opens GitHub.
+
+### Added (model database)
+
+- **HP Omen 16-ap0007ns (8D26)** — added with standard 2023+ layout (`FanLevel 0x11/0x12`, `FanRateWrite 0x3A/0x3B`, RPM `0xB0/0xB2` LE16). Auto-Calibration confirmed CPU max ~3.4 kRPM / GPU max ~3.6 kRPM during the wizard sweep; real-load ceiling reaches ~4.9 kRPM via the new manual-mode toggle on the 100% step (issue #52).
+- **HP Victus 16 (88EB, 2021)** — earliest Victus 16 generation, standard 2023+ layout, LE16 RPM at 0xB0/0xB2 (CPU max ~3134, GPU max ~3385 RPM). Auto-Calibration confirmed by @deadpoolstark (issue #48).
+
+### Original release notes (PawnIO migration)
+
+### Changed
+
+- **WinRing0 driver removed in favour of PawnIO.** The whole rationale: WinRing0.sys is well-known to AV/EDR (CVE-2020-14979 in older bundled versions, plus an arbitrary-MSR-write surface) and Defender flags it on every install — a worsening UX. PawnIO instead ships a single Microsoft-signed driver shared across applications; modules are sandboxed Pawn bytecode that the driver verifies against the maintainer's RSA-2048 public key before loading. From the user's perspective: install PawnIO once from <https://pawnio.eu/> and the Defender prompt is gone.
+
+- **Kernel-mode I/O is now mediated by `Driver/PawnIo.cs`** — a thin user-mode wrapper around `PawnIOLib.dll` that locates the library via `HKLM\SOFTWARE\PawnIO\InstallDir` (with a Program-Files fallback), opens a PawnIO executor handle, and loads the embedded module blob via `pawnio_load`. Each kernel operation is invoked by name through `pawnio_execute`.
+
+- **`Driver/Ring0.cs` rewritten to delegate to PawnIO** while keeping its public surface (`Open` / `Close` / `IsOpen` / `GetStatus` / `ReadIoPort` / `WriteIoPort` / `GetPciAddress` etc.) byte-compatible with v1.3.x. `Hardware/Ec.cs` and every existing caller compile and run unchanged. The MSR / PCI-config / physical-memory methods OmenMon never actually called are now no-op stubs (kept on the surface for source compatibility with anything outside this codebase that might link against `Ring0`).
+
+### Added
+
+- **Model support: HP Victus 15-fb1000 (2023, AMD / 8C30)** — added to the built-in model database (issue #32, reported by @NotDarkn). Register layout is identical to 8D07: FanLevel at `0x34`/`0x35`, rate write at `0x2C`/`0x2D`, rate read at `0x2E`/`0x2F`, 16-bit LE RPM tachometers at `0xB0`/`0xB2` (CPU max ~3776 RPM, GPU max ~3623 RPM — confirmed by the Auto-Calibration Wizard). Known firmware quirk: pushing the fan rate to 100% locks the EC fan controller until the next restart; normal fan-program operation (≤70%) is unaffected.
+
+- **`Resources/LpcACPIEC.bin`** — the official, namazso-signed PawnIO module ([source](https://github.com/namazso/PawnIO.Modules/blob/main/LpcACPIEC.p)) is bundled as embedded resource `OmenMon.LpcACPIEC.bin`. It exposes `ioctl_pio_read` / `ioctl_pio_write` restricted to ACPI EC ports `0x62` (data) and `0x66` (command) — exactly the two ports OmenMon's EC handshake (`Hardware/Ec.cs` `ReadByteImpl` / `WriteByteImpl`) talks to. The mutex name LpcACPIEC expects (`\BaseNamedObjects\Access_EC`) coincides with OmenMon's existing `Config.LockPathEc` (`Global\Access_EC`), so coordination with HP Omen Gaming Hub continues to work.
+
+- **`Resources/PAWN_BUILD.md`** — module rotation guide. When namazso publishes a new PawnIO.Modules release, drop the new `LpcACPIEC.bin` into `Resources/` and rebuild — no code changes needed.
+
+- **Dev notes (`docs/DEV_NOTES_v1.4.0.md`)** — full architecture write-up: why we use someone else's signed module rather than ship a custom one, what the wire format of `pawnio_load` looks like, how to extend OmenMon to additional kernel operations later, and what to do when the upstream module file rotates.
+
+### Removed
+
+- `Driver/Driver.cs` — the WinRing0 service-management plumbing (extract `.sys.gz`, register kernel service, IOCTL marshalling) is no longer needed.
+
+- `Resources/Driver.sys.gz` — the embedded WinRing0 kernel driver. OmenMon does not extract or install any `.sys` file at runtime any more; the signed PawnIO driver is installed by its own MSI on the user's machine.
+
+- The `IOCTL_OLS_*` constants and `Kernel32.DeviceIoControl` P/Invoke in `External/Kernel.cs` are now unused but left in place — they're harmless dead code and removing them brings no functional benefit.
+
+### End-user upgrade path from 1.3.x
+
+1. Uninstall OmenMon 1.3.x as usual (or just overwrite the binaries — there is no installer to migrate).
+2. Install PawnIO once from <https://pawnio.eu/> (signed MSI, no Defender warning).
+3. Run `OmenMon.exe` as administrator. You will not be asked to allow a kernel driver any more — the existing PawnIO.sys handles every EC read/write.
+4. Existing `OmenMon.xml`, `OmenMon-AutoCal.xml`, and fan-program XMLs are forward-compatible — the migration touches only the `Driver/` layer.
+
 ## [1.3.4-reborn] - 2026-05-09
 
 ### Fixed

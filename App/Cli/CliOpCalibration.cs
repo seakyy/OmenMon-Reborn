@@ -63,6 +63,18 @@ namespace OmenMon.AppCli {
             profile = profile ?? DefaultProfile;
             progress = progress ?? ((p, d, pct) => { });
 
+            // Filter out 100% step for models with known firmware freeze at max fan speed.
+            // 8C30 (HP Victus 15-fb1000 2023 AMD) hits an EC controller freeze when the
+            // BIOS internal rate-limiter is triggered at 100%, requiring a restart to recover.
+            string productId = SafeProductId();
+            if(FanArray.HasMaxFanFreeze(productId)) {
+                profile = profile.Where(p => p < 100).ToArray();
+                if(profile.Length == 0) {
+                    outcome.FailureReason = $"Model {productId} has a known 100% fan freeze issue and the profile contains only 100% steps. Calibration aborted.";
+                    return outcome;
+                }
+            }
+
             // Snapshot prior fan state so we can restore it no matter how this exits.
             byte[] priorLevels = null;
             bool priorMax = false;
@@ -205,10 +217,22 @@ namespace OmenMon.AppCli {
 #region Helpers
         private static void ApplyLevel(IFanArray fans, int percent) {
             if(percent >= 100) {
+                // BIOS SetMaxFan only honours the command when the EC is not in
+                // manual fan-level mode — otherwise the prior SetLevels write
+                // pins the fans at Config.FanLevelMax (~3.4-3.8 kRPM) and the
+                // sweep's "100 %" step undershoots the board's real ceiling by
+                // ~30 % (issues #40, #41, #52). Release manual control briefly
+                // so BIOS thermal can drive the fans to their physical limit;
+                // we re-engage manual on the next sub-100 % step automatically
+                // via SetLevels' Config.FanLevelNeedManual path.
+                try { fans.SetManual(false); } catch { }
                 fans.SetMax(true);
                 return;
             }
+            // Coming back down from a prior 100 % step: clear BIOS max-fan
+            // first, then re-engage manual control so SetLevels takes effect.
             fans.SetMax(false);
+            try { fans.SetManual(true); } catch { }
             // SetLevels takes the same units as the GUI trackbars: integer steps
             // up to Config.FanLevelMax (default 55, i.e. units of 100 RPM →
             // ~5.5k RPM full scale). The previous "percent * 5.5 / 100" produced

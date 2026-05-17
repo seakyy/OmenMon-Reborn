@@ -62,7 +62,9 @@
     <Compile Include="App\Cli\CliOpProg.cs" />
     <Compile Include="App\Cli\CliOpProbe.cs" />
     <Compile Include="App\Cli\CliOpCalibration.cs" />
+    <Compile Include="App\Cli\CliOpDiag.cs" />
     <Compile Include="App\Cli\CliOpTask.cs" />
+    <Compile Include="App\Crash.cs" />
     <Compile Include="App\Gui\Gui.cs" />
     <Compile Include="App\Gui\GuiOp.cs" />
     <Compile Include="App\Gui\GuiFilter.cs" />
@@ -83,7 +85,7 @@
     <Compile Include="App\Gui\GuiCalibrationProcessGuard.cs" />
     <Compile Include="App\Gui\GuiKbd.cs" />
     <Compile Include="App\Gui\GuiTray.cs" />
-    <Compile Include="Driver\Driver.cs" />
+    <Compile Include="Driver\PawnIo.cs" />
     <Compile Include="Driver\Ring0.cs" />
     <Compile Include="External\AdvApi.cs" />
     <Compile Include="External\ColorMgmt.cs" />
@@ -114,6 +116,7 @@
     <Compile Include="Library\Config.cs" />
     <Compile Include="Library\ConfigData.cs" />
     <Compile Include="Library\Conv.cs" />
+    <Compile Include="Library\EcTrace.cs" />
     <Compile Include="Library\Gui\ButtonEx.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -150,8 +153,8 @@
       <StronglyTypedNamespace>OmenMon</StronglyTypedNamespace>
       <StronglyTypedClassName>Resources</StronglyTypedClassName>
     </EmbeddedResource>
-    <EmbeddedResource Include="Resources\Driver.sys.gz">
-      <LogicalName>OmenMon.Driver.sys.gz</LogicalName>
+    <EmbeddedResource Include="Resources\LpcACPIEC.bin" Condition="Exists('Resources\LpcACPIEC.bin')">
+      <LogicalName>OmenMon.LpcACPIEC.bin</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
   <!-- <ItemGroup>
@@ -180,6 +183,9 @@
     </ItemGroup>
   </Target>
   <Target Name="BuildBeginning" BeforeTargets="BeforeBuild">
+  </Target>
+  <Target Name="EnsurePawnBlobForRelease" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
+    <Error Condition="!Exists('Resources/LpcACPIEC.bin')" Text="Missing required file: Resources/LpcACPIEC.bin. Follow Resources/PAWN_BUILD.md to fetch/build it before creating a Release build." />
   </Target>
   <Target Name="BuildComplete" AfterTargets="AfterBuild">
     <Copy SourceFiles="OmenMon.xml" DestinationFolder="$(OutDir)" />
