@@ -224,7 +224,8 @@ namespace OmenMon.Hardware.Platform {
         public static bool HasMaxFanFreeze(string productId) {
             // 8C30: HP Victus 15-fb1000 (2023, AMD) — EC controller freezes when
             // the BIOS internal rate-limiter is hit at 100% fan speed. The freeze
-            // persists until the next restart. See OmenMon.xml:420-424.
+            // persists until the next restart. Tracked in issue #32; see the 8C30
+            // entry in OmenMon.xml's <Models> section for register layout notes.
             return productId == "8C30";
         }
 #endregion

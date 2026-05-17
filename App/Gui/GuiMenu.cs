@@ -260,20 +260,10 @@ namespace OmenMon.AppGui {
             bool enableMax = !((ToolStripMenuItem) sender).Checked;
 
             // Show a safety warning for models where 100% max fan can freeze the EC.
-            if(enableMax) {
-                string productId = Context.Op.Platform.System.GetProduct();
-                if(FanArray.HasMaxFanFreeze(productId)) {
-                    DialogResult result = MessageBox.Show(
-                        $"Warning: Model {productId} has a known firmware issue where setting fans to 100% can cause an unrecoverable EC freeze requiring a restart.\n\n" +
-                        "Do you want to proceed anyway?",
-                        "Fan Safety Warning",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button2);
-                    if(result != DialogResult.Yes)
-                        return;
-                }
-            }
+            // Centralised in GuiOp.ConfirmMaxFanIfRisky so the wording / title /
+            // default button stay in sync across every entry point.
+            if(enableMax && !GuiOp.ConfirmMaxFanIfRisky(Context.Op.Platform.System.GetProduct()))
+                return;
 
             // Clear fan-off latch before enabling max so the BIOS will honour SetMax
             if(enableMax && Context.Op.Platform.Fans.GetOff())
