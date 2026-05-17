@@ -1,6 +1,12 @@
 # OmenMon-Reborn
 
 <p align="center">
+  <a href="https://github.com/seakyy/OmenMon-Reborn/releases/latest"><img src="https://img.shields.io/github/v/release/seakyy/OmenMon-Reborn?color=brightgreen&label=Latest%20Release" alt="Latest release"></a>
+  <a href="https://github.com/seakyy/OmenMon-Reborn/releases"><img src="https://img.shields.io/github/downloads/seakyy/OmenMon-Reborn/total?color=blue&label=Downloads" alt="Downloads"></a>
+  <a href="https://github.com/seakyy/OmenMon-Reborn/stargazers"><img src="https://img.shields.io/github/stars/seakyy/OmenMon-Reborn?style=social" alt="Stars"></a>
+</p>
+
+<p align="center">
   <a href="https://buymeacoffee.com/seakyy"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-seakyy-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
 </p>
 
