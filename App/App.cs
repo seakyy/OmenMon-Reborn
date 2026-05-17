@@ -22,6 +22,11 @@ namespace OmenMon {
             // Set up an event handler to run on exit
             AppDomain.CurrentDomain.ProcessExit += OnExit;
 
+            // Wire the telemetry-free crash dumper as early as possible so
+            // even an exception thrown during Config.Initialize gets a log
+            // file written next to the executable (no network involved).
+            Crash.Install();
+
             // Initialize the configuration class
             Config.Initialize();
 

@@ -62,7 +62,9 @@
     <Compile Include="App\Cli\CliOpProg.cs" />
     <Compile Include="App\Cli\CliOpProbe.cs" />
     <Compile Include="App\Cli\CliOpCalibration.cs" />
+    <Compile Include="App\Cli\CliOpDiag.cs" />
     <Compile Include="App\Cli\CliOpTask.cs" />
+    <Compile Include="App\Crash.cs" />
     <Compile Include="App\Gui\Gui.cs" />
     <Compile Include="App\Gui\GuiOp.cs" />
     <Compile Include="App\Gui\GuiFilter.cs" />
@@ -114,6 +116,7 @@
     <Compile Include="Library\Config.cs" />
     <Compile Include="Library\ConfigData.cs" />
     <Compile Include="Library\Conv.cs" />
+    <Compile Include="Library\EcTrace.cs" />
     <Compile Include="Library\Gui\ButtonEx.cs">
       <SubType>Component</SubType>
     </Compile>

@@ -70,8 +70,10 @@ namespace OmenMon.Hardware.Ec {
             int count = 0;
             byte value = 0;
             while(count < Config.EcRetryLimit) {
-                if(ReadByteImpl(register, out value))
+                if(ReadByteImpl(register, out value)) {
+                    EcTrace.RecordRead(register, value);
                     return value;
+                }
                 count++;
             }
             return value;
@@ -93,8 +95,10 @@ namespace OmenMon.Hardware.Ec {
         public virtual void WriteByte(byte register, byte value) {
             int count = 0;
             while(count < Config.EcRetryLimit) {
-                if(WriteByteImpl(register, value))
+                if(WriteByteImpl(register, value)) {
+                    EcTrace.RecordWrite(register, value);
                     return;
+                }
                 count++;
             }
         }
