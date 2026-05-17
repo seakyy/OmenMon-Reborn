@@ -92,11 +92,19 @@ Three files need to know about the new version. Keep them in sync.
 The CI workflow can override `AssemblyVersion` from the build inputs but the
 local `Rebuild` you do in step 2 uses these defaults. Keep them honest.
 
-> **Note:** CI overrides the 4th segment with the `BUILD_NUMBER` repo
-> variable (auto-incremented by `build_bump.yml` via `VARIABLE_WRITE_TOKEN`),
-> so the published `AssemblyVersion` will read as `X.Y.Z.<build#>` (e.g.
-> `1.5.0.42`) rather than the `X.Y.Z.0` you see locally. The first three
-> segments are what you bump here; the fourth is just a CI counter.
+> **Note:** In CI the `AddVersion` target in `OmenMon.csproj` rewrites this
+> file before compile. The split is deliberate:
+>
+> - `AssemblyVersion` keeps only the first three segments (X.Y.Z, .NET pads
+>   to X.Y.Z.0). Stable — changing it would break assembly binding.
+> - `AssemblyFileVersion` gets the full four segments, where the 4th is the
+>   `BUILD_NUMBER` repo variable (auto-incremented by `build_bump.yml` via
+>   `VARIABLE_WRITE_TOKEN`).
+>
+> So a shipped binary's *file* version reads as `X.Y.Z.<build#>` (e.g.
+> `1.5.0.42`) in Windows file properties / `Get-FileHash` output, while its
+> *assembly* version stays at `X.Y.Z.0`. The first three segments are what
+> you bump here; the fourth is just a CI counter on `AssemblyFileVersion`.
 
 ### `wiki/Home.md`
 
