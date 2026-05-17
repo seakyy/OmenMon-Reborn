@@ -1,0 +1,124 @@
+#
+#  //\\   OmenMon: Hardware Monitoring & Control Utility
+# //  \\  OmenMon-Reborn additions © 2026 seakyy
+#     //  https://omenmon.github.io/
+#
+# OmenMon Draft Release Workflow
+#
+# Triggers automatically when a tag matching v*.*.* is pushed (e.g. v1.4.0),
+# or manually via the Actions UI ("Run workflow → version: 1.4.0"). Creates
+# a *draft* GitHub release whose body is the matching section of CHANGELOG.md.
+#
+# The release is intentionally left as a draft so the maintainer can:
+#   1. Attach the locally-built OmenMon.exe (and any other binaries that can't
+#      be produced reproducibly from CI — code-signed bits, hardware probes).
+#   2. Sanity-check the auto-extracted release notes.
+#   3. Click "Publish release", which triggers the existing release.yml to
+#      build + zip + attach the public archive.
+
+name: "OmenMon Draft Release"
+run-name: "Draft release for ${{ github.ref_name }}"
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to draft (without leading v, e.g. 1.4.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    name: "Create draft release"
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: "Checkout"
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: "Resolve tag"
+      id: resolve
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          TAG="v${{ inputs.version }}"
+          VERSION="${{ inputs.version }}"
+        else
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+        fi
+        echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Draft target: tag=$TAG version=$VERSION"
+
+    - name: "Extract changelog section"
+      id: notes
+      run: |
+        VERSION="${{ steps.resolve.outputs.version }}"
+        # Match either "## [1.4.0-reborn]" or "## [1.4.0]" headers — the
+        # project alternates between the two forms across releases.
+        awk -v ver="$VERSION" '
+          BEGIN { found=0 }
+          /^## / {
+            if (found) exit
+            if (index($0, "[" ver "-reborn]") > 0 || index($0, "[" ver "]") > 0) {
+              found=1; next
+            }
+          }
+          found { print }
+        ' CHANGELOG.md > release-notes.md
+
+        if [ ! -s release-notes.md ]; then
+          echo "::warning::No CHANGELOG section found for version $VERSION — using fallback message."
+          {
+            echo "Release **${{ steps.resolve.outputs.tag }}**."
+            echo
+            echo "_No matching \`## [$VERSION]\` or \`## [$VERSION-reborn]\` section was found in \`CHANGELOG.md\`._"
+            echo "_Edit this description before publishing._"
+          } > release-notes.md
+        fi
+
+        echo "--- Extracted release notes ---"
+        cat release-notes.md
+        echo "--- End ---"
+
+    - name: "Create or update draft release"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ steps.resolve.outputs.tag }}
+      run: |
+        # If a release for this tag already exists, update its body and keep
+        # it a draft. Otherwise create a fresh draft. Either way the
+        # maintainer ends up with a single editable draft.
+        if gh release view "$TAG" >/dev/null 2>&1; then
+          echo "Release $TAG already exists — refreshing notes only."
+          gh release edit "$TAG" \
+            --draft \
+            --notes-file release-notes.md
+        else
+          echo "Creating new draft release $TAG."
+          # --target lets us draft a release for a tag that doesn't exist
+          # yet (workflow_dispatch path). For tag-push runs the tag is
+          # already in place, but passing --target is harmless.
+          gh release create "$TAG" \
+            --draft \
+            --title "$TAG" \
+            --target "${{ github.sha }}" \
+            --notes-file release-notes.md
+
+        fi
+
+        echo
+        echo "Draft created. Next steps for the maintainer:"
+        echo "  1. Open the draft on GitHub Releases."
+        echo "  2. Attach the locally-built OmenMon.exe (and any other assets)."
+        echo "  3. Review the auto-extracted notes."
+        echo "  4. Click 'Publish release' — release.yml will build + zip + attach."
