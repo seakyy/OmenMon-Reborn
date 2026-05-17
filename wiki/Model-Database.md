@@ -101,6 +101,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8DD0` | Omen (2025) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #26, false-positive auto-cal mitigated via built-in `AutoCal.Prime` in v1.4.0 — issue #33) |
 | `8D26` | Omen 16-ap0007ns (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #52) |
 | `88EB` | Victus 16 (2021) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #48) |
+| `8C77` | Omen 16-wf1012nl (2024) — single-fan SKU | ⚠️ Sidecar-resolved via the Auto-Calibration Wizard (issue #50). CPU fan at `EC[0xD2]` (`PeriodEncoded8`, idle ≈ `0xB2`, max ≈ `0x11`). No GPU fan detected — likely a physically single-fan chassis, not a missed register. Not yet added to the shipped native database: waiting on a second `8C77` owner to confirm the layout is consistent across the SKU (HP recycles product IDs across regional variants). Owners can install OmenMon as normal — the wizard's `OmenMon-AutoCal.xml` keeps the install working out of the box. |
 | `8A3E` | Victus 15 fb0102la | ❓ |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |
 | `88FE` | Omen 17 ck0xxx (2020) | ❓ |
