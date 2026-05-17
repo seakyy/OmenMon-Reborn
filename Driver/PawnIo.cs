@@ -106,7 +106,8 @@ namespace OmenMon.Driver {
                 log.AppendLine("LpcACPIEC.bin not found.");
                 log.Append("Expected embedded resource: ").AppendLine(EmbeddedBlobName);
                 log.Append("Or side-by-side file: ").AppendLine(SideBySideBlobName);
-                log.AppendLine("See PAWN_BUILD.md for the correct module update/embedding procedure.");
+                log.AppendLine("Place LpcACPIEC.bin next to OmenMon.exe, or rebuild from source with Resources/LpcACPIEC.bin present.");
+                log.AppendLine("Module update guide: https://github.com/seakyy/OmenMon-Reborn/blob/master/Resources/PAWN_BUILD.md");
                 pawnio_close(handle);
                 handle = IntPtr.Zero;
                 return;

@@ -211,11 +211,17 @@ namespace OmenMon.Hardware.Bios {
                 // contract (e.g. Omen Transcend 14 fb0118TX returns 4 on
                 // startup BIOS calls and crashes the GUI with "Unknown
                 // response from BIOS: 4"). The exact semantics aren't
-                // documented by HP, but every reported instance has been
-                // a benign "this call isn't supported on this platform"
-                // rather than a real error — treat them the same way as
-                // code 3 by silently soft-failing so the rest of the GUI
-                // can come up and let the user inspect what does work.
+                // documented by HP, but every reported instance so far has
+                // been a benign "this call isn't supported on this platform"
+                // rather than a real error. Unlike code 3 — which the
+                // original author chose to escalate to a hard BiosException
+                // even when error reporting is on — these codes are silently
+                // ignored regardless of Config.BiosErrorReporting / force,
+                // because raising any of them on the Transcend 14 startup
+                // path tears down the whole GUI before the user can see any
+                // working readouts. Soft-failing here lets the rest of the
+                // application come up and lets the user inspect what does
+                // work on non-Omen-branded hardware.
                 case 1:
                 case 4:
                 case 6:

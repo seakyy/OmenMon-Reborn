@@ -199,6 +199,28 @@ namespace OmenMon.Library {
                     }
                 }
 
+                // Override-conflict check: when this product is in KnownBoards
+                // (hand-verified ground truth — added precisely because the
+                // wizard heuristic gets the layout wrong on this hardware) and
+                // the persisted sidecar disagrees with that ground truth,
+                // discard the sidecar instead of carrying a known-broken
+                // mapping forward across upgrades. Example: 8C9C's previous
+                // released mapping was (0xF1, DirectMultiplier8 ×60) and is
+                // now (BiosLevelMirror); without this guard, users who ran
+                // the wizard on the old version would keep getting bogus RPM
+                // (~120 RPM at audible MAX) until they manually deleted the
+                // sidecar file (issue #28 follow-up).
+                if(KnownBoards.TryGetValue(currentProductId, out Mapping known)) {
+                    bool cpuMismatch = haveCpu
+                        && (cReg != known.CpuReg || cMode != known.CpuMode);
+                    bool gpuMismatch = haveGpu
+                        && (gReg != known.GpuReg || gMode != known.GpuMode);
+                    if(cpuMismatch || gpuMismatch) {
+                        try { File.Delete(path); } catch { }
+                        return false;
+                    }
+                }
+
                 bool anyApplied = false;
                 if(haveCpu) {
                     SetCpu(cReg, cMode);
