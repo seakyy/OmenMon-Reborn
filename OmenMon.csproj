@@ -117,6 +117,7 @@
     <Compile Include="Library\ConfigData.cs" />
     <Compile Include="Library\Conv.cs" />
     <Compile Include="Library\EcTrace.cs" />
+    <Compile Include="Library\PowerGuard.cs" />
     <Compile Include="Library\Gui\ButtonEx.cs">
       <SubType>Component</SubType>
     </Compile>

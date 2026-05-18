@@ -32,6 +32,20 @@ namespace OmenMon.External {
 
         }
 
+        // Power-management coordination — used by Library/PowerGuard to keep Windows
+        // awake during transient battery-percentage glitches (issue #59).
+        // SetThreadExecutionState is documented at
+        // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate
+        [Flags]
+        public enum ExecutionState : uint {
+            None             = 0x00000000,
+            SystemRequired   = 0x00000001,   // prevent system idle-to-sleep transitions
+            DisplayRequired  = 0x00000002,   // prevent display sleep
+            UserPresent      = 0x00000004,   // obsolete, kept for completeness
+            AwayModeRequired = 0x00000040,   // away-mode: appears off but isn't
+            Continuous       = 0x80000000    // keep the requested state until cleared
+        }
+
         // Hardware operations with a kernel driver
 
         public const int ERROR_SERVICE_ALREADY_RUNNING = unchecked((int) 0x80070420);
@@ -127,6 +141,13 @@ namespace OmenMon.External {
             uint nOutBufferSize,
             out uint bytesReturned,
             IntPtr overlapped);
+
+        // Power management — returns the previous ExecutionState on success, or 0 on failure.
+        // OmenMon calls this from Library/PowerGuard to suppress hibernate during transient
+        // battery-percentage glitches on plugged-in systems (issue #59).
+        [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        public static extern ExecutionState SetThreadExecutionState(ExecutionState esFlags);
 #endregion
 
     }

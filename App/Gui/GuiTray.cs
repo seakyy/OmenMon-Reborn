@@ -131,10 +131,22 @@ namespace OmenMon.AppGui {
             // Register the power-mode change event handler
             SystemEvents.PowerModeChanged += EventPowerChange;
 
+            // Battery-glitch hibernation guard — issue #59. Records the
+            // baseline Windows-reported battery percentage now so the very
+            // next timer tick has something to compare against; nothing
+            // detected on the first tick is the correct behaviour.
+            PowerGuard.Initialize();
+
         }
 
         // Handles component disposal
         protected override void Dispose(bool isDisposing) {
+
+            // Release any held ES_SYSTEM_REQUIRED before the process exits.
+            // Windows would drop it on its own at process exit too, but being
+            // explicit survives non-graceful shutdown paths (e.g. fatal exception
+            // in Update() leading to ExitThreadCore being skipped).
+            PowerGuard.Dispose();
 
             if(isDisposing && this.Components != null)
                 this.Components.Dispose();
@@ -204,6 +216,15 @@ namespace OmenMon.AppGui {
 
             // Perform the updates as scheduled
             Update();
+
+            // Cheap (no EC traffic, no WMI) — runs every GuiTimerInterval ms.
+            // Detects the "battery suddenly drops to <5%" torn-read symptom
+            // reported under heavy load on certain SKUs (issue #59) and
+            // suppresses Windows' Critical Battery hibernate for a short
+            // window. Disabled via Config.BatteryGlitchGuard = false in
+            // OmenMon.xml for users who would rather see the OS's reading
+            // verbatim.
+            PowerGuard.Tick(this);
 
         }
 

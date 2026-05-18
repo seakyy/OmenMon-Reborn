@@ -219,14 +219,38 @@ namespace OmenMon.Hardware.Platform {
         }
 
         // Checks if the current model has a known firmware issue with 100% fan speed.
-        // Returns true for models where SetMax(true) or equivalent 100% commands can
-        // trigger an unrecoverable EC freeze requiring a restart.
+        // Returns true for models where SetMax(true), the AutoCal wizard's 100% step,
+        // or equivalent commands have been observed driving the EC past a BIOS-internal
+        // rate-limiter, locking the fan controller until reboot.
+        //
+        // The common factor on every reported board has been a physical fan ceiling of
+        // ~3600-3800 RPM, well below the headroom the calibration code path assumes.
+        //
+        //   8C30 — HP Victus 15-fb1000 (2023, AMD)        — issue #32 (NotDarkn)
+        //   8D07 — HP Victus 15 sibling of 8C30 layout    — issue #56 (ghend-oss)
+        //   8BAD — HP Victus 16 (2024, AMD)               — issue #58 (MartinSalg818)
+        //   8E35 — HP Victus 15 (2026 BIOS)               — issue #57 (ClockworkNirvana,
+        //          confirmed via raw EC-dump analysis: 70 % → 100 % shows 0 RPM gain on
+        //          GPU and a 16 RPM regression on CPU — the same firmware signature.)
+        //
+        // Call-sites:
+        //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
+        //   App/Gui/GuiOp.cs            — GUI gates manual SetMax(true) behind a confirm.
+        // Adding a ProductId here propagates to every call-site automatically.
+        //
+        // The wizard's plateau detector (CliOpCalibration.AutoCalibrate) is the boardless
+        // root-cause fix and stops the freeze for unknown boards too; this list stays as
+        // defence-in-depth for boards we've already confirmed.
         public static bool HasMaxFanFreeze(string productId) {
-            // 8C30: HP Victus 15-fb1000 (2023, AMD) — EC controller freezes when
-            // the BIOS internal rate-limiter is hit at 100% fan speed. The freeze
-            // persists until the next restart. Tracked in issue #32; see the 8C30
-            // entry in OmenMon.xml's <Models> section for register layout notes.
-            return productId == "8C30";
+            switch(productId) {
+                case "8C30":
+                case "8D07":
+                case "8BAD":
+                case "8E35":
+                    return true;
+                default:
+                    return false;
+            }
         }
 #endregion
 

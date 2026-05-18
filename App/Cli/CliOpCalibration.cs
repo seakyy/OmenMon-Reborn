@@ -36,11 +36,37 @@ namespace OmenMon.AppCli {
             public string ProductId;
             public string BiosBornDate;
             public List<EcDiffScanner.Sample> Samples = new List<EcDiffScanner.Sample>();
+            // Per-step live tachometer reading taken at the end of each settle window,
+            // independent of the EC-dump heuristic. Lets the Markdown report show the
+            // fans' RPM trajectory and lets the plateau detector below decide whether
+            // to skip a higher step. Empty if the wizard never reached the first step.
+            public List<LiveSpeedSample> LiveSpeeds = new List<LiveSpeedSample>();
+            // Set when the wizard observed two consecutive steps with little or no
+            // RPM gain on both fans — the board has hit its physical fan ceiling and
+            // the next higher step would risk the BIOS rate-limiter freeze documented
+            // on 8C30 / 8D07 / 8BAD. Plateau exit is treated as a successful run, not
+            // a failure: the samples we did collect are still scanned and reported.
+            public bool PlateauReached;
+            public int PlateauStepPercent;     // commanded level at which plateau was observed
+            public string PlateauNote;         // human-readable explanation for the report
             // Non-null when the sidecar XML could not be written (e.g. installed under
             // C:\Program Files without admin rights). The session keeps its in-memory
             // override but a restart will lose it — surfaced in the Markdown report so
             // the user knows persistence didn't happen.
             public string SidecarError;
+        }
+
+        // Per-step tachometer snapshot taken via the live IFan.GetSpeed() path, so the
+        // report shows what the running session would have displayed at each commanded
+        // level. CpuRpm / GpuRpm may be 0 when the read failed (unknown board, EC mutex
+        // collision, …) — the plateau detector treats 0 as "unknown", not "plateaued".
+        public sealed class LiveSpeedSample {
+            public int LevelPercent;
+            public int CpuRpm;
+            public int GpuRpm;
+            public LiveSpeedSample(int level, int cpu, int gpu) {
+                LevelPercent = level; CpuRpm = cpu; GpuRpm = gpu;
+            }
         }
 
         // Default profile: idle, two intermediate steps, full speed.
@@ -162,6 +188,54 @@ namespace OmenMon.AppCli {
                     progress($"step{level}%", $"Reading EC at {level}%…", basePct + 6);
                     byte[] dump = SnapshotEc();
                     outcome.Samples.Add(new EcDiffScanner.Sample(level, dump));
+
+                    // Live tachometer reading via the session's normal Fan.GetSpeed() path.
+                    // On boards with a correct preset (most known ProductIds) this gives a
+                    // real RPM number; on unknown boards it may return zero or junk — the
+                    // plateau detector handles that defensively by treating 0 as unknown.
+                    int liveCpu = TryReadLiveSpeed(fans, 0);
+                    int liveGpu = TryReadLiveSpeed(fans, 1);
+                    outcome.LiveSpeeds.Add(new LiveSpeedSample(level, liveCpu, liveGpu));
+
+                    // Plateau check. Always runs once we have at least two readings,
+                    // because the freeze documented on 8C30 / 8D07 / 8BAD is triggered
+                    // *by* the 100 % command itself — predicting it before issuing 100 %
+                    // would require an intermediate probe step that is itself unsafe on
+                    // boards whose physical ceiling sits below 85 %. So the check fires
+                    // *after* each step:
+                    //
+                    //   - If a higher step is still queued, abort and skip it (saves the
+                    //     user from a redundant or risky next step on a fan that is no
+                    //     longer responding).
+                    //   - If we're already at the last step, mark the plateau anyway so
+                    //     the Markdown report tells the user / maintainer the run hit a
+                    //     physical ceiling and the ProductId should be added to the
+                    //     HasMaxFanFreeze list. The faulty 100 % sample is left in
+                    //     outcome.Samples on purpose — the EcDiffScanner needs every
+                    //     sample to score candidates, and discarding it would skew the
+                    //     heuristic.
+                    if(DetectPlateau(outcome.LiveSpeeds, out string plateauNote)) {
+                        outcome.PlateauReached = true;
+                        outcome.PlateauStepPercent = level;
+                        outcome.PlateauNote = plateauNote;
+                        bool haveHigherStepsQueued = false;
+                        for(int j = i + 1; j < totalSteps; j++) {
+                            if(profile[j] > level) { haveHigherStepsQueued = true; break; }
+                        }
+                        if(haveHigherStepsQueued) {
+                            progress($"step{level}%", "Physical fan ceiling reached — skipping higher steps to avoid EC freeze.", basePct + 8);
+                            // Try to gently leave the EC in a benign state — clear MaxFan
+                            // in case any partial command lingered, then return to manual
+                            // control so the finally block's restore path has a known
+                            // baseline. Both calls are best-effort — on the boards where
+                            // the EC fan controller has frozen, neither will recover the
+                            // fans (user has to reboot), but they at least keep the rest
+                            // of the wizard's teardown sequence well-defined.
+                            try { fans.SetMax(false); } catch { }
+                            try { fans.SetManual(true); } catch { }
+                            break;
+                        }
+                    }
                 }
 
                 progress("scan", "Analysing register diffs…", 96);
@@ -254,6 +328,74 @@ namespace OmenMon.AppCli {
             for(int r = 0; r < 256; r++)
                 snap[r] = Hw.EcGetByte((byte) r);
             return snap;
+        }
+
+        // Best-effort live tachometer read. Returns 0 if the call throws (no preset,
+        // EC mutex collision, …) — the plateau detector treats 0 as "unknown" rather
+        // than "plateaued", so a flaky read never causes a false plateau abort.
+        private static int TryReadLiveSpeed(IFanArray fans, int fanIndex) {
+            try {
+                if(fans == null || fans.Fan == null || fanIndex < 0 || fanIndex >= fans.Fan.Length)
+                    return 0;
+                int rpm = fans.Fan[fanIndex].GetSpeed();
+                return rpm > 0 ? rpm : 0;
+            } catch {
+                return 0;
+            }
+        }
+
+        // RPM delta between adjacent steps below which we consider a fan to have
+        // stopped responding. Picked above EcDiffScanner.RpmInversionTolerance (50)
+        // so normal sample-to-sample jitter doesn't trip the abort, but well below
+        // the ~1500-RPM gain a healthy fan produces between 70 % and 100 %.
+        private const int PlateauRpmDelta = 150;
+
+        // Minimum RPM the fans must have actually reached for plateau detection to
+        // matter. Below this we're either still spinning up from idle (legitimately
+        // small delta on 0 % → 30 %) or reading garbage from a wrong preset — neither
+        // is a freeze risk worth aborting for.
+        private const int PlateauMinRpm = 1500;
+
+        // True when BOTH fans show <PlateauRpmDelta gain compared to the highest
+        // prior commanded level, and the most recent reading is at least PlateauMinRpm
+        // (so we don't trip on "fans haven't started yet" or "wrong preset returns 0").
+        //
+        // The "highest prior commanded level" choice is deliberate: comparing to the
+        // immediately-previous step would miss the case where the user runs an extended
+        // profile (0, 30, 50, 70) and the curve goes 0 → 30 (gain) → 50 (gain) → 70
+        // (no gain). The detector picks the prior step with the largest level so it
+        // always asks "did pushing the commanded fan rate higher actually do anything?"
+        private static bool DetectPlateau(List<LiveSpeedSample> live, out string note) {
+            note = null;
+            if(live == null || live.Count < 2) return false;
+
+            var current = live[live.Count - 1];
+            if(current.CpuRpm < PlateauMinRpm && current.GpuRpm < PlateauMinRpm)
+                return false;
+
+            // Find the highest commanded level below current — that's our baseline.
+            LiveSpeedSample prior = null;
+            for(int k = 0; k < live.Count - 1; k++) {
+                if(live[k].LevelPercent >= current.LevelPercent) continue;
+                if(prior == null || live[k].LevelPercent > prior.LevelPercent)
+                    prior = live[k];
+            }
+            if(prior == null) return false;
+
+            int dCpu = current.CpuRpm - prior.CpuRpm;
+            int dGpu = current.GpuRpm - prior.GpuRpm;
+
+            // Both fans must plateau. If only one stops responding the other usually
+            // indicates the curve still has headroom (asymmetric fan envelopes — common
+            // on dual-fan systems with one larger heatsink), and aborting would discard
+            // a legitimate higher-step measurement.
+            if(dCpu >= PlateauRpmDelta || dGpu >= PlateauRpmDelta) return false;
+
+            note = $"Live RPM at {current.LevelPercent} % matched {prior.LevelPercent} % within {PlateauRpmDelta} RPM "
+                 + $"(CPU {prior.CpuRpm} → {current.CpuRpm}, GPU {prior.GpuRpm} → {current.GpuRpm}). "
+                 + "The board appears to be at its physical fan ceiling; skipped the 100 % step to avoid "
+                 + "the BIOS rate-limiter freeze observed on 8C30 / 8D07 / 8BAD.";
+            return true;
         }
 
         private static string SafeProductId() {
@@ -350,6 +492,19 @@ namespace OmenMon.AppCli {
                 sb.AppendLine();
             }
 
+            // Hoist plateau detection above the Device block so a maintainer reading
+            // the issue immediately sees the wizard short-circuited and *why*. The
+            // request is to add the ProductId to the safety list so future runs skip
+            // 100 % proactively (the wizard already aborted *this* run, but the user's
+            // tray menu / main-form max-fan toggle is still unguarded for them).
+            if(o.PlateauReached) {
+                sb.AppendLine("> **PLATEAU DETECTED at " + o.PlateauStepPercent + " %.** The wizard skipped the 100 % step.");
+                if(!string.IsNullOrEmpty(o.PlateauNote))
+                    sb.AppendLine("> " + o.PlateauNote);
+                sb.AppendLine("> Please report this so `" + o.ProductId + "` can be added to `FanArray.HasMaxFanFreeze` for full protection.");
+                sb.AppendLine();
+            }
+
             sb.AppendLine("## Device");
             sb.AppendLine();
             sb.AppendLine($"- **Product ID:** `{o.ProductId}`");
@@ -380,6 +535,25 @@ namespace OmenMon.AppCli {
                         sb.AppendLine($"| `0x{c.Offset:X2}` | {c.Mode} | {c.Score} | `{string.Join(", ", c.Values)}` |");
                     sb.AppendLine();
                     sb.AppendLine("</details>");
+                }
+            }
+
+            // Live tachometer readings taken at the end of each settle window via the
+            // same Fan.GetSpeed() path the GUI uses for the main-form readouts. Useful
+            // cross-check against the EcDiffScanner's diff-based register pick: if the
+            // live RPM trajectory disagrees with the scanner's chosen offset, the preset
+            // (or the scan) is wrong. Suppressed when no readings were captured (early
+            // failure before the first step completed).
+            if(o.LiveSpeeds != null && o.LiveSpeeds.Count > 0) {
+                sb.AppendLine();
+                sb.AppendLine("## Live RPM at Each Step");
+                sb.AppendLine();
+                sb.AppendLine("| Step | CPU RPM | GPU RPM |");
+                sb.AppendLine("|-----:|--------:|--------:|");
+                foreach(var s in o.LiveSpeeds) {
+                    string cpu = s.CpuRpm > 0 ? s.CpuRpm.ToString() : "—";
+                    string gpu = s.GpuRpm > 0 ? s.GpuRpm.ToString() : "—";
+                    sb.AppendLine($"| {s.LevelPercent} % | {cpu} | {gpu} |");
                 }
             }
 

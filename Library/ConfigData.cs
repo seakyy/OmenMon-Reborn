@@ -44,6 +44,21 @@ namespace OmenMon.Library {
         // with the BIOS battery-manager and can trigger unexpected hibernation after extended use.
         public static bool BiosHeartbeatPauseOnBattery = true;
 
+        // Battery-glitch hibernation guard. When OmenMon detects an implausibly large drop in
+        // Windows-reported battery percentage while AC power is connected (>= BatteryGlitchDropPercent
+        // within BatteryGlitchWindowMs), it tells Windows not to enter sleep/hibernate for
+        // BatteryGlitchHoldMs by holding ES_CONTINUOUS | ES_SYSTEM_REQUIRED via
+        // SetThreadExecutionState. Targets the torn-EC-read symptom reported on certain
+        // Victus/Omen SKUs (issue #59 / #56-comments) where the Windows battery driver reads
+        // a transient 0xFF or near-zero from the Smart Battery System and the OS Critical
+        // Battery Action triggers Hibernate even though the laptop is plugged in.
+        // The check is suppressed when running on battery — a legitimate low-battery state
+        // there should still hibernate normally.
+        public static bool BatteryGlitchGuard = true;
+        public static int BatteryGlitchDropPercent = 30;   // minimum drop to flag a glitch [%]
+        public static int BatteryGlitchWindowMs   = 5000; // must drop this much within [ms]
+        public static int BatteryGlitchHoldMs     = 30000; // suppress hibernate for [ms] after detection
+
         // Thermal Panic Mode: when max sensor temperature exceeds the threshold, OmenMon
         // forces both fans to maximum and shows a balloon alert. Deactivates with hysteresis.
         // Only active when GuiDynamicIcon=true (requires live sensor reads already happening).
