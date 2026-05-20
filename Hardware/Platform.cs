@@ -1,4 +1,4 @@
-﻿  //\\   OmenMon: Hardware Monitoring & Control Utility
+  //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
 // OmenMon-Reborn additions © 2026 seakyy
@@ -16,6 +16,10 @@ namespace OmenMon.Hardware.Platform {
 #region Data
         // Last maximum temperature reading
         public byte LastMaxTemperature { get; private set; }
+
+        // Last per-component temperature readings (populated by GetCpu/GpuTemperature)
+        public byte LastCpuTemperature { get; private set; }
+        public byte LastGpuTemperature { get; private set; }
 
         // System information
         public ISettings System { get; private set; }
@@ -213,6 +217,50 @@ namespace OmenMon.Hardware.Platform {
 
             // Return the result
             return this.LastMaxTemperature;
+
+        }
+
+        // Obtains the CPU temperature from the CPUT sensor (or BIOS fallback).
+        // On 2023+ boards where EC 0x57 overlaps firmware data and returns 0xFF
+        // (filtered by MaxBelievableTemperature → 0), the WMI BIOS sensor is
+        // used as a proxy — same logic the tray tooltip already applies.
+        public byte GetCpuTemperature(bool forceUpdate = false) {
+
+            if(forceUpdate)
+                UpdateTemperature(true);
+
+            byte cpu = 0, bios = 0;
+            for(int i = 0; i < this.Temperature.Length; i++) {
+                string name = this.Temperature[i].GetName();
+                byte val = (byte) this.Temperature[i].GetValue();
+                if(name == "CPUT" && val > 0) cpu = val;
+                else if(name == "BIOS" && val > 0) bios = val;
+            }
+
+            // Fallback: BIOS sensor is the only valid CPU-temp proxy on boards
+            // where CPUT reads 0xFF (8C9C, 8BBE, and similar 2023+ models)
+            this.LastCpuTemperature = cpu > 0 ? cpu : bios;
+            return this.LastCpuTemperature;
+
+        }
+
+        // Obtains the GPU temperature from the GPTM sensor.
+        // Returns 0 if no valid GPU temperature sensor is available;
+        // callers should fall back to the CPU temperature in that case.
+        public byte GetGpuTemperature(bool forceUpdate = false) {
+
+            if(forceUpdate)
+                UpdateTemperature(true);
+
+            byte gpu = 0;
+            for(int i = 0; i < this.Temperature.Length; i++) {
+                string name = this.Temperature[i].GetName();
+                byte val = (byte) this.Temperature[i].GetValue();
+                if(name == "GPTM" && val > 0) gpu = val;
+            }
+
+            this.LastGpuTemperature = gpu;
+            return this.LastGpuTemperature;
 
         }
 #endregion

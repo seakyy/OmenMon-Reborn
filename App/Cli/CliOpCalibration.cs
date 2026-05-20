@@ -324,10 +324,7 @@ namespace OmenMon.AppCli {
         }
 
         private static byte[] SnapshotEc() {
-            byte[] snap = new byte[256];
-            for(int r = 0; r < 256; r++)
-                snap[r] = Hw.EcGetByte((byte) r);
-            return snap;
+            return Hw.EcDump();
         }
 
         // Best-effort live tachometer read. Returns 0 if the call throws (no preset,

@@ -297,6 +297,18 @@ namespace OmenMon.Library {
         public static void EcSet(byte register, ushort value) {
             EcSetWord(register, value);
         }
+
+        // Reads all 256 bytes of the Embedded Controller atomically under a single mutex lock.
+        // This is significantly faster and prevents lock-timeout spam and inconsistencies compared
+        // to doing 256 individual EcGetByte calls.
+        public static byte[] EcDump() {
+            return Hw.EcExec<byte[]>(ec => {
+                byte[] data = new byte[256];
+                for(int r = 0; r < 256; r++)
+                    data[r] = ec.ReadByte((byte) r);
+                return data;
+            }, Hw.Ec) ?? new byte[256];
+        }
 #endregion
 
 #region Graphics

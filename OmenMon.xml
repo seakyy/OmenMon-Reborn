@@ -246,6 +246,40 @@
         <!-- Model Database -->
         <!-- The application reads EC register mappings from here. If a model is not listed, the Heuristic Scanner will auto-configure it. -->
         <Models>
+            <!-- 8600: HP Omen 17 (2019, i7-9750H) — issue #42, duskw4lker. -->
+            <!-- Classic 16-bit LE RPM tachometers at 0x45/0x47 (CPU max ~6700, GPU max ~10000 RPM). -->
+            <!-- Uses the classic 2022 layout for all other registers. -->
+            <Model ProductId="8600" DisplayName="HP Omen 17 (2019, i7-9750H)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>69</FanSpeedReg0>
+                <FanSpeedReg1>71</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8D87: HP Omen (2025, ak0xxx / ak0003nr) — issue #61, snowfallhateall. -->
+            <!-- Classic 16-bit LE RPM tachometers at 0x70/0x9F (CPU max ~6000, GPU max ~5550 RPM). -->
+            <!-- Standard 2023+ register layout. -->
+            <Model ProductId="8D87" DisplayName="HP Omen (2025, ak0xxx)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>112</FanSpeedReg0>
+                <FanSpeedReg1>159</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
             <Model ProductId="8A4C" DisplayName="Omen 16 (2022, i9-12900H)">
                 <FanLevelReg0>52</FanLevelReg0>
                 <FanLevelReg1>53</FanLevelReg1>

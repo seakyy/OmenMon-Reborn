@@ -45,6 +45,10 @@ namespace OmenMon.Library {
         private static int   lastPercent = -1;
         private static DateTime lastTickTime = DateTime.MinValue;
 
+        // Backup of the baseline percent prior to the glitch.
+        // Set to -1 when no glitch is active.
+        private static int   priorPercent = -1;
+
         // When != MinValue, ES_SYSTEM_REQUIRED is being held and we should
         // release it at this time (or extend it on the next glitch).
         private static DateTime guardUntil = DateTime.MinValue;
@@ -62,6 +66,7 @@ namespace OmenMon.Library {
             lastPercent  = -1;
             lastTickTime = DateTime.MinValue;
             guardUntil   = DateTime.MinValue;
+            priorPercent = -1;
             initialized  = false;
         }
 
@@ -100,30 +105,61 @@ namespace OmenMon.Library {
             if(guardUntil != DateTime.MinValue && now >= guardUntil)
                 ReleaseGuardIfHeld();
 
-            // Glitch detection. All four conditions must hold:
-            //   1. AC connected (battery state on battery is allowed to drop).
-            //   2. Previous reading was reasonably charged (> drop threshold),
-            //      otherwise "100% → 2%" would also match "5% → 2%" which is
-            //      a legitimate normal drain.
-            //   3. Drop exceeds the configured threshold.
-            //   4. Drop happened within the configured time window.
-            int drop = lastPercent - percent;
-            bool isGlitch =
-                power.PowerLineStatus == PowerLineStatus.Online
-                && lastPercent       >= Config.BatteryGlitchDropPercent
-                && drop              >= Config.BatteryGlitchDropPercent
-                && (now - lastTickTime).TotalMilliseconds <= Config.BatteryGlitchWindowMs;
+            bool isGlitch = false;
+
+            // Glitch detection state machine.
+            // If we are already in an active glitch state (priorPercent != -1),
+            // we track relative to that saved baseline.
+            if(priorPercent != -1) {
+                int dropFromPrior = priorPercent - percent;
+                bool hasRebounded = dropFromPrior < Config.BatteryGlitchDropPercent;
+                // Safety timeout of 60 seconds. If the drop is real (e.g. charging failed),
+                // we must eventually release the guard to allow Windows to hibernate.
+                bool hasTimedOut = (now - lastTickTime).TotalSeconds > 60;
+
+                if(hasRebounded || hasTimedOut) {
+                    // Reset to normal operation.
+                    priorPercent = -1;
+                    lastPercent = percent;
+                    lastTickTime = now;
+                    isGlitch = false;
+                } else {
+                    // Glitch is sustained. Keep the guard active.
+                    isGlitch = true;
+                    // Freeze lastPercent at the priorPercent baseline so we don't
+                    // overwrite our reference with glitched readings.
+                    lastPercent = priorPercent;
+                }
+            } else {
+                // Normal mode: check if a new drop matches glitch criteria.
+                int drop = lastPercent - percent;
+                isGlitch =
+                    power.PowerLineStatus == PowerLineStatus.Online
+                    && lastPercent       >= Config.BatteryGlitchDropPercent
+                    && drop              >= Config.BatteryGlitchDropPercent
+                    && (now - lastTickTime).TotalMilliseconds <= Config.BatteryGlitchWindowMs;
+
+                if(isGlitch) {
+                    // Back up the healthy pre-glitch baseline.
+                    priorPercent = lastPercent;
+                }
+            }
 
             if(isGlitch) {
-                AssertGuard(tray, lastPercent, percent);
-                // Deliberately do NOT update lastPercent to the glitched value —
-                // otherwise the next tick (when the reading rebounds to normal)
-                // would see a giant *increase* and we'd start tracking from a
-                // bogus baseline. Keep the pre-glitch baseline until the reading
-                // stabilises (logical "trust the higher of the two").
+                if(!IsGuardActive()) {
+                    // Call the API to assert the sleep/hibernate blocker.
+                    AssertGuard(tray, lastPercent, percent);
+                } else {
+                    // Sustained or repeating glitch: continuously extend the guard
+                    // to prevent it from expiring while the reading is still glitched.
+                    guardUntil = now.AddMilliseconds(Config.BatteryGlitchHoldMs);
+                }
             } else {
-                lastPercent  = percent;
-                lastTickTime = now;
+                // If not glitched, track normally.
+                if(priorPercent == -1) {
+                    lastPercent  = percent;
+                    lastTickTime = now;
+                }
             }
         }
 
@@ -142,22 +178,28 @@ namespace OmenMon.Library {
 
 #region Internals
         private static void AssertGuard(AppGui.GuiTray tray, int priorPct, int glitchPct) {
-            // Swallow any P/Invoke failure — some locked-down environments deny
-            // power-policy calls, and there's nothing we can do about it from
-            // user-mode anyway. The held ExecutionState is visible via
-            // `powercfg /requests` for support diagnostics if needed.
+            // SetThreadExecutionState returns the previous ExecutionState on
+            // success, or 0 on failure.
+            // BUGFIX (v1.4.1-reborn-fix): Removed the check for (result == None).
+            // On the very first call, the previous state of the thread is None (0),
+            // which caused the method to return early without setting guardUntil,
+            // while the OS actually held the state. This caused a permanent leak
+            // of the wake lock. Now we call and immediately proceed to establish
+            // guardUntil.
             try {
                 Kernel32.SetThreadExecutionState(
                     Kernel32.ExecutionState.Continuous | Kernel32.ExecutionState.SystemRequired);
-            } catch { }
+            } catch {
+                return;
+            }
 
             // Extend (or start) the hold window. now + hold is the absolute UTC
             // time at which the next Tick() will release.
             guardUntil = DateTime.UtcNow.AddMilliseconds(Config.BatteryGlitchHoldMs);
 
-            // User-facing balloon tip. AssertGuard only fires on detected
-            // glitches (not on each tick during the hold window), so this
-            // doesn't spam — at most one tip per glitch event.
+            // User-facing balloon tip. The Tick() gate (IsGuardActive) ensures
+            // AssertGuard fires at most once per hold window, so a sustained
+            // glitch event produces a single tip, not one per second.
             if(tray != null) {
                 try {
                     tray.ShowBalloonTip(
