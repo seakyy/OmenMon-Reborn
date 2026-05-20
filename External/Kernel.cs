@@ -144,8 +144,10 @@ namespace OmenMon.External {
 
         // Power management — returns the previous ExecutionState on success, or 0 on failure.
         // OmenMon calls this from Library/PowerGuard to suppress hibernate during transient
-        // battery-percentage glitches on plugged-in systems (issue #59).
-        [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
+        // battery-percentage glitches on plugged-in systems (issue #59). SetLastError is
+        // enabled so callers that need to distinguish "failure" from "previous state was
+        // ExecutionState.None" can consult Marshal.GetLastWin32Error().
+        [DllImport(DllName, CallingConvention = CallingConvention.Winapi, SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern ExecutionState SetThreadExecutionState(ExecutionState esFlags);
 #endregion

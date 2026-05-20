@@ -232,6 +232,11 @@ namespace OmenMon.Hardware.Platform {
         //   8E35 — HP Victus 15 (2026 BIOS)               — issue #57 (ClockworkNirvana,
         //          confirmed via raw EC-dump analysis: 70 % → 100 % shows 0 RPM gain on
         //          GPU and a 16 RPM regression on CPU — the same firmware signature.)
+        //   8C77 — HP Omen 16-wf1012nl (single-fan SKU)   — issue #50 (stf1o, defensive add.
+        //          PeriodEncoded8 reading at EC[0xD2] goes 0xB2 → 0xD0 → 0x99 → 0xEC across
+        //          0/30/70/100 % — the 100 % period is slower than idle, same rate-limiter
+        //          footprint as the boards above. RPM stays sidecar-supported only because
+        //          the <Models> schema is LE16-only and cannot decode PeriodEncoded8.)
         //
         // Call-sites:
         //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
@@ -247,6 +252,7 @@ namespace OmenMon.Hardware.Platform {
                 case "8D07":
                 case "8BAD":
                 case "8E35":
+                case "8C77":
                     return true;
                 default:
                     return false;

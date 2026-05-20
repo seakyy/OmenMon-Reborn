@@ -41,11 +41,13 @@ namespace OmenMon.AppCli {
             // fans' RPM trajectory and lets the plateau detector below decide whether
             // to skip a higher step. Empty if the wizard never reached the first step.
             public List<LiveSpeedSample> LiveSpeeds = new List<LiveSpeedSample>();
-            // Set when the wizard observed two consecutive steps with little or no
-            // RPM gain on both fans — the board has hit its physical fan ceiling and
-            // the next higher step would risk the BIOS rate-limiter freeze documented
-            // on 8C30 / 8D07 / 8BAD. Plateau exit is treated as a successful run, not
-            // a failure: the samples we did collect are still scanned and reported.
+            // Set when the wizard observed that the current step produced little or
+            // no RPM gain on both fans relative to the highest prior commanded level
+            // seen so far — the board has hit its physical fan ceiling and any next
+            // higher step would risk the BIOS rate-limiter freeze documented on
+            // 8C30 / 8D07 / 8BAD / 8E35 / 8C77. Plateau exit is treated as a
+            // successful run, not a failure: the samples we did collect are still
+            // scanned and reported.
             public bool PlateauReached;
             public int PlateauStepPercent;     // commanded level at which plateau was observed
             public string PlateauNote;         // human-readable explanation for the report
@@ -379,6 +381,14 @@ namespace OmenMon.AppCli {
             }
             if(prior == null) return false;
 
+            // Treat 0 RPM on either side as "unknown" rather than "plateaued" —
+            // a failed live-read on one fan (EC mutex collision, single-fan SKU
+            // where one tach reads 0, …) must not by itself trigger a plateau
+            // abort. We require both fans on both samples to be above the noise
+            // floor before believing the delta-comparison below.
+            if(current.CpuRpm < PlateauMinRpm || current.GpuRpm < PlateauMinRpm) return false;
+            if(prior.CpuRpm   < PlateauMinRpm || prior.GpuRpm   < PlateauMinRpm) return false;
+
             int dCpu = current.CpuRpm - prior.CpuRpm;
             int dGpu = current.GpuRpm - prior.GpuRpm;
 
@@ -390,8 +400,8 @@ namespace OmenMon.AppCli {
 
             note = $"Live RPM at {current.LevelPercent} % matched {prior.LevelPercent} % within {PlateauRpmDelta} RPM "
                  + $"(CPU {prior.CpuRpm} → {current.CpuRpm}, GPU {prior.GpuRpm} → {current.GpuRpm}). "
-                 + "The board appears to be at its physical fan ceiling; skipped the 100 % step to avoid "
-                 + "the BIOS rate-limiter freeze observed on 8C30 / 8D07 / 8BAD.";
+                 + "The board appears to be at its physical fan ceiling; remaining higher steps were "
+                 + "skipped to avoid the BIOS rate-limiter freeze observed on some Victus/Omen SKUs.";
             return true;
         }
 
@@ -495,7 +505,7 @@ namespace OmenMon.AppCli {
             // 100 % proactively (the wizard already aborted *this* run, but the user's
             // tray menu / main-form max-fan toggle is still unguarded for them).
             if(o.PlateauReached) {
-                sb.AppendLine("> **PLATEAU DETECTED at " + o.PlateauStepPercent + " %.** The wizard skipped the 100 % step.");
+                sb.AppendLine("> **PLATEAU DETECTED at " + o.PlateauStepPercent + " %.** The wizard skipped any remaining higher steps.");
                 if(!string.IsNullOrEmpty(o.PlateauNote))
                     sb.AppendLine("> " + o.PlateauNote);
                 sb.AppendLine("> Please report this so `" + o.ProductId + "` can be added to `FanArray.HasMaxFanFreeze` for full protection.");
