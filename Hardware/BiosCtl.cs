@@ -248,9 +248,12 @@ namespace OmenMon.Hardware.Bios {
         // Retrieves the current graphics mode
         public GpuMode GetGpuMode() {
             byte[] outData;
-            // This call returns BIOS error 4 on unsupported devices,
-            // so do not check return state, just report "Hybrid" (0)
-            Send(Cmd.Legacy, 0x52, null, 4, out outData);
+            // Try querying with Cmd.GpuMode first (used on newer systems, matching SetGpuMode)
+            int rc = Send(Cmd.GpuMode, 0x52, null, 4, out outData);
+            if (rc != 0) {
+                // Fallback to Cmd.Legacy (used on older systems)
+                Send(Cmd.Legacy, 0x52, null, 4, out outData);
+            }
             // See: GpuMode (enum)
             // Also see: GetSystem() Byte #7 Bit #3
             return (GpuMode) outData[0];

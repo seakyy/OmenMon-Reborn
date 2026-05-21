@@ -396,6 +396,7 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+
             <!-- 8BD4: HP Victus 16-S0053NT (2024) — fan level at 0x11/0x14. -->
             <!-- Single fan controller; both fans run synchronised. Legacy 0xB0/0xB2 RPM offsets are -->
             <!-- repurposed as temperature sensors on this board. The fan tachometer is the level -->

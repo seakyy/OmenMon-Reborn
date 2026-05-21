@@ -339,6 +339,7 @@ namespace OmenMon.Library {
                 CpuReg = 0, CpuMode = EcDiffScanner.Mode.BiosLevelMirror, CpuMul = 100,
                 GpuReg = 0, GpuMode = EcDiffScanner.Mode.BiosLevelMirror, GpuMul = 100,
             },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
@@ -352,8 +353,8 @@ namespace OmenMon.Library {
         public static void Prime(string productId) {
             if(string.IsNullOrEmpty(productId)) return;
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
-            if(!HasCpu) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
-            if(!HasGpu) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
+            if(!HasCpu && (m.CpuReg != 0 || m.CpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
+            if(!HasGpu && (m.GpuReg != 0 || m.GpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
         }
 #endregion
 
