@@ -5,7 +5,7 @@
   <a href="https://github.com/seakyy/OmenMon-Reborn/releases"><img src="https://img.shields.io/github/downloads/seakyy/OmenMon-Reborn/total?color=blue&label=Downloads" alt="Downloads"></a>
   <a href="https://github.com/seakyy/OmenMon-Reborn/stargazers"><img src="https://img.shields.io/github/stars/seakyy/OmenMon-Reborn?style=social" alt="Stars"></a>
   <a href="SECURITY.md#windows-defender-false-positives"><img src="https://img.shields.io/badge/Microsoft%20Defender-Cleared-brightgreen?logo=windows" alt="Microsoft Defender cleared"></a>
-  <a href="https://www.virustotal.com/gui/file/21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1"><img src="https://img.shields.io/badge/VirusTotal-0%20%2F%2076-brightgreen?logo=virustotal" alt="VirusTotal 0/76"></a>
+  <a href="https://www.virustotal.com/gui/file/21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1"><img src="https://img.shields.io/badge/VirusTotal-0%20%2F%2071-brightgreen?logo=virustotal" alt="VirusTotal 0/71"></a>
 </p>
 
 <p align="center">
