@@ -313,9 +313,14 @@ also clean on every other engine surveyed by VirusTotal:
 - **Microsoft submission ID:** `504e5120-8e6f-46c6-bf5f-da34a0176fca`
 - **Microsoft determination:** *"do not meet our criteria for malware
   or potentially unwanted applications. The detection has been removed."*
-- **VirusTotal:** 0 / 71 detections —
+- **VirusTotal:** 0 / 76 detections —
   [view full report](https://www.virustotal.com/gui/file/21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1)
-  (SHA-256 `21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1`)
+  (MAPS-submitted SHA-256 `21384a3…cdcf0d1`)
+- **Per-release verification:** Each release ships a `SHA256SUMS.txt`
+  asset. Verify your download with
+  `Get-FileHash -Algorithm SHA256 <file>` and compare. See
+  [SECURITY.md](SECURITY.md#how-to-verify-your-downloaded-binary)
+  for the full procedure.
 
 If your local Defender still shows a cached detection, refresh its
 definitions:

@@ -183,28 +183,41 @@ the test project independently, the .exe you ship is untouched.
 
 ## Step 4 — SHA256 checksum
 
-Users who care about integrity (and AV-paranoid environments) will want a
-checksum of your binary. Compute it with Git's bundled `sha256sum`:
-
-```bash
-"/c/Program Files/Git/usr/bin/sha256sum.exe" Bin/OmenMon.exe
-```
-
-Or in PowerShell:
+**As of v1.4.1 the release CI generates `SHA256SUMS.txt` automatically**
+when a GitHub release is published. The
+`.github/workflows/release.yml` job runs `sha256sum` over the zipped
+artifact (and the inner `OmenMon.exe` if present in the bundle) and
+uploads the result as a release asset alongside the .zip. Users can
+then verify with:
 
 ```powershell
-Get-FileHash .\Bin\OmenMon.exe -Algorithm SHA256
+# Windows / PowerShell
+Get-FileHash -Algorithm SHA256 .\OmenMon-v1.4.1-reborn-Release.zip
 ```
 
-Either way, copy the hex digest. You'll paste it into the release notes
-under a `## SHA256 checksums` section, like:
+```bash
+# Linux / WSL / Git Bash
+sha256sum -c SHA256SUMS.txt
+```
 
-```markdown
-## SHA256 checksums
+> **A new build always produces a new hash.** The AssemblyFileVersion is
+> stamped per build (BUILD_NUMBER comes from the workflow's environment),
+> so even a no-op rebuild of the same commit will produce a different
+> binary. Never reuse a SHA-256 across releases — the CI-generated
+> `SHA256SUMS.txt` is the single source of truth for each release.
 
-| File          | SHA256                                                             |
-|---------------|--------------------------------------------------------------------|
-| `OmenMon.exe` | `<paste the 64-char digest here>`                                  |
+### Manual hash (only if publishing without CI)
+
+If for some reason you publish the .zip directly without going through
+the `release: published` workflow, compute the hash locally and paste
+it under a `## SHA256 checksums` section in the release notes:
+
+```bash
+"/c/Program Files/Git/usr/bin/sha256sum.exe" OmenMon.zip
+```
+
+```powershell
+Get-FileHash .\OmenMon.zip -Algorithm SHA256
 ```
 
 Do this **after** the build and **before** uploading — anything you do to
