@@ -246,6 +246,40 @@
         <!-- Model Database -->
         <!-- The application reads EC register mappings from here. If a model is not listed, the Heuristic Scanner will auto-configure it. -->
         <Models>
+            <!-- 8600: HP Omen 17 (2019, i7-9750H) — issue #42, duskw4lker. -->
+            <!-- Classic 16-bit LE RPM tachometers at 0x45/0x47 (CPU max ~6700, GPU max ~10000 RPM). -->
+            <!-- Uses the classic 2022 layout for all other registers. -->
+            <Model ProductId="8600" DisplayName="HP Omen 17 (2019, i7-9750H)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>69</FanSpeedReg0>
+                <FanSpeedReg1>71</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8D87: HP Omen (2025, ak0xxx / ak0003nr) — issue #61, snowfallhateall. -->
+            <!-- Classic 16-bit LE RPM tachometers at 0x70/0x9F (CPU max ~6000, GPU max ~5550 RPM). -->
+            <!-- Standard 2023+ register layout. -->
+            <Model ProductId="8D87" DisplayName="HP Omen (2025, ak0xxx)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>112</FanSpeedReg0>
+                <FanSpeedReg1>159</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
             <Model ProductId="8A4C" DisplayName="Omen 16 (2022, i9-12900H)">
                 <FanLevelReg0>52</FanLevelReg0>
                 <FanLevelReg1>53</FanLevelReg1>
@@ -362,6 +396,7 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+
             <!-- 8BD4: HP Victus 16-S0053NT (2024) — fan level at 0x11/0x14. -->
             <!-- Single fan controller; both fans run synchronised. Legacy 0xB0/0xB2 RPM offsets are -->
             <!-- repurposed as temperature sensors on this board. The fan tachometer is the level -->
@@ -475,6 +510,31 @@
             <!--   ManualValue overrides not used; if SetManual ends up doing nothing, follow the same    -->
             <!--   diagnosis path as 8BBE (compare hardware probes between Custom-fan and Auto modes).     -->
             <Model ProductId="8D07" DisplayName="HP Victus 15 (2024, AMD)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8E35: HP Victus 15 (2026 BIOS) — issue #57, contributed by @ClockworkNirvana.        -->
+            <!-- Auto-Calibration report dated 2026-05-17 misidentified CPU RPM at 0x30 (LE16) due    -->
+            <!-- to the wizard locking onto a latched status word that jumped from 30 → 6430 at the   -->
+            <!-- first non-zero step and stayed there. The actual tachometer pair lives at the       -->
+            <!-- canonical Victus 15 layout (0xB0/0xB2 LE16), confirmed against the raw EC dumps:    -->
+            <!--   CPU 0xB0: 0% → 0 RPM, 30% → 1438, 70% → 3379, 100% → 3363  (plateau confirmed)    -->
+            <!--   GPU 0xB2: 0% → 0 RPM, 30% → 1545, 70% → 3558, 100% → 3558  (plateau confirmed)    -->
+            <!-- 70 % → 100 % shows zero gain on both fans (and a 16-RPM regression on CPU), the     -->
+            <!-- same firmware rate-limiter signature as 8C30 / 8D07 / 8BAD — 8E35 is in the         -->
+            <!-- HasMaxFanFreeze list (Hardware/FanArray.cs) so the wizard skips 100 % and the GUI   -->
+            <!-- confirms before issuing manual SetMax(true).                                         -->
+            <Model ProductId="8E35" DisplayName="HP Victus 15 (8E35)">
                 <FanLevelReg0>52</FanLevelReg0>
                 <FanLevelReg1>53</FanLevelReg1>
                 <FanRateReadReg0>46</FanRateReadReg0>

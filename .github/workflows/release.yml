@@ -55,6 +55,22 @@ jobs:
     - name: "Add Comment to Archive"
       run: zipnote -b . -w OmenMon.zip < OmenMon.zip.txt
 
+    - name: "Generate SHA-256 Checksums"
+      run: |
+        ASSET_NAME="OmenMon-${{ github.event.release.tag_name }}-${{ github.event.release.prerelease && 'Preview' || 'Release' }}.zip"
+        cp OmenMon.zip "$ASSET_NAME"
+        {
+          echo "# OmenMon-Reborn ${{ github.event.release.tag_name }} — SHA-256 checksums"
+          echo "# Build ${{ vars.BUILD_NUMBER }} * $(date -u +"%Y-%m-%d %H:%M") UTC"
+          echo "# Verify on Windows:  Get-FileHash -Algorithm SHA256 <file>"
+          echo "# Verify on Linux:    sha256sum -c SHA256SUMS.txt"
+          echo ""
+          sha256sum "$ASSET_NAME"
+          if [ -f OmenMon.exe ]; then sha256sum OmenMon.exe; fi
+        } > SHA256SUMS.txt
+        echo "--- SHA256SUMS.txt ---"
+        cat SHA256SUMS.txt
+
     - name: "Upload OmenMon Assets"
       uses: actions/upload-release-asset@v1
       with:
@@ -62,5 +78,15 @@ jobs:
         asset_path: ./OmenMon.zip
         asset_name: OmenMon-${{ github.event.release.tag_name }}-${{ github.event.release.prerelease && 'Preview' || 'Release' }}.zip
         asset_content_type: application/zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: "Upload SHA256SUMS.txt"
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./SHA256SUMS.txt
+        asset_name: SHA256SUMS.txt
+        asset_content_type: text/plain
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

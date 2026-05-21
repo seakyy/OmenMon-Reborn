@@ -244,11 +244,9 @@ namespace OmenMon.AppCli {
         }
 
         // Reads all 256 EC registers into a byte array
+        // delegates to Hw.EcDump to perform the dump atomically under a single lock
         private static byte[] ProbeEcSnapshot() {
-            byte[] snap = new byte[256];
-            for(int r = 0; r < 256; r++)
-                snap[r] = Hw.EcGetByte((byte) r);
-            return snap;
+            return Hw.EcDump();
         }
 
         // Renders all 256 bytes as a 16×16 hex grid in Markdown code block format

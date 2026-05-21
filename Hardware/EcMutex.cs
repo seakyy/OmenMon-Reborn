@@ -52,6 +52,8 @@ namespace OmenMon.Hardware.Ec {
 
         // Waits until the lock is released
         public static bool Wait(int timeout) {
+            if(m == null)
+                return false;
             try {
                 return m.WaitOne(timeout, false);
             } catch(AbandonedMutexException) {

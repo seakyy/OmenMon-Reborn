@@ -289,6 +289,22 @@ namespace OmenMon.Library {
         private static readonly Dictionary<string, Mapping> KnownBoards =
             new Dictionary<string, Mapping>(System.StringComparer.OrdinalIgnoreCase) {
 
+            // HP Omen (8600, 2019) — the auto-calibration heuristic locks onto
+            // period-encoded-looking registers (0x06 / 0xF1) when run on default
+            // mode. Under stress test/game load, the correct 16-bit LE tachometers
+            // are revealed at 0x45 / 0x47 (CPU max ~6700, GPU max ~10000 RPM).
+            ["8600"] = new Mapping {
+                CpuReg = 0x45, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0x47, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Omen (8D87, 2025) — 16-bit LE RPM tachometers at 0x70 / 0x9F (CPU max ~6000, GPU max ~5550 RPM).
+            // Standard 2023+ register layout.
+            ["8D87"] = new Mapping {
+                CpuReg = 0x70, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0x9F, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
             // HP Victus 16-S0053NT (8BD4) — probe data shows the legacy RPM tach offsets
             // 0xB0/0xB2 are repurposed as temperature sensors. The actual fan tachometer
             // tracks the level register (EC[0x11] / EC[0x14]) and reads as byte ×100 RPM.
@@ -323,6 +339,7 @@ namespace OmenMon.Library {
                 CpuReg = 0, CpuMode = EcDiffScanner.Mode.BiosLevelMirror, CpuMul = 100,
                 GpuReg = 0, GpuMode = EcDiffScanner.Mode.BiosLevelMirror, GpuMul = 100,
             },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
@@ -336,8 +353,8 @@ namespace OmenMon.Library {
         public static void Prime(string productId) {
             if(string.IsNullOrEmpty(productId)) return;
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
-            if(!HasCpu) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
-            if(!HasGpu) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
+            if(!HasCpu && (m.CpuReg != 0 || m.CpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
+            if(!HasGpu && (m.GpuReg != 0 || m.GpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
         }
 #endregion
 

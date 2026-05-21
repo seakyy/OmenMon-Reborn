@@ -12,13 +12,9 @@ namespace OmenMon.Hardware.Platform {
     public static class AutoDetector {
 
         // Reads all 256 EC registers safely (read-only, no writes to hardware)
+        // delegates to Hw.EcDump to perform the dump atomically under a single lock
         private static byte[] DumpEc() {
-            byte[] data = new byte[256];
-            try {
-                for(int r = 0; r < 256; r++)
-                    data[r] = Hw.EcGetByte((byte) r);
-            } catch { }
-            return data;
+            return Hw.EcDump();
         }
 
         // Heuristically matches the EC dump against known register layouts.

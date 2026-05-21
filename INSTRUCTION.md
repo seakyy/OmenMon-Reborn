@@ -263,10 +263,13 @@ Located in the same folder as `OmenMon.exe`. Key settings:
 
 ### "Failed to initialize" / Driver not loading
 
-1. Check that Windows Defender is not quarantining `OmenMon.sys`.
-2. Temporarily disable Memory Integrity (Core Isolation) in Windows Security → Device Security.
-3. Run OmenMon as Administrator.
-4. If Windows Defender flags it as `VulnerableDriver:WinNT/Winring0`, see [Security Notes](#security-notes) below.
+1. Run OmenMon as Administrator (required for EC access).
+2. Check that the PawnIO driver is installed. v1.4.0+ ships with the
+   Microsoft-signed PawnIO driver; if installation was interrupted,
+   re-run the installer.
+3. If Windows Defender quarantined `OmenMon.exe`, see
+   [Windows Defender false positive](#windows-defender-false-positive)
+   below.
 
 ### Fans stuck at max speed after exiting
 
@@ -286,13 +289,62 @@ Known on some OMEN Max 16 / non-standard models. Use `Probe` mode to identify yo
 
 ### BSOD / Memory integrity conflicts
 
-OmenMon uses `WinRing0.sys` for EC access. If BSOD occurs:
-- Do not use older versions of OmenMon (< v1.0) that bundle an unpatched `WinRing0.sys`.
-- v1.x uses a patched driver. If BSODs persist, disable Memory Integrity temporarily during use.
+OmenMon v1.4.0+ uses the Microsoft-signed
+[PawnIO](https://pawnio.eu/) driver, which is HVCI-compatible and
+should not conflict with Memory Integrity (Core Isolation). If you
+experience a BSOD with v1.4.0 or newer:
 
-### Security Notes
+- Make sure you are not running an older v1.3.x install alongside
+  v1.4.0 — the old WinRing0 driver should be uninstalled.
+- File the BSOD's bugcheck code (e.g. `DRIVER_VERIFIER_DETECTED_VIOLATION`)
+  as a GitHub issue with your model and the output of
+  `OmenMon.exe -Diag`.
 
-`WinRing0.sys` has CVE-2020-14979 (local privilege escalation). OmenMon v1.x bundles a patched version. Windows Defender may still flag it. Adding an exclusion for the OmenMon folder resolves false positives. Never download OmenMon from unofficial sources.
+### Windows Defender false positive
+
+**OmenMon-Reborn v1.4.0+ does not ship its own kernel driver.** It
+talks to hardware through the Microsoft-signed PawnIO driver, so the
+old `VulnerableDriver:WinNT/WinRing0` warning from v1.3.x is gone.
+
+Heuristic AV engines occasionally still flag low-level hardware tools.
+`OmenMon.exe` has been reviewed and **cleared by Microsoft**, and is
+also clean on every other engine surveyed by VirusTotal:
+
+- **Microsoft submission ID:** `504e5120-8e6f-46c6-bf5f-da34a0176fca`
+- **Microsoft determination:** *"do not meet our criteria for malware
+  or potentially unwanted applications. The detection has been removed."*
+- **VirusTotal:** 0 / 76 detections —
+  [view full report](https://www.virustotal.com/gui/file/21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1)
+  (MAPS-submitted SHA-256 `21384a3…cdcf0d1`)
+- **Per-release verification:** Each release ships a `SHA256SUMS.txt`
+  asset. Verify your download with
+  `Get-FileHash -Algorithm SHA256 <file>` and compare. See
+  [SECURITY.md](SECURITY.md#how-to-verify-your-downloaded-binary)
+  for the full procedure.
+
+If your local Defender still shows a cached detection, refresh its
+definitions:
+
+1. Open Command Prompt **as Administrator**.
+2. `cd "C:\Program Files\Windows Defender"`
+3. `MpCmdRun.exe -removedefinitions -dynamicsignatures`
+4. `MpCmdRun.exe -SignatureUpdate`
+
+Expected output:
+
+```
+Starting Dynamic Signature removal.
+Done!
+…
+Signature update finished.
+```
+
+After the update completes, the binary will not be flagged on this
+machine. See [SECURITY.md](SECURITY.md#windows-defender-false-positives)
+for the full background.
+
+**Never download OmenMon from unofficial sources.** Always use the
+GitHub Releases page on the official repository.
 
 ---
 

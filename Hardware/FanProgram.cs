@@ -234,19 +234,36 @@ namespace OmenMon.Hardware.Platform {
             if(!this.IsEnabled || this.IsSuspended)
                 return false;
 
-            // Find out the current maximum temperature,
-            // the temperature level for the given temperature,
-            // and the target fan levels for the given level
-            byte temperature = Platform.GetMaxTemperature(true);
-            byte level = GetTemperatureLevel(temperature);
-            byte[] fans = GetFanLevel(level);
+            // Read individual CPU and GPU temperatures.
+            // GetCpuTemperature updates all sensors once; GetGpuTemperature
+            // re-reads the cached values without a second hardware pass.
+            byte cpuTemp = Platform.GetCpuTemperature(true);
+            byte gpuTemp = Platform.GetGpuTemperature(false);
 
-            // Note: the above could all be accomplished with
-            // a single nested call, except we also want to report
+            // If GPU sensor unavailable (returns 0), fall back to CPU temp
+            // so the GPU fan doesn't idle when the sensor is missing.
+            if(gpuTemp == 0) gpuTemp = cpuTemp;
+
+            // Independent level lookups: each fan reacts to its own
+            // component's temperature instead of the global maximum.
+            byte cpuLevel = GetTemperatureLevel(cpuTemp);
+            byte gpuLevel = GetTemperatureLevel(gpuTemp);
+
+            // Assemble the fan speed array: CPU fan speed from the CPU-temp
+            // level row, GPU fan speed from the GPU-temp level row.
+            byte[] cpuFans = GetFanLevel(cpuLevel);
+            byte[] gpuFans = GetFanLevel(gpuLevel);
+            byte[] fans = new byte[] { cpuFans[0], gpuFans[1] };
+
+            // Keep GetMaxTemperature populated for thermal-panic and tray icon
+            // (sensors are already up-to-date, no extra EC reads)
+            Platform.GetMaxTemperature(false);
+
+            // Report both temperatures so the user can see independent tracking
             Status(Severity.Notice,
-                Config.Locale.Get(Config.L_PROG + "T") + Config.Locale.Get(Config.L_PROG + "SubMax") + " " 
-                + Conv.GetString(temperature, 2, 10) + Config.Locale.Get(Config.L_UNIT + "Temperature") + " "
-                + Config.Locale.Get(Config.L_PROG + "Lvl") + " " + Conv.GetString(level, 2, 10) + " "
+                Config.Locale.Get(Config.L_PROG + "T") + " "
+                + "CPU " + Conv.GetString(cpuTemp, 2, 10) + Config.Locale.Get(Config.L_UNIT + "Temperature")
+                + " GPU " + Conv.GetString(gpuTemp, 2, 10) + Config.Locale.Get(Config.L_UNIT + "Temperature") + " "
                 + Config.Locale.Get(Config.L_PROG + "Fans") + " "
                 + Conv.GetString(fans[0], 2, 10) + ", " + Conv.GetString(fans[1], 2, 10));
 
@@ -292,10 +309,15 @@ namespace OmenMon.Hardware.Platform {
 
             // The result is a bitwise complement of the next larger item index,
             // or the index of the last element of the list if no larger item exists
-            else
+            else {
 
-                // Return the item at the binary complement index less one
-                return this.Levels[~value - 1];
+                // Return the item at the binary complement index less one,
+                // clamped to a minimum of 0 to avoid OutOfBoundsException if the
+                // temperature is lower than the lowest defined threshold in the curve.
+                int index = ~value - 1;
+                return this.Levels[index < 0 ? 0 : index];
+
+            }
 
         }
 

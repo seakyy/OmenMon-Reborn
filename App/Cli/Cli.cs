@@ -21,6 +21,7 @@ namespace OmenMon.AppCli {
         public static bool IsPowerShell { get; private set; }
 
         private static ConsoleColor OriginalBackgroundColor;
+        private static bool IsAttached;
 
         // Portable Executable (PE) Common Object File Format (COFF) header constants
         private const UInt16 IMAGE_OPTIONAL_HEADER_SUBSYSTEM = 0x00DC;
@@ -68,6 +69,12 @@ namespace OmenMon.AppCli {
         // to work with console (with some caveats)
         public static void Initialize() {
 
+            // If output or error is redirected, do not attach or allocate console.
+            if (Console.IsOutputRedirected || Console.IsErrorRedirected) {
+                IsInitialized = true;
+                return;
+            }
+
             // Attach to console window, which may modify the standard handles
             if(!Kernel32.AttachConsole(Kernel32.ATTACH_PARENT_PROCESS))
                 Kernel32.AllocConsole(); // Using an attached console
@@ -97,27 +104,32 @@ namespace OmenMon.AppCli {
     
             }
 
+            IsAttached = true;
             IsInitialized = true;
        }
 
         // Releases the console when no longer needed
         public static void Close() {
 
-            // Try to move the cursor to the bottom of the window,
-            // which does not happen automatically in a PowerShell session
-            if(IsPowerShell)
-                try {
-                    Console.SetCursorPosition(0,
-                        Console.WindowHeight >= Console.BufferHeight ?
-                            Console.BufferHeight - 1 : Console.WindowHeight);
-                } catch {
-                }
+            if (IsAttached) {
+                // Try to move the cursor to the bottom of the window,
+                // which does not happen automatically in a PowerShell session
+                if(IsPowerShell)
+                    try {
+                        Console.SetCursorPosition(0,
+                            Console.WindowHeight >= Console.BufferHeight ?
+                                Console.BufferHeight - 1 : Console.WindowHeight);
+                    } catch {
+                    }
 
-            // Restore the original background color
-            Console.BackgroundColor = OriginalBackgroundColor;
+                // Restore the original background color
+                Console.BackgroundColor = OriginalBackgroundColor;
+
+                Kernel32.FreeConsole();
+                IsAttached = false;
+            }
 
             IsInitialized = false;
-            Kernel32.FreeConsole();
 
         }
 

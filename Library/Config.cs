@@ -153,6 +153,29 @@ namespace OmenMon.Library {
                     if(GetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", out flag))
                         BiosHeartbeatPauseOnBattery = flag;
 
+                    if(GetBool(xml, XmlPrefix + "BatteryGlitchGuard", out flag))
+                        BatteryGlitchGuard = flag;
+
+                    // Battery-glitch guard tuning knobs. Bounds picked so a bad XML edit
+                    // can't break the guard's invariants. All three are loaded via GetWord
+                    // (ushort, max 65535), so the documented ceilings must fit in ushort:
+                    //   DropPercent  ∈ [1, 100]   (0 would fire on any tick)
+                    //   WindowMs     ∈ [1, 60000] (longer than 1 minute exceeds the time
+                    //                              an AC drain physically takes to cross
+                    //                              the drop threshold, so any longer is
+                    //                              pointless)
+                    //   HoldMs       ∈ [1, 60000] (1-minute upper bound; anything longer
+                    //                              is really a power-plan change, not a
+                    //                              transient-glitch suppression)
+                    if(GetWord(xml, XmlPrefix + "BatteryGlitchDropPercent", out value) && value >= 1 && value <= 100)
+                        BatteryGlitchDropPercent = value;
+
+                    if(GetWord(xml, XmlPrefix + "BatteryGlitchWindowMs", out value) && value >= 1 && value <= 60000)
+                        BatteryGlitchWindowMs = value;
+
+                    if(GetWord(xml, XmlPrefix + "BatteryGlitchHoldMs", out value) && value >= 1 && value <= 60000)
+                        BatteryGlitchHoldMs = value;
+
                     if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
                         ThermalPanicEnabled = flag;
 
@@ -567,6 +590,10 @@ namespace OmenMon.Library {
                     SetBool(xml, XmlPrefix + "AutoStartup", AutoStartup);
                     SetBool(xml, XmlPrefix + "BiosErrorReporting", BiosErrorReporting);
                     SetBool(xml, XmlPrefix + "BiosHeartbeatPauseOnBattery", BiosHeartbeatPauseOnBattery);
+                    SetBool(xml, XmlPrefix + "BatteryGlitchGuard", BatteryGlitchGuard);
+                    SetUInt(xml, XmlPrefix + "BatteryGlitchDropPercent", (uint) BatteryGlitchDropPercent);
+                    SetUInt(xml, XmlPrefix + "BatteryGlitchWindowMs",   (uint) BatteryGlitchWindowMs);
+                    SetUInt(xml, XmlPrefix + "BatteryGlitchHoldMs",     (uint) BatteryGlitchHoldMs);
                     SetBool(xml, XmlPrefix + "ThermalPanicEnabled", ThermalPanicEnabled);
                     SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
                     SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);

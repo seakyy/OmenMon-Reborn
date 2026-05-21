@@ -1,7 +1,7 @@
 # OmenMon-Reborn — Wiki
 
 **OmenMon-Reborn** is a fork of [OmenMon](https://github.com/OmenMon/OmenMon) by Piotr Szczepański.  
-Fork maintained by [@seakyy](https://github.com/seakyy). Current release: **v1.4.0-reborn** (2026-05-17).
+Fork maintained by [@seakyy](https://github.com/seakyy). Current release: **v1.4.1-reborn** (2026-05-18).
 
 The primary goal of this fork is to replace the hardcoded 2023 EC register layout with a dynamic, XML-driven model database, and to make unknown devices self-configuring through a safe read-only heuristic scan.
 
@@ -21,6 +21,7 @@ The primary goal of this fork is to replace the hardcoded 2023 EC register layou
 | [Model Database](Model-Database) | XML schema, `PlatformPreset` fields, how to add a new device |
 | [Auto-Detection](Auto-Detection) | How the heuristic scanner works, startup flow, screenshots |
 | [Contributing Hardware Data](Contributing-Hardware-Data) | The Auto-Calibration Wizard: stress-sweep flow, register heuristics, sidecar persistence, upstream report |
+| [Battery-Glitch Guard](Battery-Glitch-Guard) | The v1.4.1 hibernation guard for SKUs where Windows transiently reads battery <5 % under load |
 
 ---
 
