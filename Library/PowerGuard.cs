@@ -107,6 +107,20 @@ namespace OmenMon.Library {
 
             bool isGlitch = false;
 
+            // Hard invariant: the guard is AC-only. If AC is unplugged at any point —
+            // including mid-glitch — release the held wake-lock immediately so a
+            // genuine critical-battery transition can hibernate. Checked before any
+            // glitch-detection logic so a sustained-glitch state can't outlive AC.
+            if(power.PowerLineStatus != PowerLineStatus.Online) {
+                if(priorPercent != -1 || IsGuardActive()) {
+                    ReleaseGuardIfHeld();
+                    priorPercent = -1;
+                }
+                lastPercent  = percent;
+                lastTickTime = now;
+                return;
+            }
+
             // Glitch detection state machine.
             // If we are already in an active glitch state (priorPercent != -1),
             // we track relative to that saved baseline.

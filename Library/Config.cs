@@ -157,21 +157,23 @@ namespace OmenMon.Library {
                         BatteryGlitchGuard = flag;
 
                     // Battery-glitch guard tuning knobs. Bounds picked so a bad XML edit
-                    // can't break the guard's invariants:
+                    // can't break the guard's invariants. All three are loaded via GetWord
+                    // (ushort, max 65535), so the documented ceilings must fit in ushort:
                     //   DropPercent  ∈ [1, 100]   (0 would fire on any tick)
                     //   WindowMs     ∈ [1, 60000] (longer than 1 minute exceeds the time
                     //                              an AC drain physically takes to cross
                     //                              the drop threshold, so any longer is
                     //                              pointless)
-                    //   HoldMs       ∈ [1, 600000] (10-minute upper bound; anything longer
-                    //                               is really a power-plan change)
+                    //   HoldMs       ∈ [1, 60000] (1-minute upper bound; anything longer
+                    //                              is really a power-plan change, not a
+                    //                              transient-glitch suppression)
                     if(GetWord(xml, XmlPrefix + "BatteryGlitchDropPercent", out value) && value >= 1 && value <= 100)
                         BatteryGlitchDropPercent = value;
 
                     if(GetWord(xml, XmlPrefix + "BatteryGlitchWindowMs", out value) && value >= 1 && value <= 60000)
                         BatteryGlitchWindowMs = value;
 
-                    if(GetWord(xml, XmlPrefix + "BatteryGlitchHoldMs", out value) && value >= 1)
+                    if(GetWord(xml, XmlPrefix + "BatteryGlitchHoldMs", out value) && value >= 1 && value <= 60000)
                         BatteryGlitchHoldMs = value;
 
                     if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
