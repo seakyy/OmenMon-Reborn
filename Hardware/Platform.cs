@@ -227,7 +227,7 @@ namespace OmenMon.Hardware.Platform {
         public byte GetCpuTemperature(bool forceUpdate = false) {
 
             if(forceUpdate)
-                UpdateTemperature(true);
+                UpdateTemperature(false);
 
             byte cpu = 0, bios = 0;
             for(int i = 0; i < this.Temperature.Length; i++) {
@@ -250,7 +250,7 @@ namespace OmenMon.Hardware.Platform {
         public byte GetGpuTemperature(bool forceUpdate = false) {
 
             if(forceUpdate)
-                UpdateTemperature(true);
+                UpdateTemperature(false);
 
             byte gpu = 0;
             for(int i = 0; i < this.Temperature.Length; i++) {

@@ -74,7 +74,7 @@ namespace OmenMon.Library {
         // and a SystemInformation.PowerStatus lookup; no EC traffic, no WMI.
         // The optional `tray` reference is used to surface a balloon tip when
         // we trip; passing null suppresses the UI (useful for tests).
-        public static void Tick(AppGui.GuiTray tray) {
+        public static void Tick(OmenMon.AppGui.GuiTray tray) {
             if(!Config.BatteryGlitchGuard) {
                 // Feature disabled — make sure we never hold ES_SYSTEM_REQUIRED.
                 ReleaseGuardIfHeld();
@@ -191,7 +191,7 @@ namespace OmenMon.Library {
 #endregion
 
 #region Internals
-        private static void AssertGuard(AppGui.GuiTray tray, int priorPct, int glitchPct) {
+        private static void AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
             // SetThreadExecutionState returns the previous ExecutionState on
             // success, or 0 on failure.
             // BUGFIX (v1.4.1-reborn-fix): Removed the check for (result == None).
