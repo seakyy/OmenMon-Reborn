@@ -70,6 +70,62 @@ Things that are **not** security issues for this project:
 - Crashes that produce a stack trace but no exploitable state. Please
   file those as regular bug reports.
 
+## Windows Defender false positives
+
+OmenMon-Reborn is a hardware-control utility that talks to the Embedded
+Controller through the Microsoft-signed [PawnIO](https://pawnio.eu/)
+driver. It does not ship its own kernel driver, does not connect to any
+network, does not inject into other processes, and does not modify
+system persistence. That said, heuristic anti-virus engines occasionally
+flag low-level hardware tools simply because the behaviour profile
+(IOCTLs, privileged access) overlaps with what some malware does.
+
+### Microsoft has reviewed and cleared OmenMon
+
+The `OmenMon.exe` binary was submitted to Microsoft Security
+Intelligence and reviewed by a Microsoft analyst on **2026-05-21**:
+
+- **Submission ID:** `504e5120-8e6f-46c6-bf5f-da34a0176fca`
+- **Result:** *"At this time, the submitted files do not meet our
+  criteria for malware or potentially unwanted applications. The
+  detection has been removed."*
+- **Public record:**
+  https://www.microsoft.com/wdsi/filesubmission/details/504e5120-8e6f-46c6-bf5f-da34a0176fca
+
+The dynamic-signature detection was removed at Microsoft's end. New
+Defender clients will pick up the cleared determination automatically
+once they refresh their signature definitions.
+
+### Independent confirmation — VirusTotal
+
+An independent multi-engine scan of the same binary returned a clean
+result across **all 71 antivirus engines** queried:
+
+- **VirusTotal:** https://www.virustotal.com/gui/file/21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1
+- **Detections:** 0 / 71
+- **SHA-256:** `21384a329e082b66bf12255c057e84fc8608a44785231ee58a9f0316bcdcf0d1`
+
+You can verify the hash of your downloaded binary against the value
+above before running it.
+
+### If your machine still flags the binary after the cleared submission
+
+A local Defender instance may have cached the old detection. To force
+it to drop the cache and pull the latest definitions:
+
+1. Open Command Prompt **as Administrator**.
+2. `cd "C:\Program Files\Windows Defender"`
+3. `MpCmdRun.exe -removedefinitions -dynamicsignatures`
+4. `MpCmdRun.exe -SignatureUpdate`
+
+You should see "Dynamic Signature removal — Done!" followed by
+"Signature update finished." After this, the binary will not be
+flagged on this machine.
+
+If a *new* heuristic detection appears in a future release, please
+open an issue with the exact Defender threat name (e.g. `Trojan:Win32/…`)
+and the OmenMon-Reborn version, so a fresh MAPS submission can be filed.
+
 ## Scope
 
 This policy covers the `OmenMon-Reborn` codebase and the embedded
