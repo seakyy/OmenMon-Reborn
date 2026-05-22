@@ -81,6 +81,20 @@ namespace OmenMon.Library {
                 return;
             }
 
+            if(Config.BatteryGlitchGuardHoldAlways) {
+                // Permanent hold mode.
+                if(guardUntil != DateTime.MaxValue) {
+                    AssertGuard(tray, -1, -1);
+                    guardUntil = DateTime.MaxValue;
+                }
+                return;
+            }
+
+            // If HoldAlways was previously active but was just turned off, release immediately
+            if(guardUntil == DateTime.MaxValue) {
+                ReleaseGuardIfHeld();
+            }
+
             PowerStatus power;
             try { power = SystemInformation.PowerStatus; }
             catch { return; }  // very rare, but never let a status read throw
@@ -111,7 +125,8 @@ namespace OmenMon.Library {
             // including mid-glitch — release the held wake-lock immediately so a
             // genuine critical-battery transition can hibernate. Checked before any
             // glitch-detection logic so a sustained-glitch state can't outlive AC.
-            if(power.PowerLineStatus != PowerLineStatus.Online) {
+            // Overridden if Config.BatteryGlitchGuardOnBattery is true.
+            if(!Config.BatteryGlitchGuardOnBattery && power.PowerLineStatus != PowerLineStatus.Online) {
                 if(priorPercent != -1 || IsGuardActive()) {
                     ReleaseGuardIfHeld();
                     priorPercent = -1;
@@ -129,7 +144,8 @@ namespace OmenMon.Library {
                 bool hasRebounded = dropFromPrior < Config.BatteryGlitchDropPercent;
                 // Safety timeout of 60 seconds. If the drop is real (e.g. charging failed),
                 // we must eventually release the guard to allow Windows to hibernate.
-                bool hasTimedOut = (now - lastTickTime).TotalSeconds > 60;
+                // Overridden if Config.BatteryGlitchGuardDisableTimeout is true.
+                bool hasTimedOut = !Config.BatteryGlitchGuardDisableTimeout && (now - lastTickTime).TotalSeconds > 60;
 
                 if(hasRebounded || hasTimedOut) {
                     // Reset to normal operation.
@@ -148,7 +164,7 @@ namespace OmenMon.Library {
                 // Normal mode: check if a new drop matches glitch criteria.
                 int drop = lastPercent - percent;
                 isGlitch =
-                    power.PowerLineStatus == PowerLineStatus.Online
+                    (Config.BatteryGlitchGuardOnBattery || power.PowerLineStatus == PowerLineStatus.Online)
                     && lastPercent       >= Config.BatteryGlitchDropPercent
                     && drop              >= Config.BatteryGlitchDropPercent
                     && (now - lastTickTime).TotalMilliseconds <= Config.BatteryGlitchWindowMs;
@@ -186,6 +202,8 @@ namespace OmenMon.Library {
         }
 
         public static bool IsGuardActive() {
+            if(Config.BatteryGlitchGuard && Config.BatteryGlitchGuardHoldAlways)
+                return true;
             return guardUntil != DateTime.MinValue && DateTime.UtcNow < guardUntil;
         }
 #endregion
@@ -214,7 +232,7 @@ namespace OmenMon.Library {
             // User-facing balloon tip. The Tick() gate (IsGuardActive) ensures
             // AssertGuard fires at most once per hold window, so a sustained
             // glitch event produces a single tip, not one per second.
-            if(tray != null) {
+            if(tray != null && priorPct >= 0) {
                 try {
                     tray.ShowBalloonTip(
                         "Detected an implausible battery reading (" + priorPct

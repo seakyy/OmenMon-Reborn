@@ -340,6 +340,13 @@ namespace OmenMon.Library {
                 GpuReg = 0, GpuMode = EcDiffScanner.Mode.BiosLevelMirror, GpuMul = 100,
             },
 
+            // HP Victus 16 (8BB3, 2024, AMD) — issue #64.
+            // Single-fan SKU. CPU fan register at 0xF1 (DirectMultiplier8 mode).
+            ["8BB3"] = new Mapping {
+                CpuReg = 0xF1, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
+                GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
+            },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from

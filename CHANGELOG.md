@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.2-reborn] - 2026-05-22
+
+### Fixed
+
+- **Auto-Calibration Wizard locked fans at ~3500 RPM after running** (issue #65, reported by @MartinSalg818). In the wizard teardown `finally` cleanup block, if the system was on automatic BIOS control before running calibration, OmenMon now writes `0xFF, 0xFF` to clear custom levels and release control back to the BIOS.
+- **GPU fan curves reacted to CPU temperature when GPU is idle/off** (issue #66, reported by @Bart82). Gated the CPU temperature fallback in `FanProgram.Update()` using a new helper `Platform.HasGpuTemperatureSensor()` to check if the platform actually lacks a physical GPU temperature sensor. When a physical GPU is present but powered off (0 °C), the GPU fan now stays at idle instead of ramping up under CPU load.
+- **Auto-Calibration Wizard failed to detect CPU fan on low idle speeds on 8BB3** (issue #64, reported by @jpcaldwell30). Lowered `DirectMultByteMin` threshold in `EcDiffScanner.cs` from 10 to 2 to support low fan idle speeds (e.g. 300 RPM / 0x03). Also fixed the 2023+ Layout B heuristic check in `AutoDetector.cs` to allow `cput == 0x0F` (observed on AMD-based 8BB3).
+
+### Added
+
+- **HP Victus 16 (8BB3, 2024, AMD) in the native model database** (`OmenMon.xml`). Stamped CPU fan speed register at `0xF1` (DirectMultiplier8) and mapped it natively in `AutoCal.KnownBoards`.
+- **HP Victus 16 (88F4, 2022) in the native model database** (`OmenMon.xml`) and safety list (`FanArray.HasMaxFanFreeze`). Added to safety list due to physical fan ceiling rate-limiter, with CPU/GPU speed registers overridden to 0x2E/0xB0.
+- **Configurable hibernation guard settings** (`Library/PowerGuard.cs`). Added three new XML configuration parameters to customize the battery-glitch guard or completely prevent Windows sleep/hibernation:
+  - `BatteryGlitchGuardOnBattery` (boolean, default `false`): Enables the glitch guard to run even on battery power.
+  - `BatteryGlitchGuardDisableTimeout` (boolean, default `false`): Disables the 60-second safety timeout for sustained glitches, preventing the wake-lock from releasing during long loads.
+  - `BatteryGlitchGuardHoldAlways` (boolean, default `false`): Permanently asserts `ES_SYSTEM_REQUIRED` (wake-lock) while OmenMon is running to block sleep/hibernation completely.
+
 ## [1.4.1-reborn] - 2026-05-18
 
 > **First-week-after-v1.4.0 field-report sweep.** Patch release addressing the cluster of issues (#32 / #50 / #56 / #57 / #58) that arrived once the Auto-Calibration Wizard reached users on entry-level Victus 15/16 SKUs whose physical fan ceiling sits below the BIOS rate-limiter's threshold. Two layers of defence: an explicit board safety list (so wizard + GUI both skip the dangerous 100% command on confirmed-vulnerable models) and a generic plateau detector in the wizard (so unknown future SKUs with the same firmware signature abort gracefully and surface a "please report your ProductId" note in the Markdown report).

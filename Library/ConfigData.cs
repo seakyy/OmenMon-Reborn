@@ -58,6 +58,9 @@ namespace OmenMon.Library {
         public static int BatteryGlitchDropPercent = 30;   // minimum drop to flag a glitch [%]
         public static int BatteryGlitchWindowMs   = 5000; // must drop this much within [ms]
         public static int BatteryGlitchHoldMs     = 30000; // suppress hibernate for [ms] after detection
+        public static bool BatteryGlitchGuardOnBattery = false; // run glitch guard on battery power
+        public static bool BatteryGlitchGuardDisableTimeout = false; // disable 60-second safety timeout
+        public static bool BatteryGlitchGuardHoldAlways = false; // permanently hold the hibernation blocker
 
         // Thermal Panic Mode: when max sensor temperature exceeds the threshold, OmenMon
         // forces both fans to maximum and shows a balloon alert. Deactivates with hysteresis.

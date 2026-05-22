@@ -73,7 +73,7 @@ namespace OmenMon.Hardware.Ec {
 
         // Plausible direct-multiplier byte range (Pattern C: byte * 100 = RPM).
         // 15 → 1500 RPM (low idle), 80 → 8000 RPM (top of fan envelope).
-        private const int DirectMultByteMin = 10;
+        private const int DirectMultByteMin = 2;
         private const int DirectMultByteMax = 80;
         private const int DirectMultIdleCeiling = 22;   // ≤ 2200 RPM at idle
         private const int DirectMultMaxFloor   = 25;   // ≥ 2500 RPM at full

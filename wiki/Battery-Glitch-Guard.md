@@ -60,6 +60,9 @@ calls `SetThreadExecutionState(Continuous)` alone to release.
   <Setting name="BatteryGlitchDropPercent">30</Setting>
   <Setting name="BatteryGlitchWindowMs">5000</Setting>
   <Setting name="BatteryGlitchHoldMs">30000</Setting>
+  <Setting name="BatteryGlitchGuardOnBattery">false</Setting>
+  <Setting name="BatteryGlitchGuardDisableTimeout">false</Setting>
+  <Setting name="BatteryGlitchGuardHoldAlways">false</Setting>
 </Config>
 ```
 
@@ -69,6 +72,9 @@ calls `SetThreadExecutionState(Continuous)` alone to release.
 | `BatteryGlitchDropPercent` | `30` | Minimum percentage drop to flag as a glitch. Raise to reduce false positives. |
 | `BatteryGlitchWindowMs` | `5000` | The drop must happen within this many milliseconds (consecutive ticks). |
 | `BatteryGlitchHoldMs` | `30000` | How long Windows is told to skip sleep/hibernate after a detection. |
+| `BatteryGlitchGuardOnBattery` | `false` | Run glitch guard on battery power (by default, the guard is only active on AC). |
+| `BatteryGlitchGuardDisableTimeout` | `false` | Disable the 60-second safety timeout for sustained glitches (allows infinite extension during prolonged glitches). |
+| `BatteryGlitchGuardHoldAlways` | `false` | Permanently assert `ES_SYSTEM_REQUIRED` (wake-lock) while OmenMon is running to block sleep/hibernation completely. |
 
 ## When you might want to tune it
 

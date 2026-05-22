@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
 
   //\\   OmenMon: Hardware Monitoring & Control Utility
@@ -30,6 +30,8 @@
     <StartupObject>OmenMon.App</StartupObject>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <WarningLevel>4</WarningLevel>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">1.4.2.0</AssemblyVersion>
+    <AssemblyVersionWord Condition="'$(AssemblyVersionWord)' == ''">reborn</AssemblyVersionWord>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -174,7 +176,7 @@
       <GeneratedVersionLines Include="@(AssemblyVersionLines)" Condition="'$([System.Text.RegularExpressions.Regex]::IsMatch(&quot;%(Identity)&quot;, &quot;(?i)Assembly((File|Informational)?Version|Metadata)&quot;))' == false" />
       <GeneratedVersionLines Include="[assembly: AssemblyVersion(&quot;$([System.Text.RegularExpressions.Regex]::Match($(AssemblyVersion), `\d+\.\d+\.\d+`))&quot;)]" />
       <GeneratedVersionLines Include="[assembly: AssemblyFileVersion(&quot;$(AssemblyVersion)&quot;)]" />
-      <GeneratedVersionLines Include="[assembly: AssemblyInformationalVersion(&quot;$([System.Text.RegularExpressions.Regex]::Match($(AssemblyVersion), `\d+\.\d+`))-$(AssemblyVersionWord)&quot;)]" />
+      <GeneratedVersionLines Include="[assembly: AssemblyInformationalVersion(&quot;$([System.Text.RegularExpressions.Regex]::Match($(AssemblyVersion), `\d+\.\d+\.\d+`))-$(AssemblyVersionWord)&quot;)]" />
       <GeneratedVersionLines Include="[assembly: AssemblyMetadata(&quot;Timestamp&quot;, &quot;$([System.DateTime]::Now.ToString('yyyy-MM-dd HH:mm'))&quot;)]" />
     </ItemGroup>
     <WriteLinesToFile File="$(IntermediateOutputPath)Version.cs" Lines="@(GeneratedVersionLines)" Overwrite="true" />

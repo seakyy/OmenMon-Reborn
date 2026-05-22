@@ -627,6 +627,39 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 88F4: HP Victus 16 (2022) — Auto-Calibration report (issue #67).                         -->
+            <!-- CPU speed reg is 0x2E (46 dec) in LittleEndian16, GPU speed reg is 0xB0 (176 dec).        -->
+            <!-- Standard 2022 layout registers otherwise.                                                 -->
+            <Model ProductId="88F4" DisplayName="HP Victus 16 (2022, 88F4)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>46</FanSpeedReg0>
+                <FanSpeedReg1>176</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BB3: HP Victus 16 (2024, AMD) — issue #64.                                               -->
+            <!-- Single-fan SKU. CPU fan register at 0xF1 (DirectMultiplier8 mode), GPU fan not present.   -->
+            <Model ProductId="8BB3" DisplayName="HP Victus 16 (2024, 8BB3)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>241</FanSpeedReg0>
+                <FanSpeedReg1>241</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>

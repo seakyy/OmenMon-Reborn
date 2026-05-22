@@ -263,6 +263,15 @@ namespace OmenMon.Hardware.Platform {
             return this.LastGpuTemperature;
 
         }
+
+        // Checks if the platform has a GPU temperature sensor ("GPTM") in its sensors array
+        public bool HasGpuTemperatureSensor() {
+            for(int i = 0; i < this.Temperature.Length; i++) {
+                if(this.Temperature[i].GetName() == "GPTM")
+                    return true;
+            }
+            return false;
+        }
 #endregion
 
 #region Updates

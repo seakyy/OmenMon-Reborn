@@ -176,6 +176,15 @@ namespace OmenMon.Library {
                     if(GetWord(xml, XmlPrefix + "BatteryGlitchHoldMs", out value) && value >= 1 && value <= 60000)
                         BatteryGlitchHoldMs = value;
 
+                    if(GetBool(xml, XmlPrefix + "BatteryGlitchGuardOnBattery", out flag))
+                        BatteryGlitchGuardOnBattery = flag;
+
+                    if(GetBool(xml, XmlPrefix + "BatteryGlitchGuardDisableTimeout", out flag))
+                        BatteryGlitchGuardDisableTimeout = flag;
+
+                    if(GetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", out flag))
+                        BatteryGlitchGuardHoldAlways = flag;
+
                     if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
                         ThermalPanicEnabled = flag;
 
@@ -594,6 +603,9 @@ namespace OmenMon.Library {
                     SetUInt(xml, XmlPrefix + "BatteryGlitchDropPercent", (uint) BatteryGlitchDropPercent);
                     SetUInt(xml, XmlPrefix + "BatteryGlitchWindowMs",   (uint) BatteryGlitchWindowMs);
                     SetUInt(xml, XmlPrefix + "BatteryGlitchHoldMs",     (uint) BatteryGlitchHoldMs);
+                    SetBool(xml, XmlPrefix + "BatteryGlitchGuardOnBattery", BatteryGlitchGuardOnBattery);
+                    SetBool(xml, XmlPrefix + "BatteryGlitchGuardDisableTimeout", BatteryGlitchGuardDisableTimeout);
+                    SetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", BatteryGlitchGuardHoldAlways);
                     SetBool(xml, XmlPrefix + "ThermalPanicEnabled", ThermalPanicEnabled);
                     SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
                     SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);

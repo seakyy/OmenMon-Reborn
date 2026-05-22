@@ -240,9 +240,10 @@ namespace OmenMon.Hardware.Platform {
             byte cpuTemp = Platform.GetCpuTemperature(true);
             byte gpuTemp = Platform.GetGpuTemperature(false);
 
-            // If GPU sensor unavailable (returns 0), fall back to CPU temp
-            // so the GPU fan doesn't idle when the sensor is missing.
-            if(gpuTemp == 0) gpuTemp = cpuTemp;
+            // If GPU sensor unavailable (returns 0) and the platform has no physical
+            // GPU sensor, fall back to CPU temp so the GPU fan doesn't idle when the
+            // sensor is missing.
+            if(gpuTemp == 0 && !this.Platform.HasGpuTemperatureSensor()) gpuTemp = cpuTemp;
 
             // Independent level lookups: each fan reacts to its own
             // component's temperature instead of the global maximum.
