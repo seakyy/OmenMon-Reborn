@@ -185,6 +185,15 @@ namespace OmenMon.Library {
                     if(GetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", out flag))
                         BatteryGlitchGuardHoldAlways = flag;
 
+                    if(GetBool(xml, XmlPrefix + "AcFlickerGuard", out flag))
+                        AcFlickerGuard = flag;
+
+                    // AC-flicker hold window. 0 disables (immediate switch, pre-v1.4.2
+                    // behaviour); upper bound 60000 ms keeps it short enough that a real
+                    // unplug always reaches the fan-program switch within one minute.
+                    if(GetWord(xml, XmlPrefix + "AcFlickerHoldMs", out value) && value <= 60000)
+                        AcFlickerHoldMs = value;
+
                     if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
                         ThermalPanicEnabled = flag;
 
@@ -606,6 +615,8 @@ namespace OmenMon.Library {
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardOnBattery", BatteryGlitchGuardOnBattery);
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardDisableTimeout", BatteryGlitchGuardDisableTimeout);
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", BatteryGlitchGuardHoldAlways);
+                    SetBool(xml, XmlPrefix + "AcFlickerGuard", AcFlickerGuard);
+                    SetUInt(xml, XmlPrefix + "AcFlickerHoldMs", (uint) AcFlickerHoldMs);
                     SetBool(xml, XmlPrefix + "ThermalPanicEnabled", ThermalPanicEnabled);
                     SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
                     SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);

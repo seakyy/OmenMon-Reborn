@@ -171,14 +171,81 @@ But if you're seeing unexpected behaviour and want to debug:
 
 File issues at <https://github.com/seakyy/OmenMon-Reborn/issues>.
 
+---
+
+# Companion guard: AC-flicker debounce
+
+> Added in **v1.4.2-reborn**. Tracking issue: [#70](https://github.com/seakyy/OmenMon-Reborn/issues/70).
+
+The battery-glitch guard above watches the OS-reported *battery
+percentage* and only fires on big, fast drops. A separate symptom on
+some HP Omen / Victus SKUs is the OS reporting `PowerLineStatus` as
+`Offline` for a few seconds even though the laptop is physically
+plugged in — visible in `powercfg /batteryreport` as transient AC-out
+events that no human action caused. Before v1.4.2 OmenMon reacted to
+each of these events immediately: with `AutoConfig=true` and a fan
+program active, it switched from `FanProgramDefault` (Power) to
+`FanProgramDefaultAlt` (typically Silent, which caps the system to Base
+Power), producing visible CPU/power-throttling stutter mid-game. When AC
+came back ~2 s later it switched back.
+
+The AC-flicker guard defers the reaction. On a `PowerModeChanged`
+StatusChange event, OmenMon records the timestamp and waits
+`AcFlickerHoldMs` (default **8 s**) before running the actual fan-program
+switch and BIOS-heartbeat toggle. If the line status has reverted by
+then — i.e. `IsFullPower()` matches the value before the event — nothing
+happens. Legitimate unplug-stay-unplugged actions still take effect,
+just delayed by the hold window.
+
+## Defaults
+
+```xml
+<!-- OmenMon.xml -->
+<Config>
+  <AcFlickerGuard>true</AcFlickerGuard>
+  <AcFlickerHoldMs>8000</AcFlickerHoldMs>
+</Config>
+```
+
+| Key | Default | Meaning |
+|-----|--------:|---------|
+| `AcFlickerGuard` | `true` | Master switch. `false` reverts to the immediate-switch behaviour from earlier builds. |
+| `AcFlickerHoldMs` | `8000` | Milliseconds the new line-status must hold before OmenMon applies the corresponding fan-program / heartbeat change. Range `0..60000`. `0` is equivalent to `AcFlickerGuard=false`. |
+
+## Tuning
+
+- **Your real unplug-to-Silent transition feels too laggy**: lower
+  `AcFlickerHoldMs` to e.g. `4000`. Anything shorter risks catching the
+  tail of a 2–5 s flicker.
+- **You still see mid-game stutters at the default hold**: raise to
+  `12000` and re-test. If the stutter persists, capture `-Diag` during
+  one — the EC trace will show whether a fan-program switch actually
+  fired or whether something else is throttling.
+- **You want immediate behaviour back**: set `AcFlickerGuard=false`.
+
+## What this guard does **not** do
+
+- It does not stop the OS-level flicker — that's a firmware / power-stack
+  issue between the EC, the ACPI battery driver, and Windows. OmenMon
+  only changes how OmenMon reacts to it.
+- It does not interact with the percent-based guard above. The two run
+  side by side: the AC-flicker guard handles `PowerLineStatus`
+  transitions, the battery-glitch guard handles `BatteryLifePercent`
+  drops.
+
 ## Related
 
+- [#70](https://github.com/seakyy/OmenMon-Reborn/issues/70) — Original
+  report on a Victus 16 SKU during gaming.
 - [#59](https://github.com/seakyy/OmenMon-Reborn/issues/59) — Original
-  report of the battery glitch on `8C30`.
+  report of the percent-based battery glitch on `8C30`.
 - [#49](https://github.com/seakyy/OmenMon-Reborn/issues/49) — Related
-  EC-contention symptom (fan spikes from torn temperature reads). The
-  guard does not address this; see the issue thread for environmental
+  EC-contention symptom (fan spikes from torn temperature reads).
+  Neither guard addresses this; see the issue thread for environmental
   mitigations.
-- [`Library/PowerGuard.cs`](../Library/PowerGuard.cs) — Implementation.
-- [`Library/ConfigData.cs`](../Library/ConfigData.cs) — The four
-  `BatteryGlitch*` defaults.
+- [`App/Gui/GuiTray.cs`](../App/Gui/GuiTray.cs) — `EventPowerChange` and
+  `EventTimerTick` host the AC-flicker debounce.
+- [`Library/PowerGuard.cs`](../Library/PowerGuard.cs) — Percent-based
+  guard implementation.
+- [`Library/ConfigData.cs`](../Library/ConfigData.cs) — `AcFlicker*`
+  and `BatteryGlitch*` defaults.

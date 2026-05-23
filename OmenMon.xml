@@ -16,6 +16,12 @@
         <BiosErrorReporting>true</BiosErrorReporting>
         <!-- Pause BIOS heartbeat while on battery to prevent forced hibernation (default: true) -->
         <BiosHeartbeatPauseOnBattery>true</BiosHeartbeatPauseOnBattery>
+        <!-- AC-flicker debounce: suppress brief AC->battery->AC transitions before
+             switching fan programs or toggling the BIOS heartbeat (issue #70).
+             AcFlickerGuard=false or AcFlickerHoldMs=0 restores the immediate-switch
+             behaviour from earlier builds. Default hold = 8000 ms. -->
+        <AcFlickerGuard>true</AcFlickerGuard>
+        <AcFlickerHoldMs>8000</AcFlickerHoldMs>
         <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
         <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
         <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->

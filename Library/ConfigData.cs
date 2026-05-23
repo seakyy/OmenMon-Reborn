@@ -62,6 +62,19 @@ namespace OmenMon.Library {
         public static bool BatteryGlitchGuardDisableTimeout = false; // disable 60-second safety timeout
         public static bool BatteryGlitchGuardHoldAlways = false; // permanently hold the hibernation blocker
 
+        // AC-flicker debounce. Some HP Omen / Victus SKUs briefly report AC as disconnected
+        // (PowerLineStatus goes Online -> Offline -> Online for a few seconds) under load,
+        // even though the laptop is physically plugged in. Without this guard, the AutoConfig
+        // + alternate fan program path in GuiOp.PowerChange() instantly swaps Default <->
+        // DefaultAlt during the flicker, causing visible CPU/power throttling stutters
+        // mid-game (issue #70 reported by @MartinSalg818). With the guard on, OmenMon waits
+        // AcFlickerHoldMs after a PowerModeChanged event before acting; if the line status
+        // has reverted by then, the flicker is treated as noise and no fan-program switch,
+        // heartbeat toggle, or auxiliary action is performed. Set AcFlickerGuard=false or
+        // AcFlickerHoldMs=0 to restore the pre-fix immediate-reaction behaviour.
+        public static bool AcFlickerGuard = true;
+        public static int  AcFlickerHoldMs = 8000; // wait [ms] for AC state to stabilize before acting
+
         // Thermal Panic Mode: when max sensor temperature exceeds the threshold, OmenMon
         // forces both fans to maximum and shows a balloon alert. Deactivates with hysteresis.
         // Only active when GuiDynamicIcon=true (requires live sensor reads already happening).

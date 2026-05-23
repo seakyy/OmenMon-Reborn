@@ -47,6 +47,15 @@ namespace OmenMon.AppGui {
         // Stores the BIOS heartbeat timer
         private System.Windows.Forms.Timer HeartbeatTimer;
 
+        // AC-flicker debounce (issue #70). When a PowerModeChanged StatusChange
+        // event fires and Config.AcFlickerGuard is on, we record the UTC time
+        // here and defer the actual reaction (fan-program switch, heartbeat
+        // enable/disable, main-form refresh) until the next timer tick that
+        // arrives after Config.AcFlickerHoldMs. If the line status reverts in
+        // the meantime, Op.PowerChange() naturally no-ops because IsFullPower()
+        // matches Op.FullPower again. MinValue means no event is pending.
+        private DateTime PendingPowerChangeAt = DateTime.MinValue;
+
         // Stores the number of ticks elapsed since
         // the last update of a particular category
         internal int UpdateIconTick;
@@ -200,14 +209,38 @@ namespace OmenMon.AppGui {
 
             // Only respond to status change events,
             // which excludes Resume and Suspend
-            if(e.Mode == PowerModes.StatusChange) {
-                this.Op.PowerChange();
+            if(e.Mode != PowerModes.StatusChange)
+                return;
 
-                // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
-                // unexpected hibernate; re-enable it when AC power is restored
-                if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
-                    this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPower();
+            // AC-flicker debounce (issue #70). Some HP Omen / Victus SKUs briefly
+            // report AC as disconnected even though the laptop is physically plugged
+            // in; reacting immediately causes the AutoConfig path to switch between
+            // FanProgramDefault and FanProgramDefaultAlt during the flicker, which
+            // mid-game shows up as a visible CPU/power-throttling stutter. With the
+            // guard enabled, the actual handler runs from the next EventTimerTick
+            // after AcFlickerHoldMs has elapsed; if the line status has reverted by
+            // then, Op.PowerChange() naturally no-ops. The heartbeat enable/disable
+            // is part of the same deferred handler so a flicker doesn't churn it.
+            if(Config.AcFlickerGuard && Config.AcFlickerHoldMs > 0) {
+                this.PendingPowerChangeAt = DateTime.UtcNow;
+                return;
             }
+
+            ApplyPowerStatusChange();
+
+        }
+
+        // Runs the debounced (or immediate, when AcFlickerGuard is off) reaction
+        // to a PowerModeChanged StatusChange event. Kept centralised so the same
+        // logic runs whether the deferred path or the immediate path triggered it.
+        private void ApplyPowerStatusChange() {
+
+            this.Op.PowerChange();
+
+            // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
+            // unexpected hibernate; re-enable it when AC power is restored
+            if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
+                this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPower();
 
         }
 
@@ -216,6 +249,19 @@ namespace OmenMon.AppGui {
 
             // Perform the updates as scheduled
             Update();
+
+            // AC-flicker debounce (issue #70). If a PowerModeChanged StatusChange
+            // event was deferred earlier, run the actual reaction now provided the
+            // hold window has elapsed. Cheap — three field reads when no event is
+            // pending, no EC / WMI traffic.
+            if(this.PendingPowerChangeAt != DateTime.MinValue
+                && (DateTime.UtcNow - this.PendingPowerChangeAt).TotalMilliseconds
+                    >= Config.AcFlickerHoldMs) {
+
+                this.PendingPowerChangeAt = DateTime.MinValue;
+                ApplyPowerStatusChange();
+
+            }
 
             // Cheap (no EC traffic, no WMI) — runs every GuiTimerInterval ms.
             // Detects the "battery suddenly drops to <5%" torn-read symptom
