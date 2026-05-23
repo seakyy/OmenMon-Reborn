@@ -255,8 +255,24 @@ namespace OmenMon.Hardware.Platform {
         }
 
         // Obtains the GPU temperature from the GPTM sensor.
-        // Returns 0 if no valid GPU temperature sensor is available;
-        // callers should fall back to the CPU temperature in that case.
+        // Returns 0 if the sensor reports no value this tick.
+        //
+        // CAUTION FOR CALLERS: a return value of 0 is ambiguous and on its own
+        // does NOT mean "no GPU temp sensor on this platform". Two distinct
+        // hardware states both produce 0:
+        //   (a) Discrete GPU is present but currently powered off (Optimus
+        //       parking, low-power suspend, dGPU disabled in BIOS). The
+        //       sensor is real and will read non-zero again once the GPU
+        //       wakes up. Falling back to CPU temp here would cause the GPU
+        //       fan to ramp under CPU load even though the dGPU is idle
+        //       (issue #66).
+        //   (b) Board has no usable GPU temp register at all. The 0 reading
+        //       is permanent and falling back to CPU temp is the right
+        //       behaviour (issue #62).
+        // Use HasObservedGpuTemperature() to discriminate before deciding
+        // whether to substitute a CPU-temp fallback. That helper latches
+        // sticky-true on the first non-zero sample, so case (a) reads as
+        // "sensor present" and case (b) reads as "no sensor".
         public byte GetGpuTemperature(bool forceUpdate = false) {
 
             if(forceUpdate)

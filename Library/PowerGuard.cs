@@ -4,6 +4,7 @@
 // OmenMon-Reborn additions © 2026 seakyy
 
 using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using OmenMon.External;
 
@@ -219,22 +220,38 @@ namespace OmenMon.Library {
         // P/Invoke failure. Callers must use the return value to decide whether
         // to advance internal state — without that check the transient-glitch
         // hold window or the HoldAlways permanent-hold latch could record state
-        // that diverges from what the OS is actually enforcing (Copilot review #3
-        // on the v1.4.2 PR).
+        // that diverges from what the OS is actually enforcing.
         //
-        // BUGFIX (v1.4.1-reborn): SetThreadExecutionState returns the previous
-        // ExecutionState on success, or 0 on failure. The original implementation
-        // also bailed when the previous state was None (0), which on the very
-        // first call meant we skipped guardUntil bookkeeping while the OS had
-        // actually accepted the request — a permanent leak. We now treat any
-        // non-exception path as success and only short-circuit on P/Invoke errors.
+        // Failure detection follows the Win32 contract documented at
+        // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate:
+        // the API returns the previous ExecutionState on success and 0 on
+        // failure. A return value of 0 is ambiguous because the previous state
+        // can legitimately be None (0) on the first call after process start.
+        // We disambiguate via Marshal.GetLastWin32Error() — the P/Invoke is
+        // declared SetLastError=true exactly so callers can do this. A non-zero
+        // Win32 error means a real failure; a 0 error code with a 0 return
+        // value means success with previous state None.
+        //
+        // History: an earlier revision returned early on (result == None),
+        // which collapsed the legitimate first-call case into "failure" and
+        // permanently leaked the wake-lock (the OS accepted the request but
+        // our bookkeeping skipped guardUntil). The Win32-error path here
+        // restores correct success detection without that regression.
+        // (Copilot review #1 on the second round of v1.4.2 PR review.)
         private static bool AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
+            Kernel32.ExecutionState previous;
             try {
-                Kernel32.SetThreadExecutionState(
+                previous = Kernel32.SetThreadExecutionState(
                     Kernel32.ExecutionState.Continuous | Kernel32.ExecutionState.SystemRequired);
             } catch {
                 return false;
             }
+
+            // 0 return is ambiguous — check the Win32 error to distinguish
+            // genuine failure from "previous state was None".
+            if(previous == Kernel32.ExecutionState.None
+                && Marshal.GetLastWin32Error() != 0)
+                return false;
 
             // Extend (or start) the hold window. now + hold is the absolute UTC
             // time at which the next Tick() will release. HoldAlways callers

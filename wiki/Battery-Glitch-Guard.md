@@ -56,13 +56,13 @@ calls `SetThreadExecutionState(Continuous)` alone to release.
 ```xml
 <!-- OmenMon.xml -->
 <Config>
-  <Setting name="BatteryGlitchGuard">true</Setting>
-  <Setting name="BatteryGlitchDropPercent">30</Setting>
-  <Setting name="BatteryGlitchWindowMs">5000</Setting>
-  <Setting name="BatteryGlitchHoldMs">30000</Setting>
-  <Setting name="BatteryGlitchGuardOnBattery">false</Setting>
-  <Setting name="BatteryGlitchGuardDisableTimeout">false</Setting>
-  <Setting name="BatteryGlitchGuardHoldAlways">false</Setting>
+  <BatteryGlitchGuard>true</BatteryGlitchGuard>
+  <BatteryGlitchDropPercent>30</BatteryGlitchDropPercent>
+  <BatteryGlitchWindowMs>5000</BatteryGlitchWindowMs>
+  <BatteryGlitchHoldMs>30000</BatteryGlitchHoldMs>
+  <BatteryGlitchGuardOnBattery>false</BatteryGlitchGuardOnBattery>
+  <BatteryGlitchGuardDisableTimeout>false</BatteryGlitchGuardDisableTimeout>
+  <BatteryGlitchGuardHoldAlways>false</BatteryGlitchGuardHoldAlways>
 </Config>
 ```
 
