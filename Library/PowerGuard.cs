@@ -82,10 +82,15 @@ namespace OmenMon.Library {
             }
 
             if(Config.BatteryGlitchGuardHoldAlways) {
-                // Permanent hold mode.
+                // Permanent hold mode. Only mark the guard as permanently held
+                // (DateTime.MaxValue) after we have confirmation that the
+                // SetThreadExecutionState call actually landed — otherwise a
+                // P/Invoke failure inside AssertGuard would leave the internal
+                // state thinking the wake-lock is held while the OS never
+                // received the request (Copilot review #3 on the v1.4.2 PR).
                 if(guardUntil != DateTime.MaxValue) {
-                    AssertGuard(tray, -1, -1);
-                    guardUntil = DateTime.MaxValue;
+                    if(AssertGuard(tray, -1, -1))
+                        guardUntil = DateTime.MaxValue;
                 }
                 return;
             }
@@ -209,24 +214,32 @@ namespace OmenMon.Library {
 #endregion
 
 #region Internals
-        private static void AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
-            // SetThreadExecutionState returns the previous ExecutionState on
-            // success, or 0 on failure.
-            // BUGFIX (v1.4.1-reborn-fix): Removed the check for (result == None).
-            // On the very first call, the previous state of the thread is None (0),
-            // which caused the method to return early without setting guardUntil,
-            // while the OS actually held the state. This caused a permanent leak
-            // of the wake lock. Now we call and immediately proceed to establish
-            // guardUntil.
+        // Asserts the ES_CONTINUOUS | ES_SYSTEM_REQUIRED wake-lock.
+        // Returns true if the SetThreadExecutionState call succeeded, false on
+        // P/Invoke failure. Callers must use the return value to decide whether
+        // to advance internal state — without that check the transient-glitch
+        // hold window or the HoldAlways permanent-hold latch could record state
+        // that diverges from what the OS is actually enforcing (Copilot review #3
+        // on the v1.4.2 PR).
+        //
+        // BUGFIX (v1.4.1-reborn): SetThreadExecutionState returns the previous
+        // ExecutionState on success, or 0 on failure. The original implementation
+        // also bailed when the previous state was None (0), which on the very
+        // first call meant we skipped guardUntil bookkeeping while the OS had
+        // actually accepted the request — a permanent leak. We now treat any
+        // non-exception path as success and only short-circuit on P/Invoke errors.
+        private static bool AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
             try {
                 Kernel32.SetThreadExecutionState(
                     Kernel32.ExecutionState.Continuous | Kernel32.ExecutionState.SystemRequired);
             } catch {
-                return;
+                return false;
             }
 
             // Extend (or start) the hold window. now + hold is the absolute UTC
-            // time at which the next Tick() will release.
+            // time at which the next Tick() will release. HoldAlways callers
+            // overwrite this with DateTime.MaxValue immediately after, but only
+            // if we report success — so the latch can't get ahead of the OS state.
             guardUntil = DateTime.UtcNow.AddMilliseconds(Config.BatteryGlitchHoldMs);
 
             // User-facing balloon tip. The Tick() gate (IsGuardActive) ensures
@@ -244,6 +257,8 @@ namespace OmenMon.Library {
                         ToolTipIcon.Warning);
                 } catch { }
             }
+
+            return true;
         }
 
         private static void ReleaseGuardIfHeld() {

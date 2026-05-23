@@ -240,10 +240,26 @@ namespace OmenMon.Hardware.Platform {
             byte cpuTemp = Platform.GetCpuTemperature(true);
             byte gpuTemp = Platform.GetGpuTemperature(false);
 
-            // If GPU sensor unavailable (returns 0) and the platform has no physical
-            // GPU sensor, fall back to CPU temp so the GPU fan doesn't idle when the
-            // sensor is missing.
-            if(gpuTemp == 0 && !this.Platform.HasGpuTemperatureSensor()) gpuTemp = cpuTemp;
+            // GPU-temperature fallback for boards without a real GPU temp sensor.
+            // The two cases we need to distinguish when gpuTemp == 0:
+            //   (a) discrete GPU exists but is currently powered off (issue #66) —
+            //       want the GPU fan to stay at the idle row of the curve, NOT
+            //       ramp up under CPU load.
+            //   (b) board has no usable GPU temp sensor at all (issue #62) — want
+            //       the GPU fan to track CPU temp so it never sits idle while
+            //       the system actually needs cooling.
+            // Platform.HasObservedGpuTemperature() returns true once GPTM has
+            // produced a single non-zero reading since startup, which is the
+            // honest discriminator: a real sensor latches the flag true on its
+            // first valid sample, after which subsequent zero readings are
+            // unambiguously the GPU-powered-off case (a) and the fallback stays
+            // skipped. Without the flag ever latching, case (b) holds and the
+            // fallback fires. This is the corrected version of the v1.4.2 check
+            // — the original `HasGpuTemperatureSensor()` matched against the
+            // configured sensor list, which the default OmenMon.xml always
+            // populated with "GPTM" regardless of hardware (Copilot review #1
+            // on the v1.4.2 PR).
+            if(gpuTemp == 0 && !this.Platform.HasObservedGpuTemperature()) gpuTemp = cpuTemp;
 
             // Independent level lookups: each fan reacts to its own
             // component's temperature instead of the global maximum.
