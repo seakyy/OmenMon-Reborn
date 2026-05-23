@@ -666,6 +666,36 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8A42: OMEN by HP Gaming Laptop 16z-n000 (2022, Intel + Optimus) — issue #68 reported by @GGoose. -->
+            <!-- Confirmed via the user's -Diag report:                                                            -->
+            <!--   * AutoDetector matched "2022 layout" (CPUT at 0x57 reads a plausible CPU temp 0x2A-0x35 /       -->
+            <!--     42-53 °C AND the 16-bit LE tach at 0xB0/0xB2 returns valid RPM).                              -->
+            <!--   * BIOS GetFanCount=2 (CPU + GPU), GetGpuMode=Optimus, GetFanType: Fan1=Cpu / Fan2=Gpu.          -->
+            <!--   * GPTM at 0xB7 shows 0x00 most of the time but 0x27 (39 °C) on occasional ticks, confirming a   -->
+            <!--     real discrete GPU temp sensor that Optimus parks at 0 when the dGPU is powered down. The      -->
+            <!--     HasObservedGpuTemperature sticky-flag fix (Copilot #1 in this release) handles that path.     -->
+            <!-- Inferred (not stress-validated): the remainder of the 2022 template — FanLevel 0x34/0x35,         -->
+            <!-- FanRateWrite 0x2C/0x2D, CountdownReg 0x63, ManualReg 0x62, ModeReg 0x95, SwitchReg 0xF4.          -->
+            <!-- Caveat: sibling 2022 Omen 16 entries (8A4C, 8A4D) use the newer 0x3A/0x3B rate-write pair         -->
+            <!-- instead of 0x2C/0x2D — these registers were not directly probed by the AutoDetector. If a user    -->
+            <!-- on 8A42 reports that the fan-rate control writes do not move the fans (issue: setting a custom    -->
+            <!-- rate has no audible/RPM effect), switch FanRateWriteReg0/1 here to 58/59 to match the 8A4C/8A4D   -->
+            <!-- family layout. The values below mirror what v1.4.1's auto-detection already applied for this      -->
+            <!-- ProductId so the entry is non-regressive — it just trades "Auto-detected" for a named preset.     -->
+            <Model ProductId="8A42" DisplayName="OMEN by HP Gaming Laptop 16z-n000 (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>
