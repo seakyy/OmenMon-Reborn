@@ -57,6 +57,14 @@ namespace OmenMon.Library {
         // First-tick guard. The very first tick has no prior reading to compare
         // against; we record the baseline and bail without firing the detector.
         private static bool initialized = false;
+
+        // First UTC tick at which PowerLineStatus was observed Offline while a
+        // glitch hold was being maintained. The AC-offline release path waits
+        // for this to exceed Config.AcFlickerHoldMs before tearing down the
+        // wake-lock, so a coinciding AC-flicker (issue #70) does not silently
+        // defeat the percent-glitch guard (issue #59) the moment they overlap.
+        // MinValue means we have not yet seen a sustained AC-offline event.
+        private static DateTime acOfflineSinceUtc = DateTime.MinValue;
 #endregion
 
 #region Public API
@@ -69,6 +77,7 @@ namespace OmenMon.Library {
             guardUntil   = DateTime.MinValue;
             priorPercent = -1;
             initialized  = false;
+            acOfflineSinceUtc = DateTime.MinValue;
         }
 
         // Called from GuiTray's 1-second timer. Cheap — three field reads
@@ -128,18 +137,55 @@ namespace OmenMon.Library {
             bool isGlitch = false;
 
             // Hard invariant: the guard is AC-only. If AC is unplugged at any point —
-            // including mid-glitch — release the held wake-lock immediately so a
-            // genuine critical-battery transition can hibernate. Checked before any
-            // glitch-detection logic so a sustained-glitch state can't outlive AC.
-            // Overridden if Config.BatteryGlitchGuardOnBattery is true.
-            if(!Config.BatteryGlitchGuardOnBattery && power.PowerLineStatus != PowerLineStatus.Online) {
-                if(priorPercent != -1 || IsGuardActive()) {
-                    ReleaseGuardIfHeld();
-                    priorPercent = -1;
+            // including mid-glitch — release the held wake-lock so a genuine critical-
+            // battery transition can hibernate. Overridden if Config.BatteryGlitchGuardOnBattery
+            // is true. Pre-v1.4.2 this ran the moment PowerLineStatus flipped to Offline,
+            // which silently defeated the percent-glitch guard whenever an AC-flicker
+            // coincided with a percent torn-read (the same SKUs that hit one symptom
+            // hit the other — issues #59 / #70). Now we compute an "effectively on AC"
+            // signal that overrides PowerLineStatus during the AC-flicker hold window
+            // and on multi-source disagreement, so a brief flicker no longer tears
+            // down the wake-lock and the glitch state machine keeps running normally.
+            bool effectivelyOnAc = power.PowerLineStatus == PowerLineStatus.Online;
+            if(!effectivelyOnAc && !Config.BatteryGlitchGuardOnBattery) {
+
+                // First Offline reading after a stretch of Online — start the timer.
+                if(acOfflineSinceUtc == DateTime.MinValue)
+                    acOfflineSinceUtc = now;
+
+                // While the AC-flicker guard is enabled and within its hold window,
+                // suspend the AC-only invariant. Multi-source IsFullPowerConfirmed
+                // gives the firmware (smart adapter) and the charging-flag a chance
+                // to override a misbehaving PowerLineStatus.
+                bool flickerHoldActive = Config.AcFlickerGuard
+                    && Config.AcFlickerHoldMs > 0
+                    && (now - acOfflineSinceUtc).TotalMilliseconds < Config.AcFlickerHoldMs;
+                bool stillOnAcByOtherSources = false;
+                if(tray != null && tray.Op != null && tray.Op.Platform != null) {
+                    try { stillOnAcByOtherSources = tray.Op.Platform.System.IsFullPowerConfirmed(); }
+                    catch { }
                 }
-                lastPercent  = percent;
-                lastTickTime = now;
-                return;
+
+                if(flickerHoldActive || stillOnAcByOtherSources) {
+                    // Treat as if still on AC — fall through to glitch detection so a
+                    // percent torn-read coinciding with the flicker is still caught.
+                    effectivelyOnAc = true;
+                } else {
+                    // Sustained AC-offline (or guard disabled) — release and bail.
+                    if(priorPercent != -1 || IsGuardActive()) {
+                        ReleaseGuardIfHeld();
+                        priorPercent = -1;
+                    }
+                    lastPercent  = percent;
+                    lastTickTime = now;
+                    return;
+                }
+            } else if(power.PowerLineStatus == PowerLineStatus.Online) {
+                // AC reported back — clear the AC-offline timer so the next dip starts
+                // fresh. (Note: when BatteryGlitchGuardOnBattery is true and we're on
+                // battery, leaving acOfflineSinceUtc as-is is harmless because the
+                // flicker-hold branch above is gated on !BatteryGlitchGuardOnBattery.)
+                acOfflineSinceUtc = DateTime.MinValue;
             }
 
             // Glitch detection state machine.
@@ -168,9 +214,12 @@ namespace OmenMon.Library {
                 }
             } else {
                 // Normal mode: check if a new drop matches glitch criteria.
+                // effectivelyOnAc folds the AC-flicker / multi-source overrides into
+                // the existing "AC-only" gate so a torn percent read during a flicker
+                // is still flagged as a glitch.
                 int drop = lastPercent - percent;
                 isGlitch =
-                    (Config.BatteryGlitchGuardOnBattery || power.PowerLineStatus == PowerLineStatus.Online)
+                    (Config.BatteryGlitchGuardOnBattery || effectivelyOnAc)
                     && lastPercent       >= Config.BatteryGlitchDropPercent
                     && drop              >= Config.BatteryGlitchDropPercent
                     && (now - lastTickTime).TotalMilliseconds <= Config.BatteryGlitchWindowMs;

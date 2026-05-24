@@ -19,9 +19,20 @@
         <!-- AC-flicker debounce: suppress brief AC->battery->AC transitions before
              switching fan programs or toggling the BIOS heartbeat (issue #70).
              AcFlickerGuard=false or AcFlickerHoldMs=0 restores the immediate-switch
-             behaviour from earlier builds. Default hold = 8000 ms. -->
+             behaviour from earlier builds. Default hold = 10000 ms.
+             AcFlickerConfirmSamples / AcFlickerConfirmIntervalMs add a multi-sample
+             check at the end of the hold window: the deferred handler reads the live
+             AC state N times this far apart and only acts if every read agrees,
+             otherwise it re-defers (capped at AcFlickerMaxDeferralMs total).
+             AcFlickerPassivePoll synthesises a deferred change from the timer tick
+             when PowerLineStatus diverges from Op.FullPower without a
+             PowerModeChanged event (Windows occasionally drops these). -->
         <AcFlickerGuard>true</AcFlickerGuard>
-        <AcFlickerHoldMs>8000</AcFlickerHoldMs>
+        <AcFlickerHoldMs>10000</AcFlickerHoldMs>
+        <AcFlickerConfirmSamples>3</AcFlickerConfirmSamples>
+        <AcFlickerConfirmIntervalMs>250</AcFlickerConfirmIntervalMs>
+        <AcFlickerMaxDeferralMs>60000</AcFlickerMaxDeferralMs>
+        <AcFlickerPassivePoll>true</AcFlickerPassivePoll>
         <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
         <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
         <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->

@@ -194,6 +194,29 @@ namespace OmenMon.Library {
                     if(GetWord(xml, XmlPrefix + "AcFlickerHoldMs", out value) && value <= 60000)
                         AcFlickerHoldMs = value;
 
+                    // Confirmation-sample count at the end of the debounce. Lower bound 1
+                    // disables multi-sampling (single read, old behaviour); upper bound 20
+                    // keeps the total worst-case latency at ConfirmIntervalMs * 20 = 5 s
+                    // beyond AcFlickerHoldMs, still well below AcFlickerMaxDeferralMs.
+                    if(GetWord(xml, XmlPrefix + "AcFlickerConfirmSamples", out value) && value >= 1 && value <= 20)
+                        AcFlickerConfirmSamples = value;
+
+                    // Per-sample interval inside the confirmation window. Lower bound 10 ms
+                    // matches the practical limit of SystemInformation.PowerStatus caching;
+                    // upper bound 2000 ms keeps the worst-case confirmation latency bounded.
+                    if(GetWord(xml, XmlPrefix + "AcFlickerConfirmIntervalMs", out value) && value >= 10 && value <= 2000)
+                        AcFlickerConfirmIntervalMs = value;
+
+                    // Safety ceiling on cascaded re-deferrals when confirmation keeps
+                    // failing. Lower bound = AcFlickerHoldMs (one full cycle); upper bound
+                    // 5 minutes — beyond that a flapper is the new normal and the user
+                    // wants the fan-program switch to win.
+                    if(GetWord(xml, XmlPrefix + "AcFlickerMaxDeferralMs", out value) && value >= 1 && value <= 60000)
+                        AcFlickerMaxDeferralMs = value;
+
+                    if(GetBool(xml, XmlPrefix + "AcFlickerPassivePoll", out flag))
+                        AcFlickerPassivePoll = flag;
+
                     if(GetBool(xml, XmlPrefix + "ThermalPanicEnabled", out flag))
                         ThermalPanicEnabled = flag;
 
@@ -617,6 +640,10 @@ namespace OmenMon.Library {
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", BatteryGlitchGuardHoldAlways);
                     SetBool(xml, XmlPrefix + "AcFlickerGuard", AcFlickerGuard);
                     SetUInt(xml, XmlPrefix + "AcFlickerHoldMs", (uint) AcFlickerHoldMs);
+                    SetUInt(xml, XmlPrefix + "AcFlickerConfirmSamples", (uint) AcFlickerConfirmSamples);
+                    SetUInt(xml, XmlPrefix + "AcFlickerConfirmIntervalMs", (uint) AcFlickerConfirmIntervalMs);
+                    SetUInt(xml, XmlPrefix + "AcFlickerMaxDeferralMs", (uint) AcFlickerMaxDeferralMs);
+                    SetBool(xml, XmlPrefix + "AcFlickerPassivePoll", AcFlickerPassivePoll);
                     SetBool(xml, XmlPrefix + "ThermalPanicEnabled", ThermalPanicEnabled);
                     SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
                     SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);

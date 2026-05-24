@@ -3,6 +3,7 @@
      //  https://omenmon.github.io/
 
 using System;
+using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using OmenMon.Hardware.Bios;
@@ -55,6 +56,22 @@ namespace OmenMon.AppGui {
         // the meantime, Op.PowerChange() naturally no-ops because IsFullPower()
         // matches Op.FullPower again. MinValue means no event is pending.
         private DateTime PendingPowerChangeAt = DateTime.MinValue;
+
+        // Origin timestamp of the *first* deferral in a cascade (multi-sample
+        // confirmation may re-queue several times). Capped against
+        // Config.AcFlickerMaxDeferralMs so a pathological flapper still reaches
+        // a decision in bounded time. MinValue means no cascade is active.
+        private DateTime PendingPowerChangeOriginAt = DateTime.MinValue;
+
+        // Last PowerLineStatus.Online observed by the passive poll. Used to
+        // make the poll edge-triggered (queue only on transitions) so a
+        // sustained "Windows says Offline / BIOS says AC" pathology — where
+        // Op.FullPower remains true via the multi-source check but IsFullPower
+        // remains false — does not create a never-ending queue/confirm/no-op
+        // cycle. Defaults to true (the post-AutoConfig assumption) and is
+        // re-baselined every tick the poll runs.
+        private bool LastPassivePollOnline = true;
+        private bool LastPassivePollInitialized = false;
 
         // Stores the number of ticks elapsed since
         // the last update of a particular category
@@ -118,9 +135,12 @@ namespace OmenMon.AppGui {
                 this.HeartbeatTimer = new System.Windows.Forms.Timer(Components);
                 this.HeartbeatTimer.Interval = Config.BiosHeartbeatInterval;
                 this.HeartbeatTimer.Tick += EventHeartbeatTick;
-                // Pause immediately if starting on battery (prevents hibernate on battery)
+                // Pause immediately if starting on battery (prevents hibernate on battery).
+                // Multi-source check so a boot landing mid-flicker (issue #70) doesn't
+                // start the heartbeat off and then never re-enable it because no
+                // PowerModeChanged ever fires for the recovery.
                 this.HeartbeatTimer.Enabled = !Config.BiosHeartbeatPauseOnBattery
-                    || this.Op.Platform.System.IsFullPower();
+                    || this.Op.Platform.System.IsFullPowerConfirmed();
             }
 
             // Show the main form if requested by the environment variable
@@ -222,12 +242,45 @@ namespace OmenMon.AppGui {
             // then, Op.PowerChange() naturally no-ops. The heartbeat enable/disable
             // is part of the same deferred handler so a flicker doesn't churn it.
             if(Config.AcFlickerGuard && Config.AcFlickerHoldMs > 0) {
-                this.PendingPowerChangeAt = DateTime.UtcNow;
+                QueueDeferredPowerChange();
                 return;
             }
 
             ApplyPowerStatusChange();
 
+        }
+
+        // Records (or refreshes) a deferred power-change request. Distinguishes the
+        // origin timestamp (used to cap the cascade against
+        // Config.AcFlickerMaxDeferralMs) from the per-attempt timestamp (used by
+        // EventTimerTick to know when the current hold window elapses).
+        private void QueueDeferredPowerChange() {
+            DateTime now = DateTime.UtcNow;
+            this.PendingPowerChangeAt = now;
+            if(this.PendingPowerChangeOriginAt == DateTime.MinValue)
+                this.PendingPowerChangeOriginAt = now;
+        }
+
+        // Multi-sample confirmation gate. Reads IsFullPowerConfirmed N times with
+        // Config.AcFlickerConfirmIntervalMs between reads; returns true when every
+        // sample reports the same AC state. A single dissenter aborts and the
+        // caller re-defers — which is correct because an in-progress flicker
+        // (Online → Offline → Online or vice versa) inherently disagrees across
+        // sequential samples, and acting on it would reproduce the original bug.
+        // Single-sample mode (AcFlickerConfirmSamples == 1) skips the inter-sample
+        // delays entirely and returns the one read.
+        private bool ConfirmAcStateStable(out bool confirmedFullPower) {
+            int samples = Math.Max(1, Config.AcFlickerConfirmSamples);
+            int gapMs   = Math.Max(0, Config.AcFlickerConfirmIntervalMs);
+
+            confirmedFullPower = this.Op.Platform.System.IsFullPowerConfirmed();
+            for(int i = 1; i < samples; i++) {
+                if(gapMs > 0)
+                    Thread.Sleep(gapMs);
+                if(this.Op.Platform.System.IsFullPowerConfirmed() != confirmedFullPower)
+                    return false;
+            }
+            return true;
         }
 
         // Runs the debounced (or immediate, when AcFlickerGuard is off) reaction
@@ -238,9 +291,15 @@ namespace OmenMon.AppGui {
             this.Op.PowerChange();
 
             // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
-            // unexpected hibernate; re-enable it when AC power is restored
+            // unexpected hibernate; re-enable it when AC power is restored.
+            // IsFullPowerConfirmed is used here so an in-progress flicker that
+            // makes it past the confirmation gate (or has the guard disabled)
+            // still gets the firmware/charging cross-check before toggling the
+            // heartbeat — keeping the heartbeat alive saves users who do see a
+            // false AC-offline reading without a corresponding fan-program switch
+            // (e.g. AutoConfig is off, no fan program active).
             if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
-                this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPower();
+                this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPowerConfirmed();
 
         }
 
@@ -250,16 +309,47 @@ namespace OmenMon.AppGui {
             // Perform the updates as scheduled
             Update();
 
+            // Passive AC-state poll (issue #70). SystemEvents.PowerModeChanged is the
+            // primary trigger for the debounce, but Windows occasionally drops or
+            // coalesces these events — particularly when several fire in quick
+            // succession during a flicker — and on those misses OmenMon's view of
+            // Op.FullPower can stick to the pre-event value forever. Re-synthesise
+            // a deferred change here on edges (Online ↔ Offline transitions of the
+            // live PowerLineStatus), provided nothing is already pending. Edge-
+            // triggered rather than level-triggered so a sustained "Windows says
+            // Offline / BIOS says AC" pathology — where Op.FullPower remains true
+            // via the multi-source check while IsFullPower remains false — does
+            // not create a never-ending queue/confirm/no-op cycle. The debounce
+            // path then confirms or discards it like any other event. One
+            // PowerStatus read per tick, no EC / WMI traffic.
+            if(Config.AcFlickerGuard
+                && Config.AcFlickerHoldMs > 0
+                && Config.AcFlickerPassivePoll
+                && this.PendingPowerChangeAt == DateTime.MinValue) {
+                try {
+                    bool nowOnline = this.Op.Platform.System.IsFullPower();
+                    if(!this.LastPassivePollInitialized) {
+                        this.LastPassivePollOnline = nowOnline;
+                        this.LastPassivePollInitialized = true;
+                    } else if(nowOnline != this.LastPassivePollOnline) {
+                        this.LastPassivePollOnline = nowOnline;
+                        // Only queue if the OS-level state diverges from our cached
+                        // Op.FullPower view too — an edge that already matches
+                        // Op.FullPower is by definition not a missed event.
+                        if(nowOnline != this.Op.FullPower)
+                            QueueDeferredPowerChange();
+                    }
+                } catch { }
+            }
+
             // AC-flicker debounce (issue #70). If a PowerModeChanged StatusChange
-            // event was deferred earlier, run the actual reaction now provided the
-            // hold window has elapsed. Cheap — three field reads when no event is
-            // pending, no EC / WMI traffic.
+            // event (or the passive poll above) deferred a power-state reaction,
+            // process it once the hold window has elapsed.
             if(this.PendingPowerChangeAt != DateTime.MinValue
                 && (DateTime.UtcNow - this.PendingPowerChangeAt).TotalMilliseconds
                     >= Config.AcFlickerHoldMs) {
 
-                this.PendingPowerChangeAt = DateTime.MinValue;
-                ApplyPowerStatusChange();
+                ProcessPendingPowerChange();
 
             }
 
@@ -271,6 +361,36 @@ namespace OmenMon.AppGui {
             // OmenMon.xml for users who would rather see the OS's reading
             // verbatim.
             PowerGuard.Tick(this);
+
+        }
+
+        // Runs the multi-sample confirmation gate at the end of a debounce hold and
+        // either applies the change, re-defers, or force-applies once the cascade
+        // ceiling (Config.AcFlickerMaxDeferralMs) is hit. Pulled out of the tick
+        // handler so the control flow stays readable.
+        private void ProcessPendingPowerChange() {
+
+            DateTime now = DateTime.UtcNow;
+            bool cascadeExpired = this.PendingPowerChangeOriginAt != DateTime.MinValue
+                && (now - this.PendingPowerChangeOriginAt).TotalMilliseconds
+                    >= Config.AcFlickerMaxDeferralMs;
+
+            // Bypass the confirmation gate if the cascade has already exceeded its
+            // safety ceiling — a pathological flapper would otherwise re-defer
+            // indefinitely, indefinitely starving the fan-program / heartbeat
+            // update the user actually wants to land.
+            if(!cascadeExpired && !ConfirmAcStateStable(out _)) {
+                QueueDeferredPowerChange();
+                return;
+            }
+
+            // Confirmed (or cascade ceiling reached) — clear the pending markers
+            // before applying so EventPowerChange callbacks raised by the apply
+            // itself (or by an OS state change racing the apply) start a fresh
+            // cascade rather than extending this one.
+            this.PendingPowerChangeAt = DateTime.MinValue;
+            this.PendingPowerChangeOriginAt = DateTime.MinValue;
+            ApplyPowerStatusChange();
 
         }
 

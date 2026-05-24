@@ -189,13 +189,71 @@ program active, it switched from `FanProgramDefault` (Power) to
 Power), producing visible CPU/power-throttling stutter mid-game. When AC
 came back ~2 s later it switched back.
 
-The AC-flicker guard defers the reaction. On a `PowerModeChanged`
-StatusChange event, OmenMon records the timestamp and waits
-`AcFlickerHoldMs` (default **8 s**) before running the actual fan-program
-switch and BIOS-heartbeat toggle. If the line status has reverted by
-then — i.e. `IsFullPower()` matches the value before the event — nothing
-happens. Legitimate unplug-stay-unplugged actions still take effect,
-just delayed by the hold window.
+The AC-flicker guard is a five-layer defence layered on top of the
+percent-based guard above. The two interact: the AC-flicker hold window
+also gates the percent-guard's "release wake-lock on AC offline" branch,
+so a coinciding torn percent-read during a flicker is no longer
+silently dropped on the floor.
+
+### Layer 1 — debounce
+
+On a `PowerModeChanged` `StatusChange` event, OmenMon records the
+timestamp and waits `AcFlickerHoldMs` (default **10 s**) before doing
+anything. If the line status has reverted by then nothing happens. The
+default was bumped from the first-pass 8 s after several field reports
+described ~10 s flickers; tune down on hardware whose real-unplug
+transitions feel laggy.
+
+### Layer 2 — multi-sample confirmation
+
+When the hold window elapses the deferred handler reads
+`IsFullPowerConfirmed` (see Layer 3) `AcFlickerConfirmSamples` times
+with `AcFlickerConfirmIntervalMs` between reads. **Every** sample must
+agree before the change applies. A dissenter re-queues the deferral; the
+cascade is capped by `AcFlickerMaxDeferralMs` so a pathological flapper
+still reaches a decision in bounded time.
+
+### Layer 3 — multi-source AC check (`IsFullPowerConfirmed`)
+
+The check used by Layer 2, the passive poll (Layer 4), the
+heartbeat-resume path, `Op.PowerChange`, `AutoConfig`, and the
+`PowerGuard` AC-offline release branch. Cross-references three
+independent signals and returns true if **any** confirms AC:
+
+1. Windows `PowerLineStatus`.
+2. `BatteryChargeStatus.Charging` — actively charging implies AC,
+   regardless of what `PowerLineStatus` says. Note: laptops at 100 %
+   stop charging, so this flag turns false on AC too; it only rescues
+   the "AC connected, battery still below 100 %" case.
+3. HP firmware smart-adapter query (BIOS Cmd Legacy `0x0F`). Reports
+   `MeetsRequirement` / `BelowRequirement` when the EC sees adapter
+   voltage and `BatteryPower` when it does not. The firmware view is
+   independent of the ACPI battery-driver path that produces
+   `PowerLineStatus`, so it can disagree during a flicker.
+
+The BIOS call is gated to fire only when both Windows signals report
+battery — keeping the common-case cost identical to `IsFullPower`.
+
+### Layer 4 — passive poll
+
+`SystemEvents.PowerModeChanged` is normally the only trigger for the
+debounce. Windows occasionally drops or coalesces these events when
+several fire in rapid succession (precisely the flicker scenario), so
+the GUI timer tick now also samples `PowerLineStatus` and synthesises a
+deferred change when the live state diverges from `Op.FullPower` without
+something already in flight. One `PowerStatus` read per tick, no
+EC / WMI traffic.
+
+### Layer 5 — `PowerGuard` AC-offline release debounce
+
+The percent-glitch guard's AC-only invariant — "release the held
+wake-lock the instant `PowerLineStatus` reports `Offline`" — used to
+silently defeat the guard whenever an AC flicker coincided with a
+percent torn-read (the same SKUs that hit one symptom hit the other).
+The release is now gated on `AcFlickerHoldMs` of *sustained* `Offline`
+plus an `IsFullPowerConfirmed` cross-check. Inside that window the
+percent-glitch state machine keeps running normally and a torn percent
+read coinciding with the flicker is still detected and suppressed.
 
 ## Defaults
 
@@ -203,24 +261,35 @@ just delayed by the hold window.
 <!-- OmenMon.xml -->
 <Config>
   <AcFlickerGuard>true</AcFlickerGuard>
-  <AcFlickerHoldMs>8000</AcFlickerHoldMs>
+  <AcFlickerHoldMs>10000</AcFlickerHoldMs>
+  <AcFlickerConfirmSamples>3</AcFlickerConfirmSamples>
+  <AcFlickerConfirmIntervalMs>250</AcFlickerConfirmIntervalMs>
+  <AcFlickerMaxDeferralMs>60000</AcFlickerMaxDeferralMs>
+  <AcFlickerPassivePoll>true</AcFlickerPassivePoll>
 </Config>
 ```
 
 | Key | Default | Meaning |
 |-----|--------:|---------|
 | `AcFlickerGuard` | `true` | Master switch. `false` reverts to the immediate-switch behaviour from earlier builds. |
-| `AcFlickerHoldMs` | `8000` | Milliseconds the new line-status must hold before OmenMon applies the corresponding fan-program / heartbeat change. Range `0..60000`. `0` is equivalent to `AcFlickerGuard=false`. |
+| `AcFlickerHoldMs` | `10000` | Milliseconds the new line-status must hold before OmenMon applies the corresponding fan-program / heartbeat change. Range `0..60000`. `0` is equivalent to `AcFlickerGuard=false`. Also gates the `PowerGuard` AC-offline release (Layer 5). |
+| `AcFlickerConfirmSamples` | `3` | Confirmation samples taken at end of hold window. Each sample must agree with the others before the change applies. Range `1..20`. `1` disables multi-sample (single read at end of hold). |
+| `AcFlickerConfirmIntervalMs` | `250` | Milliseconds between confirmation samples. Range `10..2000`. |
+| `AcFlickerMaxDeferralMs` | `60000` | Safety ceiling on cascaded re-deferrals when multi-sample confirmation keeps disagreeing — once exceeded the change applies regardless. Range `1..60000`. |
+| `AcFlickerPassivePoll` | `true` | Synthesise a deferred change from the GUI timer tick when `PowerLineStatus` diverges from `Op.FullPower` without a `PowerModeChanged` event in flight (Layer 4). |
 
 ## Tuning
 
 - **Your real unplug-to-Silent transition feels too laggy**: lower
-  `AcFlickerHoldMs` to e.g. `4000`. Anything shorter risks catching the
-  tail of a 2–5 s flicker.
-- **You still see mid-game stutters at the default hold**: raise to
-  `12000` and re-test. If the stutter persists, capture `-Diag` during
-  one — the EC trace will show whether a fan-program switch actually
-  fired or whether something else is throttling.
+  `AcFlickerHoldMs` to e.g. `5000`. Anything shorter risks catching the
+  tail of a 2–10 s flicker.
+- **You still see mid-game stutters at the default hold**: raise
+  `AcFlickerHoldMs` to `15000`–`20000` and re-test. If the stutter
+  persists, capture `-Diag` during one — the EC trace will show whether
+  a fan-program switch actually fired or whether something else is
+  throttling.
+- **You want the v1.4.1-style single-sample debounce back**: set
+  `AcFlickerConfirmSamples=1`.
 - **You want immediate behaviour back**: set `AcFlickerGuard=false`.
 
 ## What this guard does **not** do
@@ -228,24 +297,30 @@ just delayed by the hold window.
 - It does not stop the OS-level flicker — that's a firmware / power-stack
   issue between the EC, the ACPI battery driver, and Windows. OmenMon
   only changes how OmenMon reacts to it.
-- It does not interact with the percent-based guard above. The two run
-  side by side: the AC-flicker guard handles `PowerLineStatus`
-  transitions, the battery-glitch guard handles `BatteryLifePercent`
-  drops.
+- It does not target a separate symptom from the percent-based guard.
+  As of v1.4.2 the two are explicitly coupled (Layer 5 above): the
+  AC-flicker hold window gates the percent-guard's AC-offline release,
+  so a coinciding `PowerLineStatus` flicker + `BatteryLifePercent` torn
+  read no longer drops the wake-lock between detection and assertion.
 
 ## Related
 
 - [#70](https://github.com/seakyy/OmenMon-Reborn/issues/70) — Original
-  report on a Victus 16 SKU during gaming.
+  report on a Victus 16 SKU during gaming (@MartinSalg818).
 - [#59](https://github.com/seakyy/OmenMon-Reborn/issues/59) — Original
-  report of the percent-based battery glitch on `8C30`.
+  report of the percent-based battery glitch on `8C30`. @NotDarkn's
+  follow-up comment on #70 ties the two symptoms to the same firmware
+  cluster.
 - [#49](https://github.com/seakyy/OmenMon-Reborn/issues/49) — Related
   EC-contention symptom (fan spikes from torn temperature reads).
   Neither guard addresses this; see the issue thread for environmental
   mitigations.
-- [`App/Gui/GuiTray.cs`](../App/Gui/GuiTray.cs) — `EventPowerChange` and
-  `EventTimerTick` host the AC-flicker debounce.
+- [`App/Gui/GuiTray.cs`](../App/Gui/GuiTray.cs) — `EventPowerChange`,
+  `EventTimerTick`, `ProcessPendingPowerChange`, `ConfirmAcStateStable`
+  host the AC-flicker debounce + multi-sample + passive poll.
+- [`Hardware/Settings.cs`](../Hardware/Settings.cs) —
+  `IsFullPowerConfirmed` implements the multi-source check (Layer 3).
 - [`Library/PowerGuard.cs`](../Library/PowerGuard.cs) — Percent-based
-  guard implementation.
+  guard implementation and Layer-5 AC-offline release debounce.
 - [`Library/ConfigData.cs`](../Library/ConfigData.cs) — `AcFlicker*`
   and `BatteryGlitch*` defaults.

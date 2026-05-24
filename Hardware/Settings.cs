@@ -15,6 +15,7 @@ namespace OmenMon.Hardware.Platform {
 
         // API queries
         public bool IsFullPower();
+        public bool IsFullPowerConfirmed();
 
         // BIOS raw data
         public Nullable<BiosData.GpuMode> GpuMode { get; }
@@ -113,6 +114,48 @@ namespace OmenMon.Hardware.Platform {
         // (AC power check now, can extend to smart AC adapter status)
         public bool IsFullPower() {
             return SystemInformation.PowerStatus.PowerLineStatus == PowerLineStatus.Online;
+        }
+
+        // Stronger AC-presence check used by the AC-flicker debounce and the
+        // battery-glitch guard's release path (issues #59 / #70). Cross-checks
+        // three independent sources so a single misbehaving signal cannot mask
+        // a real flicker:
+        //
+        //   1. Windows PowerLineStatus (the only signal IsFullPower consults).
+        //   2. BatteryChargeStatus.Charging — if Windows reports the battery
+        //      as actively charging, AC must be connected regardless of what
+        //      PowerLineStatus says. Note: laptops that have settled at 100 %
+        //      stop charging, so this flag turns false even on AC; it only
+        //      rescues the "AC connected, battery still below 100 %" case.
+        //   3. HP firmware smart-adapter query (BIOS Cmd Legacy 0x0F). Reports
+        //      MeetsRequirement / BelowRequirement when the EC sees adapter
+        //      voltage and BatteryPower when it does not. The firmware view
+        //      is independent of the ACPI battery-driver path that produces
+        //      PowerLineStatus, so it diverges from Windows during the
+        //      flicker reported in #70.
+        //
+        // Returns true as soon as any source confirms AC. The BIOS call is
+        // only made when both Windows signals report battery — keeping the
+        // common-case cost identical to IsFullPower().
+        public bool IsFullPowerConfirmed() {
+            PowerStatus power;
+            try { power = SystemInformation.PowerStatus; }
+            catch { return false; }
+
+            if(power.PowerLineStatus == PowerLineStatus.Online)
+                return true;
+
+            if((power.BatteryChargeStatus & BatteryChargeStatus.Charging) != 0)
+                return true;
+
+            try {
+                BiosData.AdapterStatus s = GetAdapterStatus();
+                if(s == BiosData.AdapterStatus.MeetsRequirement
+                    || s == BiosData.AdapterStatus.BelowRequirement)
+                    return true;
+            } catch { }
+
+            return false;
         }
 
         // Retrieves the smart AC adapter status
