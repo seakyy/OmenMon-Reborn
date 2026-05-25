@@ -201,9 +201,13 @@ namespace OmenMon.Library {
                     if(GetWord(xml, XmlPrefix + "AcFlickerConfirmSamples", out value) && value >= 1 && value <= 20)
                         AcFlickerConfirmSamples = value;
 
-                    // Per-sample interval inside the confirmation window. Lower bound 10 ms
-                    // matches the practical limit of SystemInformation.PowerStatus caching;
-                    // upper bound 2000 ms keeps the worst-case confirmation latency bounded.
+                    // Per-sample interval inside the confirmation window. NOTE:
+                    // confirmation samples are taken on the GUI timer tick
+                    // (GuiTimerInterval, 1 s), so this acts as a lower bound quantized
+                    // up to that cadence — values below ~1 s yield one sample per tick.
+                    // Lower bound 10 ms matches the practical limit of
+                    // SystemInformation.PowerStatus caching; upper bound 2000 ms keeps
+                    // the worst-case confirmation latency bounded.
                     if(GetWord(xml, XmlPrefix + "AcFlickerConfirmIntervalMs", out value) && value >= 10 && value <= 2000)
                         AcFlickerConfirmIntervalMs = value;
 

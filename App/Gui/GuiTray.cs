@@ -418,6 +418,15 @@ namespace OmenMon.AppGui {
             }
 
             int samples = Math.Max(1, Config.AcFlickerConfirmSamples);
+            // Samples are taken at most once per timer tick (Config.GuiTimerInterval,
+            // 1 s), so AcFlickerConfirmIntervalMs acts as a lower bound that is
+            // quantized up to the tick cadence: a value below one tick simply yields
+            // one sample per tick; larger values correctly wait the right number of
+            // ticks via the >= comparison below. We intentionally do NOT clamp the
+            // threshold up to the tick interval — that would add jitter (occasionally
+            // skipping a sample) when a tick lands a few ms early. The 1 s cadence is
+            // ample for catching a multi-second flicker (Copilot re-review #3 on the
+            // v1.4.2 PR).
             int gapMs   = Math.Max(0, Config.AcFlickerConfirmIntervalMs);
 
             if(!this.ConfirmInProgress) {

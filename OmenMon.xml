@@ -22,8 +22,10 @@
              behaviour from earlier builds. Default hold = 10000 ms.
              AcFlickerConfirmSamples / AcFlickerConfirmIntervalMs add a multi-sample
              check at the end of the hold window: the deferred handler reads the live
-             AC state N times this far apart and only acts if every read agrees,
-             otherwise it re-defers (capped at AcFlickerMaxDeferralMs total).
+             AC state N times and only acts if every read agrees, otherwise it
+             re-defers (capped at AcFlickerMaxDeferralMs total). Samples are taken on
+             the GUI timer tick (~1 s), so AcFlickerConfirmIntervalMs is a lower bound
+             quantized up to that cadence — values below ~1 s yield one sample/tick.
              AcFlickerPassivePoll synthesises a deferred change from the timer tick
              when PowerLineStatus diverges from Op.FullPower without a
              PowerModeChanged event (Windows occasionally drops these). -->
@@ -33,6 +35,23 @@
         <AcFlickerConfirmIntervalMs>250</AcFlickerConfirmIntervalMs>
         <AcFlickerMaxDeferralMs>60000</AcFlickerMaxDeferralMs>
         <AcFlickerPassivePoll>true</AcFlickerPassivePoll>
+        <!-- Battery-glitch guard (issue #59): some HP Omen / Victus SKUs report a
+             sudden implausible battery-percentage drop (e.g. 100% -> 2%) while on AC
+             under load, which can trigger Windows' Critical Battery hibernate. When a
+             drop of >= BatteryGlitchDropPercent within BatteryGlitchWindowMs is seen
+             on AC, OmenMon asserts ES_SYSTEM_REQUIRED to suppress hibernate for
+             BatteryGlitchHoldMs. BatteryGlitchGuardOnBattery also runs the guard on
+             battery; BatteryGlitchGuardDisableTimeout removes the 60 s safety release
+             for sustained drops; BatteryGlitchGuardHoldAlways permanently holds the
+             wake-lock while OmenMon runs (independent switch — works even with
+             BatteryGlitchGuard=false). -->
+        <BatteryGlitchGuard>true</BatteryGlitchGuard>
+        <BatteryGlitchDropPercent>30</BatteryGlitchDropPercent>
+        <BatteryGlitchWindowMs>5000</BatteryGlitchWindowMs>
+        <BatteryGlitchHoldMs>30000</BatteryGlitchHoldMs>
+        <BatteryGlitchGuardOnBattery>false</BatteryGlitchGuardOnBattery>
+        <BatteryGlitchGuardDisableTimeout>false</BatteryGlitchGuardDisableTimeout>
+        <BatteryGlitchGuardHoldAlways>false</BatteryGlitchGuardHoldAlways>
         <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
         <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
         <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->
