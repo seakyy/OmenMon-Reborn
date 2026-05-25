@@ -16,6 +16,42 @@
         <BiosErrorReporting>true</BiosErrorReporting>
         <!-- Pause BIOS heartbeat while on battery to prevent forced hibernation (default: true) -->
         <BiosHeartbeatPauseOnBattery>true</BiosHeartbeatPauseOnBattery>
+        <!-- AC-flicker debounce: suppress brief AC->battery->AC transitions before
+             switching fan programs or toggling the BIOS heartbeat (issue #70).
+             AcFlickerGuard=false or AcFlickerHoldMs=0 restores the immediate-switch
+             behaviour from earlier builds. Default hold = 10000 ms.
+             AcFlickerConfirmSamples / AcFlickerConfirmIntervalMs add a multi-sample
+             check at the end of the hold window: the deferred handler reads the live
+             AC state N times and only acts if every read agrees, otherwise it
+             re-defers (capped at AcFlickerMaxDeferralMs total). Samples are taken on
+             the GUI timer tick (~1 s), so AcFlickerConfirmIntervalMs is a lower bound
+             quantized up to that cadence — values below ~1 s yield one sample/tick.
+             AcFlickerPassivePoll synthesises a deferred change from the timer tick
+             when PowerLineStatus diverges from Op.FullPower without a
+             PowerModeChanged event (Windows occasionally drops these). -->
+        <AcFlickerGuard>true</AcFlickerGuard>
+        <AcFlickerHoldMs>10000</AcFlickerHoldMs>
+        <AcFlickerConfirmSamples>3</AcFlickerConfirmSamples>
+        <AcFlickerConfirmIntervalMs>250</AcFlickerConfirmIntervalMs>
+        <AcFlickerMaxDeferralMs>60000</AcFlickerMaxDeferralMs>
+        <AcFlickerPassivePoll>true</AcFlickerPassivePoll>
+        <!-- Battery-glitch guard (issue #59): some HP Omen / Victus SKUs report a
+             sudden implausible battery-percentage drop (e.g. 100% -> 2%) while on AC
+             under load, which can trigger Windows' Critical Battery hibernate. When a
+             drop of >= BatteryGlitchDropPercent within BatteryGlitchWindowMs is seen
+             on AC, OmenMon asserts ES_SYSTEM_REQUIRED to suppress hibernate for
+             BatteryGlitchHoldMs. BatteryGlitchGuardOnBattery also runs the guard on
+             battery; BatteryGlitchGuardDisableTimeout removes the 60 s safety release
+             for sustained drops; BatteryGlitchGuardHoldAlways permanently holds the
+             wake-lock while OmenMon runs (independent switch — works even with
+             BatteryGlitchGuard=false). -->
+        <BatteryGlitchGuard>true</BatteryGlitchGuard>
+        <BatteryGlitchDropPercent>30</BatteryGlitchDropPercent>
+        <BatteryGlitchWindowMs>5000</BatteryGlitchWindowMs>
+        <BatteryGlitchHoldMs>30000</BatteryGlitchHoldMs>
+        <BatteryGlitchGuardOnBattery>false</BatteryGlitchGuardOnBattery>
+        <BatteryGlitchGuardDisableTimeout>false</BatteryGlitchGuardDisableTimeout>
+        <BatteryGlitchGuardHoldAlways>false</BatteryGlitchGuardHoldAlways>
         <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
         <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
         <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->
@@ -620,6 +656,94 @@
                 <FanRateReadReg1>47</FanRateReadReg1>
                 <FanRateWriteReg0>58</FanRateWriteReg0>
                 <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 88F4: HP Victus 16 (2022) — Auto-Calibration report (issue #67).                         -->
+            <!-- CPU speed reg is 0x2E (46 dec) in LittleEndian16, GPU speed reg is 0xB0 (176 dec).        -->
+            <!-- Standard 2022 layout registers otherwise.                                                 -->
+            <Model ProductId="88F4" DisplayName="HP Victus 16 (2022, 88F4)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>46</FanSpeedReg0>
+                <FanSpeedReg1>176</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BB3: HP Victus 16 (2024, AMD) — issue #64.                                               -->
+            <!-- Single-fan SKU. CPU fan register at 0xF1 (DirectMultiplier8 mode), GPU fan not present.   -->
+            <Model ProductId="8BB3" DisplayName="HP Victus 16 (2024, 8BB3)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>241</FanSpeedReg0>
+                <FanSpeedReg1>241</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A42: OMEN by HP Gaming Laptop 16z-n000 (2022, Intel + Optimus) — issue #68 reported by @GGoose. -->
+            <!-- Confirmed via the user's -Diag report:                                                            -->
+            <!--   * AutoDetector matched "2022 layout" (CPUT at 0x57 reads a plausible CPU temp 0x2A-0x35 /       -->
+            <!--     42-53 °C AND the 16-bit LE tach at 0xB0/0xB2 returns valid RPM).                              -->
+            <!--   * BIOS GetFanCount=2 (CPU + GPU), GetGpuMode=Optimus, GetFanType: Fan1=Cpu / Fan2=Gpu.          -->
+            <!--   * GPTM at 0xB7 shows 0x00 most of the time but 0x27 (39 °C) on occasional ticks, confirming a   -->
+            <!--     real discrete GPU temp sensor that Optimus parks at 0 when the dGPU is powered down. The      -->
+            <!--     HasObservedGpuTemperature sticky-flag fix (Copilot #1 in this release) handles that path.     -->
+            <!-- Inferred (not stress-validated): the remainder of the 2022 template — FanLevel 0x34/0x35,         -->
+            <!-- FanRateWrite 0x2C/0x2D, CountdownReg 0x63, ManualReg 0x62, ModeReg 0x95, SwitchReg 0xF4.          -->
+            <!-- Caveat: sibling 2022 Omen 16 entries (8A4C, 8A4D) use the newer 0x3A/0x3B rate-write pair         -->
+            <!-- instead of 0x2C/0x2D — these registers were not directly probed by the AutoDetector. If a user    -->
+            <!-- on 8A42 reports that the fan-rate control writes do not move the fans (issue: setting a custom    -->
+            <!-- rate has no audible/RPM effect), switch FanRateWriteReg0/1 here to 58/59 to match the 8A4C/8A4D   -->
+            <!-- family layout. The values below mirror what v1.4.1's auto-detection already applied for this      -->
+            <!-- ProductId so the entry is non-regressive — it just trades "Auto-detected" for a named preset.     -->
+            <Model ProductId="8A42" DisplayName="OMEN by HP Gaming Laptop 16z-n000 (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A18: HP OMEN 17 ck1000nw (2022 EC layout) — issue #72 reported by @xenon205.                  -->
+            <!-- Confirmed via the user's Auto-Calibration report (0% → 30% → 70% → 100% profile):              -->
+            <!--   * 16-bit LE tach at 0xB0 (CPU) / 0xB2 (GPU): the raw EC dumps decode exactly to the reported  -->
+            <!--     live RPM — CPU 0/1476/3218/3422 and GPU 0/1448/3115/3363 — so FanSpeedReg0/1 = 176/178.     -->
+            <!--   * FanLevel 0x34/0x35 and FanRate 0x2C-0x2F track the fan setting across all four steps, so the -->
+            <!--     full 2022 template applies (identical to the 8A42 entry above).                             -->
+            <!--   * BIOS GetFanCount=2 (CPU + GPU); CPUT plausible at 0x57 (~41-43 °C).                         -->
+            <!-- Inferred from the 2022 template (not stress-validated): ModeReg 0x95, SwitchReg 0xF4,           -->
+            <!-- ManualReg 0x62, CountdownReg 0x63 — mirrors what v1.4.1 auto-detection already applied for this -->
+            <!-- ProductId, so the entry is non-regressive. As with 8A42, if custom rate-writes have no audible  -->
+            <!-- effect, try switching FanRateWriteReg0/1 to 58/59 (the 8A4C/8A4D family layout).                -->
+            <Model ProductId="8A18" DisplayName="HP OMEN 17 ck1000nw (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
                 <FanSpeedReg0>176</FanSpeedReg0>
                 <FanSpeedReg1>178</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>

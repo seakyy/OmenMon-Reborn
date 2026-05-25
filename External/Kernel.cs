@@ -150,6 +150,17 @@ namespace OmenMon.External {
         [DllImport(DllName, CallingConvention = CallingConvention.Winapi, SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern ExecutionState SetThreadExecutionState(ExecutionState esFlags);
+
+        // Resets the calling thread's last-error code. Deliberately declared WITHOUT
+        // SetLastError=true so the CLR does not capture/overwrite the value we just
+        // cleared. PowerGuard calls this immediately before SetThreadExecutionState so
+        // Marshal.GetLastWin32Error() reflects only that call — Win32 APIs are not
+        // guaranteed to clear last-error on success, so a stale non-zero value from an
+        // earlier P/Invoke would otherwise be misread as a failure when the API
+        // legitimately returns ExecutionState.None as its previous state.
+        [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        public static extern void SetLastError(uint dwErrCode);
 #endregion
 
     }

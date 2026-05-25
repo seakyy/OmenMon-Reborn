@@ -41,7 +41,7 @@ namespace OmenMon.Hardware.Platform {
                 // RPM is NOT checked here: some 2023+ models (e.g. 8BAB) have RPM registers
                 // at a different address than 0xB0/0xB1, so rpm1Valid would be false even
                 // when the layout is correct. cput==0xFF + fanLevel range is discriminating enough.
-                if(cput == 0xFF) {
+                if(cput == 0xFF || cput == 0x0F) {
                     byte fanLevel = ec[PlatformPreset.Default2023.FanLevelReg0];
                     if(fanLevel <= 55)
                         return FromTemplate(productId, PlatformPreset.Default2023, "2023+ layout");

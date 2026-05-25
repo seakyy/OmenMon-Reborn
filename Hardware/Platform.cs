@@ -21,6 +21,16 @@ namespace OmenMon.Hardware.Platform {
         public byte LastCpuTemperature { get; private set; }
         public byte LastGpuTemperature { get; private set; }
 
+        // Sticky observed-GPU-temperature flag. Flipped to true the first time
+        // GetGpuTemperature() sees a non-zero GPTM reading; never cleared for
+        // the lifetime of the platform instance. Used by HasObservedGpuTemperature()
+        // to distinguish "this board has a real GPU temp sensor that's currently
+        // reading 0 because the discrete GPU is powered off" (do not fall back to
+        // CPU temp) from "this board has no real GPU temp sensor at all and GPTM
+        // is just the default global config entry reading 0 forever" (fall back).
+        // See Copilot review #1 on PR #62 / issue #66.
+        private bool gpuTempObserved = false;
+
         // System information
         public ISettings System { get; private set; }
 
@@ -245,8 +255,24 @@ namespace OmenMon.Hardware.Platform {
         }
 
         // Obtains the GPU temperature from the GPTM sensor.
-        // Returns 0 if no valid GPU temperature sensor is available;
-        // callers should fall back to the CPU temperature in that case.
+        // Returns 0 if the sensor reports no value this tick.
+        //
+        // CAUTION FOR CALLERS: a return value of 0 is ambiguous and on its own
+        // does NOT mean "no GPU temp sensor on this platform". Two distinct
+        // hardware states both produce 0:
+        //   (a) Discrete GPU is present but currently powered off (Optimus
+        //       parking, low-power suspend, dGPU disabled in BIOS). The
+        //       sensor is real and will read non-zero again once the GPU
+        //       wakes up. Falling back to CPU temp here would cause the GPU
+        //       fan to ramp under CPU load even though the dGPU is idle
+        //       (issue #66).
+        //   (b) Board has no usable GPU temp register at all. The 0 reading
+        //       is permanent and falling back to CPU temp is the right
+        //       behaviour (issue #62).
+        // Use HasObservedGpuTemperature() to discriminate before deciding
+        // whether to substitute a CPU-temp fallback. That helper latches
+        // sticky-true on the first non-zero sample, so case (a) reads as
+        // "sensor present" and case (b) reads as "no sensor".
         public byte GetGpuTemperature(bool forceUpdate = false) {
 
             if(forceUpdate)
@@ -259,9 +285,41 @@ namespace OmenMon.Hardware.Platform {
                 if(name == "GPTM" && val > 0) gpu = val;
             }
 
+            // Sticky-latch the "we have actually seen GPU telemetry" signal.
+            // Once a non-zero GPTM reading has been observed we know this
+            // platform genuinely has a working GPU temp sensor — subsequent
+            // zero readings then mean "GPU is powered off", not "no sensor".
+            if(gpu > 0)
+                this.gpuTempObserved = true;
+
             this.LastGpuTemperature = gpu;
             return this.LastGpuTemperature;
 
+        }
+
+        // Reports whether this platform has demonstrated a usable GPU temperature
+        // sensor at any point since OmenMon started. Returns true once GPTM has
+        // produced at least one non-zero reading via GetGpuTemperature(); returns
+        // false until then.
+        //
+        // The previous implementation (`HasGpuTemperatureSensor`) checked the
+        // configured sensor list for an entry named "GPTM", but the default global
+        // <Temperature> block in OmenMon.xml always contains GPTM, so the check
+        // was effectively true on every platform — including boards without a real
+        // GPU temp register, where it then suppressed the CPU-temp fallback in
+        // FanProgram.Update() and left the GPU fan idling at the 0°C row of the
+        // user's curve. Flipping to a sticky observed-reading flag makes the
+        // signal honest while preserving the issue #66 fix (powered-off GPU now
+        // also reads 0, but the flag stays latched true from earlier samples,
+        // so the fan continues to idle correctly).
+        //
+        // Edge case: if OmenMon starts with the discrete GPU already powered off,
+        // the flag stays false until the GPU produces any non-zero reading later.
+        // During that window FanProgram falls back to CPU temp — same as v1.4.1
+        // behaviour for these boards. Once a real reading lands the flag locks
+        // true permanently and correct per-fan curves resume.
+        public bool HasObservedGpuTemperature() {
+            return this.gpuTempObserved;
         }
 #endregion
 

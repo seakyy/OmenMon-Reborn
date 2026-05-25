@@ -3,6 +3,7 @@
      //  https://omenmon.github.io/
 
 using System;
+using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using OmenMon.Hardware.Bios;
@@ -46,6 +47,56 @@ namespace OmenMon.AppGui {
 
         // Stores the BIOS heartbeat timer
         private System.Windows.Forms.Timer HeartbeatTimer;
+
+        // AC-flicker debounce (issue #70). When a PowerModeChanged StatusChange
+        // event fires and Config.AcFlickerGuard is on, we record the UTC time
+        // here and defer the actual reaction (fan-program switch, heartbeat
+        // enable/disable, main-form refresh) until the next timer tick that
+        // arrives after Config.AcFlickerHoldMs. If the line status reverts in
+        // the meantime, Op.PowerChange() naturally no-ops because IsFullPower()
+        // matches Op.FullPower again. MinValue means no event is pending.
+        private DateTime PendingPowerChangeAt = DateTime.MinValue;
+
+        // Origin timestamp of the *first* deferral in a cascade (multi-sample
+        // confirmation may re-queue several times). Capped against
+        // Config.AcFlickerMaxDeferralMs so a pathological flapper still reaches
+        // a decision in bounded time. MinValue means no cascade is active.
+        private DateTime PendingPowerChangeOriginAt = DateTime.MinValue;
+
+        // Last PowerLineStatus.Online observed by the passive poll. Used to
+        // make the poll edge-triggered (queue only on transitions) so a
+        // sustained "Windows says Offline / BIOS says AC" pathology — where
+        // Op.FullPower remains true via the multi-source check but IsFullPower
+        // remains false — does not create a never-ending queue/confirm/no-op
+        // cycle. Defaults to true (the post-AutoConfig assumption) and is
+        // re-baselined every tick the poll runs.
+        private bool LastPassivePollOnline = true;
+        private bool LastPassivePollInitialized = false;
+
+        // Multi-sample confirmation state (issue #70). The end-of-hold confirmation
+        // takes one IsFullPowerConfirmed sample per EventTimerTick rather than
+        // sleeping between reads, so the WinForms UI thread is never blocked during
+        // a confirmation cycle (Copilot review #2 on the v1.4.2 PR).
+        // ConfirmInProgress=false means no confirmation is running.
+        //
+        // Thread-safety: every field above (PendingPowerChange*, LastPassivePoll*,
+        // and these Confirm* fields) is read and written ONLY from EventTimerTick,
+        // i.e. the WinForms UI thread, so none of them need locking. The one event
+        // that can fire on a non-UI thread — SystemEvents.PowerModeChanged via
+        // EventPowerChange — does not touch them directly; it only raises the
+        // Interlocked signal below, which EventTimerTick drains (Copilot re-review
+        // #2 on the v1.4.2 PR).
+        private bool ConfirmInProgress = false;
+        private bool ConfirmExpectedFullPower = false;
+        private int ConfirmSamplesRemaining = 0;
+        private DateTime ConfirmLastSampleAt = DateTime.MinValue;
+
+        // Thread-safe handoff from EventPowerChange (which is NOT guaranteed to run
+        // on the UI thread) to EventTimerTick (which always does). Set to 1 when a
+        // PowerModeChanged StatusChange arrives; the timer tick atomically swaps it
+        // back to 0 and performs the actual debounce/confirmation bookkeeping, so
+        // all of that state stays single-threaded. Accessed only via Interlocked.
+        private int PendingPowerEventSignal = 0;
 
         // Stores the number of ticks elapsed since
         // the last update of a particular category
@@ -109,9 +160,12 @@ namespace OmenMon.AppGui {
                 this.HeartbeatTimer = new System.Windows.Forms.Timer(Components);
                 this.HeartbeatTimer.Interval = Config.BiosHeartbeatInterval;
                 this.HeartbeatTimer.Tick += EventHeartbeatTick;
-                // Pause immediately if starting on battery (prevents hibernate on battery)
+                // Pause immediately if starting on battery (prevents hibernate on battery).
+                // Multi-source check so a boot landing mid-flicker (issue #70) doesn't
+                // start the heartbeat off and then never re-enable it because no
+                // PowerModeChanged ever fires for the recovery.
                 this.HeartbeatTimer.Enabled = !Config.BiosHeartbeatPauseOnBattery
-                    || this.Op.Platform.System.IsFullPower();
+                    || this.Op.Platform.System.IsFullPowerConfirmed();
             }
 
             // Show the main form if requested by the environment variable
@@ -200,14 +254,65 @@ namespace OmenMon.AppGui {
 
             // Only respond to status change events,
             // which excludes Resume and Suspend
-            if(e.Mode == PowerModes.StatusChange) {
-                this.Op.PowerChange();
+            if(e.Mode != PowerModes.StatusChange)
+                return;
 
-                // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
-                // unexpected hibernate; re-enable it when AC power is restored
-                if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
-                    this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPower();
-            }
+            // SystemEvents.PowerModeChanged is NOT guaranteed to fire on the WinForms
+            // UI thread, so we must not touch the debounce / confirmation state (or
+            // the fan programs / heartbeat timer) from here — doing so would race the
+            // timer tick and risk torn DateTime reads on 32-bit (Copilot re-review #2
+            // on the v1.4.2 PR). Instead raise a thread-safe signal and let
+            // EventTimerTick — always on the UI thread — do all the work: it either
+            // queues the AC-flicker debounce (issue #70) or, when the guard is off,
+            // applies the change immediately on the next tick. The ≤ GuiTimerInterval
+            // pickup latency is negligible against the multi-second hold window.
+            Interlocked.Exchange(ref this.PendingPowerEventSignal, 1);
+
+        }
+
+        // Records (or refreshes) a deferred power-change request. Distinguishes the
+        // origin timestamp (used to cap the cascade against
+        // Config.AcFlickerMaxDeferralMs) from the per-attempt timestamp (used by
+        // EventTimerTick to know when the current hold window elapses).
+        private void QueueDeferredPowerChange() {
+            DateTime now = DateTime.UtcNow;
+            this.PendingPowerChangeAt = now;
+            if(this.PendingPowerChangeOriginAt == DateTime.MinValue)
+                this.PendingPowerChangeOriginAt = now;
+            // A fresh (or refreshed) deferral restarts the hold-then-confirm cycle,
+            // so discard any in-flight multi-sample confirmation. Otherwise a new
+            // PowerModeChanged event arriving mid-confirmation would leave
+            // ConfirmInProgress=true, and the next hold-window expiry would resume
+            // sampling against a stale ConfirmExpectedFullPower captured during the
+            // previous attempt instead of re-sampling fresh (Copilot re-review on
+            // the v1.4.2 PR).
+            ResetConfirmState();
+        }
+
+        // Resets the multi-sample confirmation state machine.
+        private void ResetConfirmState() {
+            this.ConfirmInProgress = false;
+            this.ConfirmSamplesRemaining = 0;
+            this.ConfirmLastSampleAt = DateTime.MinValue;
+        }
+
+        // Runs the debounced (or immediate, when AcFlickerGuard is off) reaction
+        // to a PowerModeChanged StatusChange event. Kept centralised so the same
+        // logic runs whether the deferred path or the immediate path triggered it.
+        private void ApplyPowerStatusChange() {
+
+            this.Op.PowerChange();
+
+            // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
+            // unexpected hibernate; re-enable it when AC power is restored.
+            // IsFullPowerConfirmed is used here so an in-progress flicker that
+            // makes it past the confirmation gate (or has the guard disabled)
+            // still gets the firmware/charging cross-check before toggling the
+            // heartbeat — keeping the heartbeat alive saves users who do see a
+            // false AC-offline reading without a corresponding fan-program switch
+            // (e.g. AutoConfig is off, no fan program active).
+            if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
+                this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPowerConfirmed();
 
         }
 
@@ -216,6 +321,66 @@ namespace OmenMon.AppGui {
 
             // Perform the updates as scheduled
             Update();
+
+            // Drain any PowerModeChanged StatusChange signal raised (possibly
+            // off-thread) by EventPowerChange. Handling it here keeps every
+            // debounce / confirmation field single-threaded. Runs before the passive
+            // poll so a freshly-queued change sets PendingPowerChangeAt and the poll
+            // below then correctly skips (its guard is PendingPowerChangeAt == None).
+            if(Interlocked.Exchange(ref this.PendingPowerEventSignal, 0) == 1) {
+                if(Config.AcFlickerGuard && Config.AcFlickerHoldMs > 0)
+                    // Debounced path (issue #70): defer the reaction until the hold
+                    // window elapses; a flicker that reverts by then naturally no-ops.
+                    QueueDeferredPowerChange();
+                else
+                    // Guard disabled — react immediately (the pre-v1.4.2 behaviour),
+                    // now on the UI thread instead of the event's arbitrary thread.
+                    ApplyPowerStatusChange();
+            }
+
+            // Passive AC-state poll (issue #70). SystemEvents.PowerModeChanged is the
+            // primary trigger for the debounce, but Windows occasionally drops or
+            // coalesces these events — particularly when several fire in quick
+            // succession during a flicker — and on those misses OmenMon's view of
+            // Op.FullPower can stick to the pre-event value forever. Re-synthesise
+            // a deferred change here on edges (Online ↔ Offline transitions of the
+            // live PowerLineStatus), provided nothing is already pending. Edge-
+            // triggered rather than level-triggered so a sustained "Windows says
+            // Offline / BIOS says AC" pathology — where Op.FullPower remains true
+            // via the multi-source check while IsFullPower remains false — does
+            // not create a never-ending queue/confirm/no-op cycle. The debounce
+            // path then confirms or discards it like any other event. One
+            // PowerStatus read per tick, no EC / WMI traffic.
+            if(Config.AcFlickerGuard
+                && Config.AcFlickerHoldMs > 0
+                && Config.AcFlickerPassivePoll
+                && this.PendingPowerChangeAt == DateTime.MinValue) {
+                try {
+                    bool nowOnline = this.Op.Platform.System.IsFullPower();
+                    if(!this.LastPassivePollInitialized) {
+                        this.LastPassivePollOnline = nowOnline;
+                        this.LastPassivePollInitialized = true;
+                    } else if(nowOnline != this.LastPassivePollOnline) {
+                        this.LastPassivePollOnline = nowOnline;
+                        // Only queue if the OS-level state diverges from our cached
+                        // Op.FullPower view too — an edge that already matches
+                        // Op.FullPower is by definition not a missed event.
+                        if(nowOnline != this.Op.FullPower)
+                            QueueDeferredPowerChange();
+                    }
+                } catch { }
+            }
+
+            // AC-flicker debounce (issue #70). If a PowerModeChanged StatusChange
+            // event (or the passive poll above) deferred a power-state reaction,
+            // process it once the hold window has elapsed.
+            if(this.PendingPowerChangeAt != DateTime.MinValue
+                && (DateTime.UtcNow - this.PendingPowerChangeAt).TotalMilliseconds
+                    >= Config.AcFlickerHoldMs) {
+
+                ProcessPendingPowerChange();
+
+            }
 
             // Cheap (no EC traffic, no WMI) — runs every GuiTimerInterval ms.
             // Detects the "battery suddenly drops to <5%" torn-read symptom
@@ -226,6 +391,79 @@ namespace OmenMon.AppGui {
             // verbatim.
             PowerGuard.Tick(this);
 
+        }
+
+        // Runs the multi-sample confirmation at the end of a debounce hold and
+        // either applies the change, re-defers, or force-applies once the cascade
+        // ceiling (Config.AcFlickerMaxDeferralMs) is hit. Confirmation samples are
+        // taken one per timer tick (never via Thread.Sleep) so the WinForms UI
+        // thread is never blocked during a confirmation cycle (Copilot review #2 on
+        // the v1.4.2 PR). Called every tick while a change is pending and the hold
+        // window has elapsed, which is what drives the per-tick sampling. Pulled out
+        // of the tick handler so the control flow stays readable.
+        private void ProcessPendingPowerChange() {
+
+            DateTime now = DateTime.UtcNow;
+            bool cascadeExpired = this.PendingPowerChangeOriginAt != DateTime.MinValue
+                && (now - this.PendingPowerChangeOriginAt).TotalMilliseconds
+                    >= Config.AcFlickerMaxDeferralMs;
+
+            // Bypass the confirmation gate if the cascade has already exceeded its
+            // safety ceiling — a pathological flapper would otherwise re-defer
+            // indefinitely, starving the fan-program / heartbeat update the user
+            // actually wants to land.
+            if(cascadeExpired) {
+                ApplyConfirmedPowerChange();
+                return;
+            }
+
+            int samples = Math.Max(1, Config.AcFlickerConfirmSamples);
+            // Samples are taken at most once per timer tick (Config.GuiTimerInterval,
+            // 1 s), so AcFlickerConfirmIntervalMs acts as a lower bound that is
+            // quantized up to the tick cadence: a value below one tick simply yields
+            // one sample per tick; larger values correctly wait the right number of
+            // ticks via the >= comparison below. We intentionally do NOT clamp the
+            // threshold up to the tick interval — that would add jitter (occasionally
+            // skipping a sample) when a tick lands a few ms early. The 1 s cadence is
+            // ample for catching a multi-second flicker (Copilot re-review #3 on the
+            // v1.4.2 PR).
+            int gapMs   = Math.Max(0, Config.AcFlickerConfirmIntervalMs);
+
+            if(!this.ConfirmInProgress) {
+                // First sample establishes the AC state every later sample must match.
+                this.ConfirmExpectedFullPower = this.Op.Platform.System.IsFullPowerConfirmed();
+                this.ConfirmSamplesRemaining  = samples - 1;
+                this.ConfirmLastSampleAt      = now;
+                this.ConfirmInProgress        = true;
+            } else if((now - this.ConfirmLastSampleAt).TotalMilliseconds >= gapMs) {
+                // A single dissenter aborts the cycle and re-defers for another full
+                // hold window — correct, because an in-progress flicker (Online →
+                // Offline → Online or vice versa) inherently disagrees across
+                // sequential samples and acting on it would reproduce the original bug.
+                if(this.Op.Platform.System.IsFullPowerConfirmed() != this.ConfirmExpectedFullPower) {
+                    // QueueDeferredPowerChange() resets the confirmation state for us.
+                    QueueDeferredPowerChange();
+                    return;
+                }
+                this.ConfirmSamplesRemaining--;
+                this.ConfirmLastSampleAt = now;
+            }
+
+            // Every sample agreed (or single-sample mode) — apply.
+            if(this.ConfirmSamplesRemaining <= 0)
+                ApplyConfirmedPowerChange();
+
+        }
+
+        // Clears the pending + confirmation markers and applies the deferred change.
+        // Markers are cleared *before* applying so EventPowerChange callbacks raised
+        // by the apply itself (or by an OS state change racing the apply) start a
+        // fresh cascade rather than extending this one.
+        private void ApplyConfirmedPowerChange() {
+            this.PendingPowerChangeAt = DateTime.MinValue;
+            this.PendingPowerChangeOriginAt = DateTime.MinValue;
+            ResetConfirmState();
+            ApplyPowerStatusChange();
         }
 
         // Handles the BIOS heartbeat tick — keeps Performance Control alive

@@ -4,6 +4,7 @@
 // OmenMon-Reborn additions © 2026 seakyy
 
 using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using OmenMon.External;
 
@@ -56,6 +57,14 @@ namespace OmenMon.Library {
         // First-tick guard. The very first tick has no prior reading to compare
         // against; we record the baseline and bail without firing the detector.
         private static bool initialized = false;
+
+        // First UTC tick at which PowerLineStatus was observed Offline while a
+        // glitch hold was being maintained. The AC-offline release path waits
+        // for this to exceed Config.AcFlickerHoldMs before tearing down the
+        // wake-lock, so a coinciding AC-flicker (issue #70) does not silently
+        // defeat the percent-glitch guard (issue #59) the moment they overlap.
+        // MinValue means we have not yet seen a sustained AC-offline event.
+        private static DateTime acOfflineSinceUtc = DateTime.MinValue;
 #endregion
 
 #region Public API
@@ -68,6 +77,7 @@ namespace OmenMon.Library {
             guardUntil   = DateTime.MinValue;
             priorPercent = -1;
             initialized  = false;
+            acOfflineSinceUtc = DateTime.MinValue;
         }
 
         // Called from GuiTray's 1-second timer. Cheap — three field reads
@@ -75,6 +85,27 @@ namespace OmenMon.Library {
         // The optional `tray` reference is used to surface a balloon tip when
         // we trip; passing null suppresses the UI (useful for tests).
         public static void Tick(OmenMon.AppGui.GuiTray tray) {
+
+            // Permanent-hold mode is an independent "block sleep/hibernate while
+            // OmenMon is running" switch — it does NOT require the percent-glitch
+            // guard (BatteryGlitchGuard) to be enabled, so it is evaluated first.
+            // Setting HoldAlways=true with BatteryGlitchGuard=false previously did
+            // nothing because the !BatteryGlitchGuard early-return ran first
+            // (Copilot re-review on the v1.4.2 PR). Only latch guardUntil to
+            // MaxValue once AssertGuard confirms the SetThreadExecutionState call
+            // actually landed, so a P/Invoke failure can't leave our bookkeeping
+            // ahead of the OS state (Copilot review #3 on the v1.4.2 PR).
+            if(Config.BatteryGlitchGuardHoldAlways) {
+                if(guardUntil != DateTime.MaxValue && AssertGuard(tray, -1, -1))
+                    guardUntil = DateTime.MaxValue;
+                return;
+            }
+
+            // HoldAlways was previously active but was just turned off — release the
+            // permanent latch immediately (whether or not BatteryGlitchGuard is on).
+            if(guardUntil == DateTime.MaxValue)
+                ReleaseGuardIfHeld();
+
             if(!Config.BatteryGlitchGuard) {
                 // Feature disabled — make sure we never hold ES_SYSTEM_REQUIRED.
                 ReleaseGuardIfHeld();
@@ -108,17 +139,66 @@ namespace OmenMon.Library {
             bool isGlitch = false;
 
             // Hard invariant: the guard is AC-only. If AC is unplugged at any point —
-            // including mid-glitch — release the held wake-lock immediately so a
-            // genuine critical-battery transition can hibernate. Checked before any
-            // glitch-detection logic so a sustained-glitch state can't outlive AC.
-            if(power.PowerLineStatus != PowerLineStatus.Online) {
-                if(priorPercent != -1 || IsGuardActive()) {
-                    ReleaseGuardIfHeld();
-                    priorPercent = -1;
+            // including mid-glitch — release the held wake-lock so a genuine critical-
+            // battery transition can hibernate. Overridden if Config.BatteryGlitchGuardOnBattery
+            // is true. Pre-v1.4.2 this ran the moment PowerLineStatus flipped to Offline,
+            // which silently defeated the percent-glitch guard whenever an AC-flicker
+            // coincided with a percent torn-read (the same SKUs that hit one symptom
+            // hit the other — issues #59 / #70). Now we compute an "effectively on AC"
+            // signal that overrides PowerLineStatus during the AC-flicker hold window
+            // and on multi-source disagreement, so a brief flicker no longer tears
+            // down the wake-lock and the glitch state machine keeps running normally.
+            bool effectivelyOnAc = power.PowerLineStatus == PowerLineStatus.Online;
+            if(!effectivelyOnAc && !Config.BatteryGlitchGuardOnBattery) {
+
+                // First Offline reading after a stretch of Online — start the timer.
+                if(acOfflineSinceUtc == DateTime.MinValue)
+                    acOfflineSinceUtc = now;
+
+                // While the AC-flicker guard is enabled and within its hold window,
+                // suspend the AC-only invariant. Multi-source IsFullPowerConfirmed
+                // gives the firmware (smart adapter) and the charging-flag a chance
+                // to override a misbehaving PowerLineStatus.
+                bool flickerHoldActive = Config.AcFlickerGuard
+                    && Config.AcFlickerHoldMs > 0
+                    && (now - acOfflineSinceUtc).TotalMilliseconds < Config.AcFlickerHoldMs;
+
+                // Only consult the firmware/charging cross-check while it can still
+                // change the outcome — i.e. outside the hold window (inside it,
+                // flickerHoldActive already forces effectivelyOnAc=true below) AND
+                // while the guard is actually engaged (holding the wake-lock, or
+                // tracking a glitch). On a plain sustained unplug priorPercent is -1
+                // and the guard is inactive, so we trust PowerLineStatus and never
+                // poll the BIOS adapter-status query once per second for the entire
+                // battery session (Copilot review #2 on the v1.4.2 PR).
+                bool stillOnAcByOtherSources = false;
+                if(!flickerHoldActive
+                    && (priorPercent != -1 || IsGuardActive())
+                    && tray != null && tray.Op != null && tray.Op.Platform != null) {
+                    try { stillOnAcByOtherSources = tray.Op.Platform.System.IsFullPowerConfirmed(); }
+                    catch { }
                 }
-                lastPercent  = percent;
-                lastTickTime = now;
-                return;
+
+                if(flickerHoldActive || stillOnAcByOtherSources) {
+                    // Treat as if still on AC — fall through to glitch detection so a
+                    // percent torn-read coinciding with the flicker is still caught.
+                    effectivelyOnAc = true;
+                } else {
+                    // Sustained AC-offline (or guard disabled) — release and bail.
+                    if(priorPercent != -1 || IsGuardActive()) {
+                        ReleaseGuardIfHeld();
+                        priorPercent = -1;
+                    }
+                    lastPercent  = percent;
+                    lastTickTime = now;
+                    return;
+                }
+            } else if(power.PowerLineStatus == PowerLineStatus.Online) {
+                // AC reported back — clear the AC-offline timer so the next dip starts
+                // fresh. (Note: when BatteryGlitchGuardOnBattery is true and we're on
+                // battery, leaving acOfflineSinceUtc as-is is harmless because the
+                // flicker-hold branch above is gated on !BatteryGlitchGuardOnBattery.)
+                acOfflineSinceUtc = DateTime.MinValue;
             }
 
             // Glitch detection state machine.
@@ -129,7 +209,8 @@ namespace OmenMon.Library {
                 bool hasRebounded = dropFromPrior < Config.BatteryGlitchDropPercent;
                 // Safety timeout of 60 seconds. If the drop is real (e.g. charging failed),
                 // we must eventually release the guard to allow Windows to hibernate.
-                bool hasTimedOut = (now - lastTickTime).TotalSeconds > 60;
+                // Overridden if Config.BatteryGlitchGuardDisableTimeout is true.
+                bool hasTimedOut = !Config.BatteryGlitchGuardDisableTimeout && (now - lastTickTime).TotalSeconds > 60;
 
                 if(hasRebounded || hasTimedOut) {
                     // Reset to normal operation.
@@ -146,9 +227,12 @@ namespace OmenMon.Library {
                 }
             } else {
                 // Normal mode: check if a new drop matches glitch criteria.
+                // effectivelyOnAc folds the AC-flicker / multi-source overrides into
+                // the existing "AC-only" gate so a torn percent read during a flicker
+                // is still flagged as a glitch.
                 int drop = lastPercent - percent;
                 isGlitch =
-                    power.PowerLineStatus == PowerLineStatus.Online
+                    (Config.BatteryGlitchGuardOnBattery || effectivelyOnAc)
                     && lastPercent       >= Config.BatteryGlitchDropPercent
                     && drop              >= Config.BatteryGlitchDropPercent
                     && (now - lastTickTime).TotalMilliseconds <= Config.BatteryGlitchWindowMs;
@@ -186,35 +270,76 @@ namespace OmenMon.Library {
         }
 
         public static bool IsGuardActive() {
+            // Reflects the real wake-lock state, not config intent. HoldAlways
+            // latches guardUntil to MaxValue only after AssertGuard confirms
+            // success, and the transient-glitch path sets a finite future
+            // guardUntil. Keying off guardUntil (rather than the config flags)
+            // means a failed SetThreadExecutionState is never reported as an
+            // active guard (Copilot review #2 on the v1.4.2 PR).
+            if(guardUntil == DateTime.MaxValue)
+                return true;
             return guardUntil != DateTime.MinValue && DateTime.UtcNow < guardUntil;
         }
 #endregion
 
 #region Internals
-        private static void AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
-            // SetThreadExecutionState returns the previous ExecutionState on
-            // success, or 0 on failure.
-            // BUGFIX (v1.4.1-reborn-fix): Removed the check for (result == None).
-            // On the very first call, the previous state of the thread is None (0),
-            // which caused the method to return early without setting guardUntil,
-            // while the OS actually held the state. This caused a permanent leak
-            // of the wake lock. Now we call and immediately proceed to establish
-            // guardUntil.
+        // Asserts the ES_CONTINUOUS | ES_SYSTEM_REQUIRED wake-lock.
+        // Returns true if the SetThreadExecutionState call succeeded, false on
+        // P/Invoke failure. Callers must use the return value to decide whether
+        // to advance internal state — without that check the transient-glitch
+        // hold window or the HoldAlways permanent-hold latch could record state
+        // that diverges from what the OS is actually enforcing.
+        //
+        // Failure detection follows the Win32 contract documented at
+        // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate:
+        // the API returns the previous ExecutionState on success and 0 on
+        // failure. A return value of 0 is ambiguous because the previous state
+        // can legitimately be None (0) on the first call after process start.
+        // We disambiguate via Marshal.GetLastWin32Error() — the P/Invoke is
+        // declared SetLastError=true exactly so callers can do this. A non-zero
+        // Win32 error means a real failure; a 0 error code with a 0 return
+        // value means success with previous state None.
+        //
+        // Win32 APIs are not guaranteed to *clear* last-error on success, so we
+        // must reset it to 0 immediately before the call (via Kernel32.SetLastError)
+        // — otherwise a stale non-zero value left by an earlier P/Invoke would be
+        // misread as a failure on the legitimate "previous state was None" path.
+        // (Copilot review #2 on the second round of v1.4.2 PR review.)
+        //
+        // History: an earlier revision returned early on (result == None),
+        // which collapsed the legitimate first-call case into "failure" and
+        // permanently leaked the wake-lock (the OS accepted the request but
+        // our bookkeeping skipped guardUntil). The cleared-then-checked Win32-error
+        // path here restores correct success detection without that regression.
+        // (Copilot review #1 on the second round of v1.4.2 PR review.)
+        private static bool AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
+            Kernel32.ExecutionState previous;
             try {
-                Kernel32.SetThreadExecutionState(
+                // Clear last-error first so GetLastWin32Error() below reflects only
+                // the SetThreadExecutionState call, not a stale value.
+                Kernel32.SetLastError(0);
+                previous = Kernel32.SetThreadExecutionState(
                     Kernel32.ExecutionState.Continuous | Kernel32.ExecutionState.SystemRequired);
             } catch {
-                return;
+                return false;
             }
 
+            // 0 return is ambiguous — check the (freshly-cleared) Win32 error to
+            // distinguish genuine failure from "previous state was None".
+            if(previous == Kernel32.ExecutionState.None
+                && Marshal.GetLastWin32Error() != 0)
+                return false;
+
             // Extend (or start) the hold window. now + hold is the absolute UTC
-            // time at which the next Tick() will release.
+            // time at which the next Tick() will release. HoldAlways callers
+            // overwrite this with DateTime.MaxValue immediately after, but only
+            // if we report success — so the latch can't get ahead of the OS state.
             guardUntil = DateTime.UtcNow.AddMilliseconds(Config.BatteryGlitchHoldMs);
 
             // User-facing balloon tip. The Tick() gate (IsGuardActive) ensures
             // AssertGuard fires at most once per hold window, so a sustained
             // glitch event produces a single tip, not one per second.
-            if(tray != null) {
+            if(tray != null && priorPct >= 0) {
                 try {
                     tray.ShowBalloonTip(
                         "Detected an implausible battery reading (" + priorPct
@@ -226,6 +351,8 @@ namespace OmenMon.Library {
                         ToolTipIcon.Warning);
                 } catch { }
             }
+
+            return true;
         }
 
         private static void ReleaseGuardIfHeld() {

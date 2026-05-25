@@ -48,8 +48,10 @@ namespace OmenMon.AppGui {
             // Initialize the fan program
             this.Program = new FanProgram(this.Platform, FanProgramCallback);
 
-            // Set the full power flag
-            this.FullPower = this.Platform.System.IsFullPower();
+            // Set the full power flag using the multi-source check so a boot that
+            // happens to land mid-flicker (issue #70) does not load the alternate
+            // fan program by mistake.
+            this.FullPower = this.Platform.System.IsFullPowerConfirmed();
 
         }
 
@@ -70,8 +72,12 @@ namespace OmenMon.AppGui {
                     (BiosData.GpuPowerLevel)
                         Enum.Parse(typeof(BiosData.GpuPowerLevel), Config.GpuPowerDefault)));
 
-            // Apply the default fan program,
-            // or the alternative program if no AC
+            // Apply the default fan program, or the alternative program if no AC.
+            // Re-sample FullPower with the multi-source check at this moment so the
+            // startup window between the constructor and AutoConfig running on a
+            // background thread cannot land on the alternate program due to a
+            // transient AC-flicker (issue #70).
+            this.FullPower = this.Platform.System.IsFullPowerConfirmed();
             if(this.FullPower)
                 this.Program.Run(Config.FanProgramDefault);
             else
@@ -335,13 +341,23 @@ namespace OmenMon.AppGui {
         // Responds to power-mode status change events
         public void PowerChange() {
 
+            // Use the multi-source check so a residual AC-flicker that escapes
+            // the GuiTray confirmation gate (issue #70) does not flip the fan
+            // program after the gate has decided to act. If the firmware or the
+            // charging-flag still report AC, we treat the line-status reading
+            // as noise and leave the program untouched.
+            bool live = this.Platform.System.IsFullPowerConfirmed();
+            bool changed = this.FullPower != live;
+
+            // Always refresh the cached state so the passive poll in
+            // GuiTray.EventTimerTick (which compares against Op.FullPower) does
+            // not re-queue the same deferred change every tick when AutoConfig
+            // is off or no fan program is active.
+            this.FullPower = live;
+
             // Only if a fan program is active, if configured to do so,
             // and if the power state actually changed from the last-recorded
-            if(Config.AutoConfig && this.Program.IsEnabled
-                && this.FullPower != this.Platform.System.IsFullPower()) {
-
-                // Toggle the power state
-                this.FullPower = !this.FullPower;
+            if(changed && Config.AutoConfig && this.Program.IsEnabled) {
 
                 // Apply the default fan program,
                 // or the alternative program if no AC

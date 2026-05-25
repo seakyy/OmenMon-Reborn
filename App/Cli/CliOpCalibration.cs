@@ -266,7 +266,9 @@ namespace OmenMon.AppCli {
                 // overwrite the just-restored max/off mode and leave the user in a
                 // different fan state than they had before the run.
                 if(fans != null) {
-                    if(priorLevels != null && !priorMax && !priorOff) {
+                    if(!priorManual) {
+                        try { fans.SetLevels(new byte[] { Byte.MaxValue, Byte.MaxValue }); } catch { }
+                    } else if(priorLevels != null && !priorMax && !priorOff) {
                         try { fans.SetLevels(priorLevels); }             catch { }
                     }
                     try { fans.SetMax(priorMax); }                       catch { }

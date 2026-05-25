@@ -58,6 +58,43 @@ namespace OmenMon.Library {
         public static int BatteryGlitchDropPercent = 30;   // minimum drop to flag a glitch [%]
         public static int BatteryGlitchWindowMs   = 5000; // must drop this much within [ms]
         public static int BatteryGlitchHoldMs     = 30000; // suppress hibernate for [ms] after detection
+        public static bool BatteryGlitchGuardOnBattery = false; // run glitch guard on battery power
+        public static bool BatteryGlitchGuardDisableTimeout = false; // disable 60-second safety timeout
+        public static bool BatteryGlitchGuardHoldAlways = false; // permanently hold the hibernation blocker
+
+        // AC-flicker debounce. Some HP Omen / Victus SKUs briefly report AC as disconnected
+        // (PowerLineStatus goes Online -> Offline -> Online for a few seconds) under load,
+        // even though the laptop is physically plugged in. Without this guard, the AutoConfig
+        // + alternate fan program path in GuiOp.PowerChange() instantly swaps Default <->
+        // DefaultAlt during the flicker, causing visible CPU/power throttling stutters
+        // mid-game (issue #70 reported by @MartinSalg818). With the guard on, OmenMon waits
+        // AcFlickerHoldMs after a PowerModeChanged event before acting; if the line status
+        // has reverted by then, the flicker is treated as noise and no fan-program switch,
+        // heartbeat toggle, or auxiliary action is performed. Set AcFlickerGuard=false or
+        // AcFlickerHoldMs=0 to restore the pre-fix immediate-reaction behaviour.
+        public static bool AcFlickerGuard = true;
+        public static int  AcFlickerHoldMs = 10000; // wait [ms] for AC state to stabilize before acting
+
+        // Multi-sample confirmation at the end of the debounce window. When the
+        // hold elapses the deferred handler reads IsFullPowerConfirmed
+        // AcFlickerConfirmSamples times with AcFlickerConfirmIntervalMs between
+        // reads and only acts if every sample agrees. If they disagree, the
+        // event is re-queued for another full hold window. Caps the cascade at
+        // AcFlickerMaxDeferralMs so a pathological flapper still reaches a
+        // decision in bounded time.
+        public static int  AcFlickerConfirmSamples = 3;     // 1 disables multi-sample
+        public static int  AcFlickerConfirmIntervalMs = 250;
+        public static int  AcFlickerMaxDeferralMs = 60000;  // safety ceiling on re-deferrals
+
+        // Passive AC-state poll. SystemEvents.PowerModeChanged is normally the
+        // event that kicks off the debounce, but Windows occasionally drops or
+        // coalesces these events, especially when several fire in quick
+        // succession during a flicker. With this enabled the GUI timer also
+        // checks PowerLineStatus on every tick and synthesises a deferred
+        // change when the live state diverges from Op.FullPower and nothing is
+        // already pending. Cheap — one SystemInformation.PowerStatus read per
+        // GuiTimerInterval, no EC traffic.
+        public static bool AcFlickerPassivePoll = true;
 
         // Thermal Panic Mode: when max sensor temperature exceeds the threshold, OmenMon
         // forces both fans to maximum and shows a balloon alert. Deactivates with hysteresis.
