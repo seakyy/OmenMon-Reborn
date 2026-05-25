@@ -85,29 +85,31 @@ namespace OmenMon.Library {
         // The optional `tray` reference is used to surface a balloon tip when
         // we trip; passing null suppresses the UI (useful for tests).
         public static void Tick(OmenMon.AppGui.GuiTray tray) {
+
+            // Permanent-hold mode is an independent "block sleep/hibernate while
+            // OmenMon is running" switch — it does NOT require the percent-glitch
+            // guard (BatteryGlitchGuard) to be enabled, so it is evaluated first.
+            // Setting HoldAlways=true with BatteryGlitchGuard=false previously did
+            // nothing because the !BatteryGlitchGuard early-return ran first
+            // (Copilot re-review on the v1.4.2 PR). Only latch guardUntil to
+            // MaxValue once AssertGuard confirms the SetThreadExecutionState call
+            // actually landed, so a P/Invoke failure can't leave our bookkeeping
+            // ahead of the OS state (Copilot review #3 on the v1.4.2 PR).
+            if(Config.BatteryGlitchGuardHoldAlways) {
+                if(guardUntil != DateTime.MaxValue && AssertGuard(tray, -1, -1))
+                    guardUntil = DateTime.MaxValue;
+                return;
+            }
+
+            // HoldAlways was previously active but was just turned off — release the
+            // permanent latch immediately (whether or not BatteryGlitchGuard is on).
+            if(guardUntil == DateTime.MaxValue)
+                ReleaseGuardIfHeld();
+
             if(!Config.BatteryGlitchGuard) {
                 // Feature disabled — make sure we never hold ES_SYSTEM_REQUIRED.
                 ReleaseGuardIfHeld();
                 return;
-            }
-
-            if(Config.BatteryGlitchGuardHoldAlways) {
-                // Permanent hold mode. Only mark the guard as permanently held
-                // (DateTime.MaxValue) after we have confirmation that the
-                // SetThreadExecutionState call actually landed — otherwise a
-                // P/Invoke failure inside AssertGuard would leave the internal
-                // state thinking the wake-lock is held while the OS never
-                // received the request (Copilot review #3 on the v1.4.2 PR).
-                if(guardUntil != DateTime.MaxValue) {
-                    if(AssertGuard(tray, -1, -1))
-                        guardUntil = DateTime.MaxValue;
-                }
-                return;
-            }
-
-            // If HoldAlways was previously active but was just turned off, release immediately
-            if(guardUntil == DateTime.MaxValue) {
-                ReleaseGuardIfHeld();
             }
 
             PowerStatus power;
@@ -268,7 +270,13 @@ namespace OmenMon.Library {
         }
 
         public static bool IsGuardActive() {
-            if(Config.BatteryGlitchGuard && Config.BatteryGlitchGuardHoldAlways)
+            // Reflects the real wake-lock state, not config intent. HoldAlways
+            // latches guardUntil to MaxValue only after AssertGuard confirms
+            // success, and the transient-glitch path sets a finite future
+            // guardUntil. Keying off guardUntil (rather than the config flags)
+            // means a failed SetThreadExecutionState is never reported as an
+            // active guard (Copilot review #2 on the v1.4.2 PR).
+            if(guardUntil == DateTime.MaxValue)
                 return true;
             return guardUntil != DateTime.MinValue && DateTime.UtcNow < guardUntil;
         }

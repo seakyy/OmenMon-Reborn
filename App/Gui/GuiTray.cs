@@ -269,6 +269,14 @@ namespace OmenMon.AppGui {
             this.PendingPowerChangeAt = now;
             if(this.PendingPowerChangeOriginAt == DateTime.MinValue)
                 this.PendingPowerChangeOriginAt = now;
+            // A fresh (or refreshed) deferral restarts the hold-then-confirm cycle,
+            // so discard any in-flight multi-sample confirmation. Otherwise a new
+            // PowerModeChanged event arriving mid-confirmation would leave
+            // ConfirmInProgress=true, and the next hold-window expiry would resume
+            // sampling against a stale ConfirmExpectedFullPower captured during the
+            // previous attempt instead of re-sampling fresh (Copilot re-review on
+            // the v1.4.2 PR).
+            ResetConfirmState();
         }
 
         // Resets the multi-sample confirmation state machine.
@@ -398,7 +406,7 @@ namespace OmenMon.AppGui {
                 // Offline → Online or vice versa) inherently disagrees across
                 // sequential samples and acting on it would reproduce the original bug.
                 if(this.Op.Platform.System.IsFullPowerConfirmed() != this.ConfirmExpectedFullPower) {
-                    ResetConfirmState();
+                    // QueueDeferredPowerChange() resets the confirmation state for us.
                     QueueDeferredPowerChange();
                     return;
                 }
