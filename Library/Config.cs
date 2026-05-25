@@ -208,9 +208,11 @@ namespace OmenMon.Library {
                         AcFlickerConfirmIntervalMs = value;
 
                     // Safety ceiling on cascaded re-deferrals when confirmation keeps
-                    // failing. Lower bound = AcFlickerHoldMs (one full cycle); upper bound
-                    // 1 minute (60000 ms) — beyond that a flapper is the new normal and
-                    // the user wants the fan-program switch to win.
+                    // failing. Lower bound 1 ms preserves the permissive behaviour (a
+                    // value below AcFlickerHoldMs just makes the cascade bypass the
+                    // confirmation gate on the first post-hold tick — harmless); upper
+                    // bound 1 minute (60000 ms) — beyond that a flapper is the new
+                    // normal and the user wants the fan-program switch to win.
                     if(GetWord(xml, XmlPrefix + "AcFlickerMaxDeferralMs", out value) && value >= 1 && value <= 60000)
                         AcFlickerMaxDeferralMs = value;
 

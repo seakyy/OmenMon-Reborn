@@ -3,6 +3,7 @@
      //  https://omenmon.github.io/
 
 using System;
+using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using OmenMon.Hardware.Bios;
@@ -75,13 +76,27 @@ namespace OmenMon.AppGui {
         // Multi-sample confirmation state (issue #70). The end-of-hold confirmation
         // takes one IsFullPowerConfirmed sample per EventTimerTick rather than
         // sleeping between reads, so the WinForms UI thread is never blocked during
-        // a confirmation cycle (Copilot review #2 on the v1.4.2 PR). All three are
-        // touched only from the UI thread (the timer tick), so no synchronisation is
-        // needed. ConfirmInProgress=false means no confirmation is running.
+        // a confirmation cycle (Copilot review #2 on the v1.4.2 PR).
+        // ConfirmInProgress=false means no confirmation is running.
+        //
+        // Thread-safety: every field above (PendingPowerChange*, LastPassivePoll*,
+        // and these Confirm* fields) is read and written ONLY from EventTimerTick,
+        // i.e. the WinForms UI thread, so none of them need locking. The one event
+        // that can fire on a non-UI thread — SystemEvents.PowerModeChanged via
+        // EventPowerChange — does not touch them directly; it only raises the
+        // Interlocked signal below, which EventTimerTick drains (Copilot re-review
+        // #2 on the v1.4.2 PR).
         private bool ConfirmInProgress = false;
         private bool ConfirmExpectedFullPower = false;
         private int ConfirmSamplesRemaining = 0;
         private DateTime ConfirmLastSampleAt = DateTime.MinValue;
+
+        // Thread-safe handoff from EventPowerChange (which is NOT guaranteed to run
+        // on the UI thread) to EventTimerTick (which always does). Set to 1 when a
+        // PowerModeChanged StatusChange arrives; the timer tick atomically swaps it
+        // back to 0 and performs the actual debounce/confirmation bookkeeping, so
+        // all of that state stays single-threaded. Accessed only via Interlocked.
+        private int PendingPowerEventSignal = 0;
 
         // Stores the number of ticks elapsed since
         // the last update of a particular category
@@ -242,21 +257,16 @@ namespace OmenMon.AppGui {
             if(e.Mode != PowerModes.StatusChange)
                 return;
 
-            // AC-flicker debounce (issue #70). Some HP Omen / Victus SKUs briefly
-            // report AC as disconnected even though the laptop is physically plugged
-            // in; reacting immediately causes the AutoConfig path to switch between
-            // FanProgramDefault and FanProgramDefaultAlt during the flicker, which
-            // mid-game shows up as a visible CPU/power-throttling stutter. With the
-            // guard enabled, the actual handler runs from the next EventTimerTick
-            // after AcFlickerHoldMs has elapsed; if the line status has reverted by
-            // then, Op.PowerChange() naturally no-ops. The heartbeat enable/disable
-            // is part of the same deferred handler so a flicker doesn't churn it.
-            if(Config.AcFlickerGuard && Config.AcFlickerHoldMs > 0) {
-                QueueDeferredPowerChange();
-                return;
-            }
-
-            ApplyPowerStatusChange();
+            // SystemEvents.PowerModeChanged is NOT guaranteed to fire on the WinForms
+            // UI thread, so we must not touch the debounce / confirmation state (or
+            // the fan programs / heartbeat timer) from here — doing so would race the
+            // timer tick and risk torn DateTime reads on 32-bit (Copilot re-review #2
+            // on the v1.4.2 PR). Instead raise a thread-safe signal and let
+            // EventTimerTick — always on the UI thread — do all the work: it either
+            // queues the AC-flicker debounce (issue #70) or, when the guard is off,
+            // applies the change immediately on the next tick. The ≤ GuiTimerInterval
+            // pickup latency is negligible against the multi-second hold window.
+            Interlocked.Exchange(ref this.PendingPowerEventSignal, 1);
 
         }
 
@@ -311,6 +321,22 @@ namespace OmenMon.AppGui {
 
             // Perform the updates as scheduled
             Update();
+
+            // Drain any PowerModeChanged StatusChange signal raised (possibly
+            // off-thread) by EventPowerChange. Handling it here keeps every
+            // debounce / confirmation field single-threaded. Runs before the passive
+            // poll so a freshly-queued change sets PendingPowerChangeAt and the poll
+            // below then correctly skips (its guard is PendingPowerChangeAt == None).
+            if(Interlocked.Exchange(ref this.PendingPowerEventSignal, 0) == 1) {
+                if(Config.AcFlickerGuard && Config.AcFlickerHoldMs > 0)
+                    // Debounced path (issue #70): defer the reaction until the hold
+                    // window elapses; a flicker that reverts by then naturally no-ops.
+                    QueueDeferredPowerChange();
+                else
+                    // Guard disabled — react immediately (the pre-v1.4.2 behaviour),
+                    // now on the UI thread instead of the event's arbitrary thread.
+                    ApplyPowerStatusChange();
+            }
 
             // Passive AC-state poll (issue #70). SystemEvents.PowerModeChanged is the
             // primary trigger for the debounce, but Windows occasionally drops or
