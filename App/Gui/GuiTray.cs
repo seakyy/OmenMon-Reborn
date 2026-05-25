@@ -3,7 +3,6 @@
      //  https://omenmon.github.io/
 
 using System;
-using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using OmenMon.Hardware.Bios;
@@ -72,6 +71,17 @@ namespace OmenMon.AppGui {
         // re-baselined every tick the poll runs.
         private bool LastPassivePollOnline = true;
         private bool LastPassivePollInitialized = false;
+
+        // Multi-sample confirmation state (issue #70). The end-of-hold confirmation
+        // takes one IsFullPowerConfirmed sample per EventTimerTick rather than
+        // sleeping between reads, so the WinForms UI thread is never blocked during
+        // a confirmation cycle (Copilot review #2 on the v1.4.2 PR). All three are
+        // touched only from the UI thread (the timer tick), so no synchronisation is
+        // needed. ConfirmInProgress=false means no confirmation is running.
+        private bool ConfirmInProgress = false;
+        private bool ConfirmExpectedFullPower = false;
+        private int ConfirmSamplesRemaining = 0;
+        private DateTime ConfirmLastSampleAt = DateTime.MinValue;
 
         // Stores the number of ticks elapsed since
         // the last update of a particular category
@@ -261,26 +271,11 @@ namespace OmenMon.AppGui {
                 this.PendingPowerChangeOriginAt = now;
         }
 
-        // Multi-sample confirmation gate. Reads IsFullPowerConfirmed N times with
-        // Config.AcFlickerConfirmIntervalMs between reads; returns true when every
-        // sample reports the same AC state. A single dissenter aborts and the
-        // caller re-defers — which is correct because an in-progress flicker
-        // (Online → Offline → Online or vice versa) inherently disagrees across
-        // sequential samples, and acting on it would reproduce the original bug.
-        // Single-sample mode (AcFlickerConfirmSamples == 1) skips the inter-sample
-        // delays entirely and returns the one read.
-        private bool ConfirmAcStateStable(out bool confirmedFullPower) {
-            int samples = Math.Max(1, Config.AcFlickerConfirmSamples);
-            int gapMs   = Math.Max(0, Config.AcFlickerConfirmIntervalMs);
-
-            confirmedFullPower = this.Op.Platform.System.IsFullPowerConfirmed();
-            for(int i = 1; i < samples; i++) {
-                if(gapMs > 0)
-                    Thread.Sleep(gapMs);
-                if(this.Op.Platform.System.IsFullPowerConfirmed() != confirmedFullPower)
-                    return false;
-            }
-            return true;
+        // Resets the multi-sample confirmation state machine.
+        private void ResetConfirmState() {
+            this.ConfirmInProgress = false;
+            this.ConfirmSamplesRemaining = 0;
+            this.ConfirmLastSampleAt = DateTime.MinValue;
         }
 
         // Runs the debounced (or immediate, when AcFlickerGuard is off) reaction
@@ -364,10 +359,14 @@ namespace OmenMon.AppGui {
 
         }
 
-        // Runs the multi-sample confirmation gate at the end of a debounce hold and
+        // Runs the multi-sample confirmation at the end of a debounce hold and
         // either applies the change, re-defers, or force-applies once the cascade
-        // ceiling (Config.AcFlickerMaxDeferralMs) is hit. Pulled out of the tick
-        // handler so the control flow stays readable.
+        // ceiling (Config.AcFlickerMaxDeferralMs) is hit. Confirmation samples are
+        // taken one per timer tick (never via Thread.Sleep) so the WinForms UI
+        // thread is never blocked during a confirmation cycle (Copilot review #2 on
+        // the v1.4.2 PR). Called every tick while a change is pending and the hold
+        // window has elapsed, which is what drives the per-tick sampling. Pulled out
+        // of the tick handler so the control flow stays readable.
         private void ProcessPendingPowerChange() {
 
             DateTime now = DateTime.UtcNow;
@@ -377,21 +376,51 @@ namespace OmenMon.AppGui {
 
             // Bypass the confirmation gate if the cascade has already exceeded its
             // safety ceiling — a pathological flapper would otherwise re-defer
-            // indefinitely, indefinitely starving the fan-program / heartbeat
-            // update the user actually wants to land.
-            if(!cascadeExpired && !ConfirmAcStateStable(out _)) {
-                QueueDeferredPowerChange();
+            // indefinitely, starving the fan-program / heartbeat update the user
+            // actually wants to land.
+            if(cascadeExpired) {
+                ApplyConfirmedPowerChange();
                 return;
             }
 
-            // Confirmed (or cascade ceiling reached) — clear the pending markers
-            // before applying so EventPowerChange callbacks raised by the apply
-            // itself (or by an OS state change racing the apply) start a fresh
-            // cascade rather than extending this one.
+            int samples = Math.Max(1, Config.AcFlickerConfirmSamples);
+            int gapMs   = Math.Max(0, Config.AcFlickerConfirmIntervalMs);
+
+            if(!this.ConfirmInProgress) {
+                // First sample establishes the AC state every later sample must match.
+                this.ConfirmExpectedFullPower = this.Op.Platform.System.IsFullPowerConfirmed();
+                this.ConfirmSamplesRemaining  = samples - 1;
+                this.ConfirmLastSampleAt      = now;
+                this.ConfirmInProgress        = true;
+            } else if((now - this.ConfirmLastSampleAt).TotalMilliseconds >= gapMs) {
+                // A single dissenter aborts the cycle and re-defers for another full
+                // hold window — correct, because an in-progress flicker (Online →
+                // Offline → Online or vice versa) inherently disagrees across
+                // sequential samples and acting on it would reproduce the original bug.
+                if(this.Op.Platform.System.IsFullPowerConfirmed() != this.ConfirmExpectedFullPower) {
+                    ResetConfirmState();
+                    QueueDeferredPowerChange();
+                    return;
+                }
+                this.ConfirmSamplesRemaining--;
+                this.ConfirmLastSampleAt = now;
+            }
+
+            // Every sample agreed (or single-sample mode) — apply.
+            if(this.ConfirmSamplesRemaining <= 0)
+                ApplyConfirmedPowerChange();
+
+        }
+
+        // Clears the pending + confirmation markers and applies the deferred change.
+        // Markers are cleared *before* applying so EventPowerChange callbacks raised
+        // by the apply itself (or by an OS state change racing the apply) start a
+        // fresh cascade rather than extending this one.
+        private void ApplyConfirmedPowerChange() {
             this.PendingPowerChangeAt = DateTime.MinValue;
             this.PendingPowerChangeOriginAt = DateTime.MinValue;
+            ResetConfirmState();
             ApplyPowerStatusChange();
-
         }
 
         // Handles the BIOS heartbeat tick — keeps Performance Control alive

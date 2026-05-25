@@ -160,8 +160,19 @@ namespace OmenMon.Library {
                 bool flickerHoldActive = Config.AcFlickerGuard
                     && Config.AcFlickerHoldMs > 0
                     && (now - acOfflineSinceUtc).TotalMilliseconds < Config.AcFlickerHoldMs;
+
+                // Only consult the firmware/charging cross-check while it can still
+                // change the outcome — i.e. outside the hold window (inside it,
+                // flickerHoldActive already forces effectivelyOnAc=true below) AND
+                // while the guard is actually engaged (holding the wake-lock, or
+                // tracking a glitch). On a plain sustained unplug priorPercent is -1
+                // and the guard is inactive, so we trust PowerLineStatus and never
+                // poll the BIOS adapter-status query once per second for the entire
+                // battery session (Copilot review #2 on the v1.4.2 PR).
                 bool stillOnAcByOtherSources = false;
-                if(tray != null && tray.Op != null && tray.Op.Platform != null) {
+                if(!flickerHoldActive
+                    && (priorPercent != -1 || IsGuardActive())
+                    && tray != null && tray.Op != null && tray.Op.Platform != null) {
                     try { stillOnAcByOtherSources = tray.Op.Platform.System.IsFullPowerConfirmed(); }
                     catch { }
                 }
@@ -281,23 +292,32 @@ namespace OmenMon.Library {
         // Win32 error means a real failure; a 0 error code with a 0 return
         // value means success with previous state None.
         //
+        // Win32 APIs are not guaranteed to *clear* last-error on success, so we
+        // must reset it to 0 immediately before the call (via Kernel32.SetLastError)
+        // — otherwise a stale non-zero value left by an earlier P/Invoke would be
+        // misread as a failure on the legitimate "previous state was None" path.
+        // (Copilot review #2 on the second round of v1.4.2 PR review.)
+        //
         // History: an earlier revision returned early on (result == None),
         // which collapsed the legitimate first-call case into "failure" and
         // permanently leaked the wake-lock (the OS accepted the request but
-        // our bookkeeping skipped guardUntil). The Win32-error path here
-        // restores correct success detection without that regression.
+        // our bookkeeping skipped guardUntil). The cleared-then-checked Win32-error
+        // path here restores correct success detection without that regression.
         // (Copilot review #1 on the second round of v1.4.2 PR review.)
         private static bool AssertGuard(OmenMon.AppGui.GuiTray tray, int priorPct, int glitchPct) {
             Kernel32.ExecutionState previous;
             try {
+                // Clear last-error first so GetLastWin32Error() below reflects only
+                // the SetThreadExecutionState call, not a stale value.
+                Kernel32.SetLastError(0);
                 previous = Kernel32.SetThreadExecutionState(
                     Kernel32.ExecutionState.Continuous | Kernel32.ExecutionState.SystemRequired);
             } catch {
                 return false;
             }
 
-            // 0 return is ambiguous — check the Win32 error to distinguish
-            // genuine failure from "previous state was None".
+            // 0 return is ambiguous — check the (freshly-cleared) Win32 error to
+            // distinguish genuine failure from "previous state was None".
             if(previous == Kernel32.ExecutionState.None
                 && Marshal.GetLastWin32Error() != 0)
                 return false;

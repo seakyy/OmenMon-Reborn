@@ -707,6 +707,31 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8A18: HP OMEN 17 ck1000nw (2022 EC layout) — issue #72 reported by @xenon205.                  -->
+            <!-- Confirmed via the user's Auto-Calibration report (0% → 30% → 70% → 100% profile):              -->
+            <!--   * 16-bit LE tach at 0xB0 (CPU) / 0xB2 (GPU): the raw EC dumps decode exactly to the reported  -->
+            <!--     live RPM — CPU 0/1476/3218/3422 and GPU 0/1448/3115/3363 — so FanSpeedReg0/1 = 176/178.     -->
+            <!--   * FanLevel 0x34/0x35 and FanRate 0x2C-0x2F track the fan setting across all four steps, so the -->
+            <!--     full 2022 template applies (identical to the 8A42 entry above).                             -->
+            <!--   * BIOS GetFanCount=2 (CPU + GPU); CPUT plausible at 0x57 (~41-43 °C).                         -->
+            <!-- Inferred from the 2022 template (not stress-validated): ModeReg 0x95, SwitchReg 0xF4,           -->
+            <!-- ManualReg 0x62, CountdownReg 0x63 — mirrors what v1.4.1 auto-detection already applied for this -->
+            <!-- ProductId, so the entry is non-regressive. As with 8A42, if custom rate-writes have no audible  -->
+            <!-- effect, try switching FanRateWriteReg0/1 to 58/59 (the 8A4C/8A4D family layout).                -->
+            <Model ProductId="8A18" DisplayName="HP OMEN 17 ck1000nw (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>

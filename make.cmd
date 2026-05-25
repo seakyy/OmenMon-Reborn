@@ -19,7 +19,11 @@ if exist "%ProgramFiles%\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current
 ) else (
     set msbuild=msbuild
 )
-set msbuild_flags=/p:AssemblyVersion=1.4.2.0 /p:AssemblyVersionWord=reborn /p:Configuration=Release
+rem Version is not pinned here: OmenMon.csproj defaults AssemblyVersion /
+rem AssemblyVersionWord (and CI's build_bump.yml overrides them for tagged
+rem releases), so a local `make build` always picks up the current version
+rem without this file needing a bump every release.
+set msbuild_flags=/p:Configuration=Release
 set nuget=%~dps0nuget.exe
 set nuget_url=https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
 set op_scope=build clean kill prepare test usage

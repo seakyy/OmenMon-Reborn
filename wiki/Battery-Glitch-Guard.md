@@ -316,8 +316,9 @@ read coinciding with the flicker is still detected and suppressed.
   Neither guard addresses this; see the issue thread for environmental
   mitigations.
 - [`App/Gui/GuiTray.cs`](../App/Gui/GuiTray.cs) — `EventPowerChange`,
-  `EventTimerTick`, `ProcessPendingPowerChange`, `ConfirmAcStateStable`
-  host the AC-flicker debounce + multi-sample + passive poll.
+  `EventTimerTick`, `ProcessPendingPowerChange`, `ApplyConfirmedPowerChange`
+  host the AC-flicker debounce + multi-sample + passive poll. Confirmation
+  samples are taken one per timer tick, so the UI thread is never blocked.
 - [`Hardware/Settings.cs`](../Hardware/Settings.cs) —
   `IsFullPowerConfirmed` implements the multi-source check (Layer 3).
 - [`Library/PowerGuard.cs`](../Library/PowerGuard.cs) — Percent-based
