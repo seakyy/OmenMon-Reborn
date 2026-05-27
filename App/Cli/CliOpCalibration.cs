@@ -109,7 +109,14 @@ namespace OmenMon.AppCli {
             // Filter out 100% step for models with known firmware freeze at max fan speed.
             // 8C30 (HP Victus 15-fb1000 2023 AMD) hits an EC controller freeze when the
             // BIOS internal rate-limiter is triggered at 100%, requiring a restart to recover.
+            //
+            // Resolve the ProductId exactly once and publish it to the outcome immediately:
+            // the freeze decision here and every report string must agree on a single value.
+            // Settings.GetProduct() can transiently return "?" on a WMI hiccup, so calling it
+            // twice risked the report claiming "?" is on the freeze list while the filter ran
+            // against the real ID, or vice versa (Copilot review).
             string productId = SafeProductId();
+            outcome.ProductId = productId;
             if(FanArray.HasMaxFanFreeze(productId)) {
                 int beforeLen = profile.Length;
                 profile = profile.Where(p => p < 100).ToArray();
@@ -153,7 +160,8 @@ namespace OmenMon.AppCli {
                     return outcome;
                 }
 
-                outcome.ProductId   = SafeProductId();
+                // ProductId was already resolved and published above (single source of
+                // truth for the freeze decision and the report).
                 outcome.BiosBornDate = SafeBiosBornDate();
 
                 // Use the caller-supplied fan array (the GUI passes its live one). When
