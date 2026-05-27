@@ -221,6 +221,8 @@ namespace OmenMon.Library.Locale {
                 ["GuiMenuActGpuPowerMin"] = "Base Power",
                 ["GuiMenuActGpuPowerMed"] = "Extra Power",
                 ["GuiMenuActGpuPowerMax"] = "Extra Power with Boost",
+                ["GuiMenuActGpuPowerUnsupportedTitle"] = "GPU power unavailable",
+                ["GuiMenuActGpuPowerUnsupported"] = "This model's firmware did not apply the GPU power change — your GPU likely does not support custom TGP / PPAB (common on entry-level Victus/Omen SKUs).",
                 ["GuiMenuActGpuRefreshHigh"] = "High Refresh Rate",
                 ["GuiMenuActGpuRefreshLow"] = "Standard Refresh Rate",
                 ["GuiMenuActGpuModeDiscrete"] = "Discrete Exclusive",

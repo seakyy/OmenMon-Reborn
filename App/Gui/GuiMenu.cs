@@ -426,22 +426,50 @@ namespace OmenMon.AppGui {
 
         // Changes the GPU power settings
         private void EventActionGpuPower(object sender, EventArgs e) {
-            BiosData.GpuPowerData gpuPowerData;
 
-            // Determine the GPU power data from the selected menu option
-            if(((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_POWER_MAX))
-                gpuPowerData = new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Maximum);
-            else if(((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_POWER_MED))
-                gpuPowerData = new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Medium);
-            else
-                gpuPowerData = new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Minimum);
+            // Determine the requested preset from the selected menu option
+            BiosData.GpuPowerLevel requested =
+                ((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_POWER_MAX) ? BiosData.GpuPowerLevel.Maximum :
+                ((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_POWER_MED) ? BiosData.GpuPowerLevel.Medium :
+                BiosData.GpuPowerLevel.Minimum;
 
             // Set the requested GPU power
-            Context.Op.Platform.System.SetGpuPower(gpuPowerData);
+            Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(requested));
 
-            // Update the menu section
-            UpdateGpuPower();
+            // Read the live state straight back. SetGpuPower waits Config.GpuPowerSetInterval
+            // after the BIOS write, so this reflects what the firmware actually stored.
+            BiosData.GpuPowerData applied = Context.Op.Platform.System.GetGpuPower(true);
 
+            // Refresh the menu checkmarks from the value we just read
+            UpdateGpuPower(applied);
+
+            // If the firmware did not honour the request, the menu just snaps back to
+            // Base Power with no explanation. On entry-level SKUs (HP Victus 15-fb1xxx /
+            // 8C30, issue #79) the BIOS accepts the 0x22 write but the GPU has no
+            // custom-TGP / PPAB support, so the setting never takes — "does nothing".
+            // Surface a balloon so the user understands why instead of guessing.
+            if(!GpuPowerMatches(applied, requested))
+                Context.ShowBalloonTip(
+                    Config.Locale.Get(Config.L_GUI_MENU + P_GPU_POWER + "Unsupported"),
+                    Config.Locale.Get(Config.L_GUI_MENU + P_GPU_POWER + "UnsupportedTitle"),
+                    ToolTipIcon.Warning);
+
+        }
+
+        // True when the live GPU power state matches the requested preset. Mirrors the
+        // CustomTgp/Ppab mapping in GpuPowerData(GpuPowerLevel) and UpdateGpuPower():
+        // Minimum = cTGP off; Medium = cTGP on + PPAB off; Maximum = cTGP on + PPAB on.
+        private static bool GpuPowerMatches(BiosData.GpuPowerData data, BiosData.GpuPowerLevel level) {
+            switch(level) {
+                case BiosData.GpuPowerLevel.Minimum:
+                    return data.CustomTgp == BiosData.GpuCustomTgp.Off;
+                case BiosData.GpuPowerLevel.Medium:
+                    return data.CustomTgp == BiosData.GpuCustomTgp.On && data.Ppab == BiosData.GpuPpab.Off;
+                case BiosData.GpuPowerLevel.Maximum:
+                    return data.CustomTgp == BiosData.GpuCustomTgp.On && data.Ppab == BiosData.GpuPpab.On;
+                default:
+                    return true;
+            }
         }
 
         // Changes the display refresh rate
@@ -982,9 +1010,13 @@ namespace OmenMon.AppGui {
 
         // Updates the checkboxes in the GPU power settings section
         public void UpdateGpuPower() {
+            // Retrieve the current graphics setting table, then delegate
+            UpdateGpuPower(Context.Op.Platform.System.GetGpuPower(true));
+        }
 
-            // Retrieve the current graphics setting table
-            BiosData.GpuPowerData gpuPowerData = Context.Op.Platform.System.GetGpuPower(true);
+        // Same, but reusing a GPU power reading the caller already took — avoids a
+        // second forced BIOS read on the apply-then-verify path in EventActionGpuPower.
+        public void UpdateGpuPower(BiosData.GpuPowerData gpuPowerData) {
 
             // Compare the values to presets
             if(gpuPowerData.CustomTgp == BiosData.GpuCustomTgp.On) {
