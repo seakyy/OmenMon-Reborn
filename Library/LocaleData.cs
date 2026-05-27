@@ -173,6 +173,7 @@ namespace OmenMon.Library.Locale {
                 ["GuiMainSysAdapterNotFunctioning"] = Conv.RTF_CF4 + "AC Fail",
                 ["GuiMainSysAdapterError"] = Conv.RTF_CF4 + "AC Error",
                 ["GuiMainSysBorn"] = "*",
+                ["GuiMainSysCpuPl4"] = "CPU PL4",
                 ["GuiMainSysGpu"] = "GPU",
                 ["GuiMainSysGpuPpab"] = "PPAB",
                 ["GuiMainSysGpuCustomTgp"] = "cTGP",

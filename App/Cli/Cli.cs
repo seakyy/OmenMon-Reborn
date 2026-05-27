@@ -163,17 +163,33 @@ namespace OmenMon.AppCli {
         // Makes the command prompt reappear when the application is done in CLI mode
         public static void RestorePrompt() {
 
-            // Skip if a PowerShell session
-            if(!Os.IsConsolePowerShell()) {
+            // Purely cosmetic — and entirely best-effort. Reading Console.CursorTop
+            // calls GetConsoleScreenBufferInfo under the hood, which throws an
+            // "invalid handle" IOException when standard output is not a real
+            // console screen buffer: output redirected to a file or pipe, or the
+            // process launched without an inheritable console at all. That used to
+            // escape all the way to Main() and surface as the WinIOError crash
+            // dialog reported in issue #76. None of this affects the work already
+            // done, so swallow any failure and leave the prompt as-is.
+            try {
 
-                // Make the command prompt appear again
-                // by simulating a keystroke (an ugly hack)
-                Console.CursorTop -= 1; // Go back one row to avoid leaving blank space
-                User32.SendMessage(
-                    Kernel32.GetConsoleWindow(),
-                    User32.WM_CHAR,
-                    (IntPtr) User32.VK_ENTER,
-                    IntPtr.Zero);
+                // Skip if a PowerShell session
+                if(!Os.IsConsolePowerShell()) {
+
+                    // Make the command prompt appear again
+                    // by simulating a keystroke (an ugly hack)
+                    Console.CursorTop -= 1; // Go back one row to avoid leaving blank space
+                    User32.SendMessage(
+                        Kernel32.GetConsoleWindow(),
+                        User32.WM_CHAR,
+                        (IntPtr) User32.VK_ENTER,
+                        IntPtr.Zero);
+
+                }
+
+            } catch {
+
+                // No usable console buffer — nothing to restore.
 
             }
 

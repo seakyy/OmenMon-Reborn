@@ -51,6 +51,21 @@ namespace OmenMon.AppCli {
             public bool PlateauReached;
             public int PlateauStepPercent;     // commanded level at which plateau was observed
             public string PlateauNote;         // human-readable explanation for the report
+            // Set when the 100% step was filtered out of the profile up front because the
+            // ProductId is on FanArray.HasMaxFanFreeze. The run is a complete success — it
+            // just intentionally stops below 100% on this model. Surfaced in the report so
+            // users do not read the missing 100% step as the wizard being "stuck at 70%"
+            // (issue #74). This is distinct from PlateauReached, which is an in-run
+            // observation; this flag is a deliberate, pre-run safety decision.
+            public bool MaxStepSkippedForFreeze;
+            // Set when the final (highest) commanded step produced little or no RPM gain
+            // over the prior step, but there was nothing higher to skip. Unlike a real
+            // plateau this is NOT treated as a freeze signal and carries no "add to the
+            // safety list" recommendation: on many healthy boards the manual fan-level
+            // scale already sits at the physical ceiling, so the top two steps reading the
+            // same RPM is expected, not a malfunction (the false "PLATEAU DETECTED at
+            // 100 %" alarm reported by e-mail on 88D2). Purely informational.
+            public string TopStepNoGainNote;
             // Non-null when the sidecar XML could not be written (e.g. installed under
             // C:\Program Files without admin rights). The session keeps its in-memory
             // override but a restart will lose it — surfaced in the Markdown report so
@@ -96,15 +111,23 @@ namespace OmenMon.AppCli {
             // BIOS internal rate-limiter is triggered at 100%, requiring a restart to recover.
             string productId = SafeProductId();
             if(FanArray.HasMaxFanFreeze(productId)) {
+                int beforeLen = profile.Length;
                 profile = profile.Where(p => p < 100).ToArray();
                 if(profile.Length == 0) {
                     outcome.FailureReason = $"Model {productId} has a known 100% fan freeze issue and the profile contains only 100% steps. Calibration aborted.";
                     return outcome;
                 }
+                // Record the deliberate omission so the report can explain why the sweep
+                // stops below 100% on this model — otherwise the truncated profile reads
+                // as the wizard being "stuck at 70%" (issue #74).
+                if(profile.Length < beforeLen)
+                    outcome.MaxStepSkippedForFreeze = true;
             }
 
             // Snapshot prior fan state so we can restore it no matter how this exits.
             byte[] priorLevels = null;
+            int[] priorRates = null;
+            bool priorRatesCaptured = false;
             bool priorMax = false;
             bool priorManual = false;
             bool priorOff = false;
@@ -144,6 +167,18 @@ namespace OmenMon.AppCli {
                 }
 
                 try { priorLevels = fans.GetLevels(); }   catch { }
+                // Capture the per-fan rate registers too. ApplyLevel() writes them on
+                // every sub-100% step (SetRate), but until now nothing put them back —
+                // see the symmetric restore in finally{} for why that matters on boards
+                // that honour the rate register over the level register (issue #74).
+                try {
+                    if(fans.Fan != null) {
+                        priorRates = new int[fans.Fan.Length];
+                        for(int i = 0; i < fans.Fan.Length; i++)
+                            priorRates[i] = fans.Fan[i].GetRate();
+                        priorRatesCaptured = true;
+                    }
+                } catch { priorRatesCaptured = false; }
                 try { priorMax    = fans.GetMax(); }      catch { }
                 try { priorManual = fans.GetManual(); }   catch { }
                 try { priorOff    = fans.GetOff(); }      catch { }
@@ -199,32 +234,31 @@ namespace OmenMon.AppCli {
                     int liveGpu = TryReadLiveSpeed(fans, 1);
                     outcome.LiveSpeeds.Add(new LiveSpeedSample(level, liveCpu, liveGpu));
 
-                    // Plateau check. Always runs once we have at least two readings,
-                    // because the freeze documented on 8C30 / 8D07 / 8BAD is triggered
-                    // *by* the 100 % command itself — predicting it before issuing 100 %
-                    // would require an intermediate probe step that is itself unsafe on
-                    // boards whose physical ceiling sits below 85 %. So the check fires
-                    // *after* each step:
-                    //
-                    //   - If a higher step is still queued, abort and skip it (saves the
-                    //     user from a redundant or risky next step on a fan that is no
-                    //     longer responding).
-                    //   - If we're already at the last step, mark the plateau anyway so
-                    //     the Markdown report tells the user / maintainer the run hit a
-                    //     physical ceiling and the ProductId should be added to the
-                    //     HasMaxFanFreeze list. The faulty 100 % sample is left in
-                    //     outcome.Samples on purpose — the EcDiffScanner needs every
-                    //     sample to score candidates, and discarding it would skew the
-                    //     heuristic.
+                    // Plateau check. Runs once we have at least two readings. The freeze
+                    // documented on 8C30 / 8D07 / 8BAD is triggered *by* the 100 % command
+                    // itself, so the only point at which detection can *prevent* a freeze
+                    // is when a higher step is still queued — there we abort the remaining
+                    // steps. Detection on the final step (nothing left to skip) cannot
+                    // prevent anything, the command already ran, and "top step ≈ previous
+                    // step" is the normal case on boards whose manual fan-level scale
+                    // already reaches the physical ceiling — so we record it as a neutral
+                    // note and do NOT raise the freeze alarm there (that false alarm on
+                    // healthy boards was the 88D2 e-mail report). Either way every sample
+                    // stays in outcome.Samples — the EcDiffScanner needs them all to score.
                     if(DetectPlateau(outcome.LiveSpeeds, out string plateauNote)) {
-                        outcome.PlateauReached = true;
-                        outcome.PlateauStepPercent = level;
-                        outcome.PlateauNote = plateauNote;
                         bool haveHigherStepsQueued = false;
                         for(int j = i + 1; j < totalSteps; j++) {
                             if(profile[j] > level) { haveHigherStepsQueued = true; break; }
                         }
                         if(haveHigherStepsQueued) {
+                            // Actionable plateau: the fans stopped responding before we
+                            // reached the top of the profile, so the remaining higher steps
+                            // would only spend more time in the rate-limiter danger zone for
+                            // no measurement gain. Abort them and flag the board so the
+                            // safety list can be extended.
+                            outcome.PlateauReached = true;
+                            outcome.PlateauStepPercent = level;
+                            outcome.PlateauNote = plateauNote;
                             progress($"step{level}%", "Physical fan ceiling reached — skipping higher steps to avoid EC freeze.", basePct + 8);
                             // Try to gently leave the EC in a benign state — clear MaxFan
                             // in case any partial command lingered, then return to manual
@@ -237,6 +271,10 @@ namespace OmenMon.AppCli {
                             try { fans.SetManual(true); } catch { }
                             break;
                         }
+
+                        // Final-step "plateau" with nothing left to skip: benign and
+                        // informational only — no freeze alarm, no safety-list ask.
+                        outcome.TopStepNoGainNote = plateauNote;
                     }
                 }
 
@@ -274,6 +312,19 @@ namespace OmenMon.AppCli {
                     try { fans.SetMax(priorMax); }                       catch { }
                     try { fans.SetOff(priorOff); }                       catch { }
                     try { fans.SetManual(priorManual); }                 catch { }
+                    // Put the per-fan rate registers back the way we found them. ApplyLevel()
+                    // wrote them on every sub-100% step, but the v1.4.2 teardown only released
+                    // the *level* registers (0xFF, 0xFF). On boards whose EC keeps driving the
+                    // fans from the rate register after manual mode is released — the
+                    // HasMaxFanFreeze family, 8BAD in issue #74 — that stale rate write is what
+                    // left the fans pinned at the last commanded step ("locks at 70%") even
+                    // after the level release. Best-effort and symmetric with the level
+                    // restore: a genuinely frozen EC ignores these writes and still needs a
+                    // reboot, but a board that merely had a sticky rate register recovers.
+                    if(priorRatesCaptured && priorRates != null && fans.Fan != null) {
+                        for(int i = 0; i < fans.Fan.Length && i < priorRates.Length; i++)
+                            try { fans.Fan[i].SetRate(priorRates[i]); } catch { }
+                    }
                     // Hard-coding SetCountdown(0) here would overwrite a non-zero
                     // user countdown (constant-speed mode, an active fan program)
                     // and silently change their state after the wizard exits. Only
@@ -400,10 +451,11 @@ namespace OmenMon.AppCli {
             // a legitimate higher-step measurement.
             if(dCpu >= PlateauRpmDelta || dGpu >= PlateauRpmDelta) return false;
 
+            // Purely factual observation — the caller decides how to frame it. When a
+            // higher step is still queued this is an actionable plateau; on the final
+            // step it is usually just the manual fan-level scale already at the ceiling.
             note = $"Live RPM at {current.LevelPercent} % matched {prior.LevelPercent} % within {PlateauRpmDelta} RPM "
-                 + $"(CPU {prior.CpuRpm} → {current.CpuRpm}, GPU {prior.GpuRpm} → {current.GpuRpm}). "
-                 + "The board appears to be at its physical fan ceiling; remaining higher steps were "
-                 + "skipped to avoid the BIOS rate-limiter freeze observed on some Victus/Omen SKUs.";
+                 + $"(CPU {prior.CpuRpm} → {current.CpuRpm}, GPU {prior.GpuRpm} → {current.GpuRpm}).";
             return true;
         }
 
@@ -413,10 +465,12 @@ namespace OmenMon.AppCli {
         }
 
         private static string SafeBiosBornDate() {
-            // BIOS born-date (yyyymmdd, e.g. 20240625) — the same field the existing Probe
-            // report uses, and reliably available without pulling in System.Management.
-            // Reported as "BIOS Build Date" in the Markdown so maintainers don't mistake
-            // it for an SMBIOS firmware version string.
+            // BIOS born-date (yyyymmdd, e.g. 20240625) — the same GetBornDate() field the
+            // existing Probe report uses, reliably available without pulling in
+            // System.Management. Reported as "BIOS Born Date" in the Markdown: it is the
+            // factory manufacture/born date, NOT the firmware build/version, and labelling
+            // it "BIOS Build Date" led a user to flag it as wrong against their real BIOS
+            // build (issue #74).
             try { return Hw.Bios?.GetBornDate() ?? "?"; }
             catch { return "?"; }
         }
@@ -501,23 +555,42 @@ namespace OmenMon.AppCli {
                 sb.AppendLine();
             }
 
+            // Explain the deliberately-truncated profile up front. On a HasMaxFanFreeze
+            // board the wizard never commands 100% — pushing the fans past their physical
+            // ceiling locks the EC until reboot — so the sweep stops at 70%. Without this
+            // note the missing 100% step reads as the wizard being "stuck" (issue #74).
+            if(o.MaxStepSkippedForFreeze) {
+                sb.AppendLine("> **ℹ️ 100 % step intentionally skipped.** `" + o.ProductId + "` is on OmenMon's known max-fan-freeze list: on this model, commanding 100 % fan speed locks the embedded controller until a reboot. The sweep deliberately stops below 100 %, so a profile that ends at 70 % is expected here and **not** a malfunction. Manual fan control up to that level is unaffected.");
+                sb.AppendLine();
+            }
+
             // Hoist plateau detection above the Device block so a maintainer reading
-            // the issue immediately sees the wizard short-circuited and *why*. The
-            // request is to add the ProductId to the safety list so future runs skip
-            // 100 % proactively (the wizard already aborted *this* run, but the user's
-            // tray menu / main-form max-fan toggle is still unguarded for them).
+            // the issue immediately sees the wizard short-circuited and *why*. Only set
+            // when a higher step was actually skipped (an actionable plateau); the request
+            // to add the ProductId to the safety list makes 100 % skip proactively next
+            // time (the wizard aborted *this* run, but the user's tray / main-form max-fan
+            // toggle is still unguarded for them).
             if(o.PlateauReached) {
                 sb.AppendLine("> **PLATEAU DETECTED at " + o.PlateauStepPercent + " %.** The wizard skipped any remaining higher steps.");
                 if(!string.IsNullOrEmpty(o.PlateauNote))
-                    sb.AppendLine("> " + o.PlateauNote);
+                    sb.AppendLine("> " + o.PlateauNote + " The board appears to be at its physical fan ceiling.");
                 sb.AppendLine("> Please report this so `" + o.ProductId + "` can be added to `FanArray.HasMaxFanFreeze` for full protection.");
+                sb.AppendLine();
+            } else if(!string.IsNullOrEmpty(o.TopStepNoGainNote)) {
+                // Final-step "plateau" with nothing to skip: benign and informational.
+                // Deliberately no freeze alarm and no safety-list ask — on most boards the
+                // manual fan-level scale already reaches the ceiling, so the top two steps
+                // reading the same RPM is normal (the false "PLATEAU DETECTED at 100 %"
+                // alarm an 88D2 owner reported by e-mail). We only flag the one case worth
+                // a closer look: if the user can audibly spin the fans faster than this.
+                sb.AppendLine("> _Note: the top step produced little RPM gain over the previous one. " + o.TopStepNoGainNote + " This is normal on boards whose manual fan-level scale already reaches the physical ceiling. If your fans audibly spin faster at maximum than the RPM shown here, the detected register may be mirroring the commanded level rather than a true tachometer — please mention that in your issue._");
                 sb.AppendLine();
             }
 
             sb.AppendLine("## Device");
             sb.AppendLine();
             sb.AppendLine($"- **Product ID:** `{o.ProductId}`");
-            sb.AppendLine($"- **BIOS Build Date:** `{o.BiosBornDate}`");
+            sb.AppendLine($"- **BIOS Born Date:** `{o.BiosBornDate}` (factory manufacture date — not the firmware build/version)");
             sb.AppendLine($"- **EC Read Method:** ACPI/Omen kernel driver");
             sb.AppendLine($"- **Profile:** {string.Join(" → ", o.Samples.Select(s => s.LevelPercent + "%"))}");
             sb.AppendLine();

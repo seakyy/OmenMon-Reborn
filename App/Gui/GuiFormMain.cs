@@ -929,7 +929,8 @@ namespace OmenMon.AppGui {
                 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "Born") + " "
                     + Context.Op.Platform.System.GetBornDate() + " "
                 + (Context.Op.Platform.System.GetDefaultCpuPowerLimit4() == 0 ? ""
-                    : Conv.RTF_CF5 + Context.Op.Platform.System.GetDefaultCpuPowerLimit4().ToString()
+                    : Conv.RTF_CF1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "CpuPl4") + " "
+                    + Conv.RTF_CF5 + Context.Op.Platform.System.GetDefaultCpuPowerLimit4().ToString()
                     + Conv.RTF_CF1 + Config.Locale.Get(Config.L_UNIT + "Power") + " ")
                 + Conv.RTF_CF1 + (Context.Op.Platform.System.IsFullPower() ?
                     Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "Adapter"
