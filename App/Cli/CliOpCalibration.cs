@@ -114,7 +114,7 @@ namespace OmenMon.AppCli {
             // the freeze decision here and every report string must agree on a single value.
             // Settings.GetProduct() can transiently return "?" on a WMI hiccup, so calling it
             // twice risked the report claiming "?" is on the freeze list while the filter ran
-            // against the real ID, or vice versa (Copilot review).
+            // against the real ID, or vice versa.
             string productId = SafeProductId();
             outcome.ProductId = productId;
             if(FanArray.HasMaxFanFreeze(productId)) {
