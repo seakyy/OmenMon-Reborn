@@ -163,18 +163,42 @@ namespace OmenMon.AppCli {
         // Makes the command prompt reappear when the application is done in CLI mode
         public static void RestorePrompt() {
 
-            // Skip if a PowerShell session
-            if(!Os.IsConsolePowerShell()) {
+            // Skip if a PowerShell session. Wrapped because even the shell probe can
+            // touch the console; if we can't determine the shell, skip the (purely
+            // cosmetic) restore rather than risk an escaping exception.
+            try {
+                if(Os.IsConsolePowerShell())
+                    return;
+            } catch {
+                return;
+            }
 
-                // Make the command prompt appear again
-                // by simulating a keystroke (an ugly hack)
-                Console.CursorTop -= 1; // Go back one row to avoid leaving blank space
+            // Go back one row to avoid leaving blank space — but only when there is a
+            // usable console buffer and the cursor is not already at the top row.
+            // Reading or decrementing Console.CursorTop calls GetConsoleScreenBufferInfo
+            // under the hood, which throws an "invalid handle" IOException when standard
+            // output is not a real console screen buffer (output redirected to a file or
+            // pipe, or no inheritable console at all — the WinIOError crash escaping to
+            // Main() reported in issue #76), and would throw at row 0. Best-effort and
+            // self-contained so a failure here does not suppress the keystroke below.
+            try {
+                if(Console.CursorTop > 0)
+                    Console.CursorTop -= 1;
+            } catch {
+                // No usable console buffer for cursor positioning.
+            }
+
+            // Make the command prompt reappear by simulating an Enter keystroke (an ugly
+            // hack). Kept independent of the cursor adjustment so it still runs when the
+            // cursor was already at row 0 or the buffer query above failed.
+            try {
                 User32.SendMessage(
                     Kernel32.GetConsoleWindow(),
                     User32.WM_CHAR,
                     (IntPtr) User32.VK_ENTER,
                     IntPtr.Zero);
-
+            } catch {
+                // No usable console window — nothing to restore.
             }
 
         }
