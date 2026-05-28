@@ -335,9 +335,28 @@ namespace OmenMon.AppGui {
                 typeof(BiosData.FanMode), 
                 ((ToolStripMenuItem) sender).Name.Remove(0, P_FAN_MODE.Length));
 
-            // Proceed only if the requested mode
-            // is different than the current one
-            if(fanModeAsk != fanModeNow) {
+            // "Max Fan" is a separate BIOS toggle (SetMaxFan) from the fan mode
+            // (SetFanMode), and SetMode does not clear it — so choosing Auto/Default
+            // (or any mode) while Max Fan was engaged left the fans pinned at maximum
+            // (issue #77, reported by @AbhinavGenos on 8BCD). Release a *manually*
+            // engaged Max Fan when the user picks a mode. This has to run even when the
+            // requested mode equals the current one, because Max Fan sits on top of any
+            // mode — the common "already in Default, toggled Max Fan, now click Default
+            // to go back" case, where SetMode alone is a no-op. An active Thermal Panic
+            // is deliberately left alone: that is a safety feature with its own max-fan
+            // state machine, and clearing it from a menu click would just make it
+            // re-assert on the next hot tick. Releasing Max Fan only ever lowers fan
+            // speed, so it cannot trigger the 100%-fan EC-freeze quirk on
+            // FanArray.HasMaxFanFreeze boards.
+            bool manualMaxReleased = !Context.Op.IsThermalPanic
+                && Context.Op.Platform.Fans.GetMax();
+            if(manualMaxReleased)
+                Context.Op.Platform.Fans.SetMax(false);
+
+            // Apply the requested mode if it differs, or re-assert it when Max Fan was
+            // just released, so the fans actually return to the automatic curve
+            // (mirrors the main-window "Automatic" path in GuiFormMain).
+            if(fanModeAsk != fanModeNow || manualMaxReleased) {
 
                 // Set the requested fan mode
                 Context.Op.Platform.Fans.SetMode(fanModeAsk);

@@ -92,6 +92,13 @@ namespace OmenMon.Hardware.Ec {
 #endregion
 
 #region Public API
+        // Note emitted when no fan tachometer candidate survives the heuristics.
+        // Exposed as a constant so the Auto-Calibration report can recognise this
+        // specific note and suppress it for boards that have a built-in RPM mapping
+        // (where a blank scan is expected, not a fault — issue #81).
+        public const string NoteNoneDetected =
+            "No plausible fan tachometer registers detected. The board may use a polling interval longer than the test window, or the EC may be locked by HP firmware. Please share the raw dumps from the report.";
+
         public static Result Scan(IList<Sample> samples) {
             if(samples == null || samples.Count < 2)
                 throw new ArgumentException("Need at least two samples (idle + max).");
@@ -119,7 +126,7 @@ namespace OmenMon.Hardware.Ec {
             if(top.Count >= 2) result.GpuFan = top[1];
 
             if(top.Count == 0)
-                result.Notes.Add("No plausible fan tachometer registers detected. The board may use a polling interval longer than the test window, or the EC may be locked by HP firmware. Please share the raw dumps from the report.");
+                result.Notes.Add(NoteNoneDetected);
             else if(top.Count == 1)
                 result.Notes.Add("Only one fan tachometer detected — second fan may be physically absent (single-fan SKU) or wired through a different bus.");
 

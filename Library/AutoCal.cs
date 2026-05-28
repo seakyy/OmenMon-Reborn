@@ -363,6 +363,16 @@ namespace OmenMon.Library {
             if(!HasCpu && (m.CpuReg != 0 || m.CpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
             if(!HasGpu && (m.GpuReg != 0 || m.GpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
         }
+
+        // Reports whether a board has a built-in RPM mapping in KnownBoards.
+        // Used by the Auto-Calibration report to reassure the user when the
+        // EcDiffScanner heuristic detects nothing on boards that don't expose a
+        // 16-bit LE tachometer (e.g. 8BB3 — single-fan DirectMultiplier8 at 0xF1,
+        // 8C9C — BiosLevelMirror): RPM is already handled natively, so the scan
+        // returning no candidate is expected, not a malfunction (issue #81).
+        public static bool IsKnownBoard(string productId) {
+            return !string.IsNullOrEmpty(productId) && KnownBoards.ContainsKey(productId);
+        }
 #endregion
 
     }

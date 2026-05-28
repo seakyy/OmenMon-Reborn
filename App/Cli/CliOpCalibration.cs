@@ -610,9 +610,28 @@ namespace OmenMon.AppCli {
             } else {
                 AppendCandidate(sb, "CPU", o.Scan.CpuFan);
                 AppendCandidate(sb, "GPU", o.Scan.GpuFan);
-                if(o.Scan.Notes.Count > 0) {
+
+                // Boards with a built-in RPM mapping (KnownBoards) don't expose a
+                // 16-bit LE tachometer the EcDiffScanner can find — e.g. 8BB3's single
+                // fan reports via DirectMultiplier8 at 0xF1, 8C9C via BiosLevelMirror.
+                // A blank scan is expected there and the live RPM is already correct,
+                // so replace the generic "no plausible registers / share your dumps"
+                // alarm with a reassurance note (issue #81, @jpcaldwell30 on 8BB3).
+                bool knownBoardNoScan = o.Scan.CpuFan == null && o.Scan.GpuFan == null
+                    && AutoCal.IsKnownBoard(o.ProductId);
+                if(knownBoardNoScan) {
                     sb.AppendLine();
-                    foreach(var note in o.Scan.Notes)
+                    sb.AppendLine("> **ℹ️ This is expected on `" + o.ProductId + "`.** OmenMon already ships a built-in RPM mapping for this board, so fan speed is read correctly without auto-calibration. This model does not expose a 16-bit tachometer the scanner can detect — the blank scan result above is normal and **not** a malfunction.");
+                }
+
+                // Print scan notes, dropping the generic "nothing detected" alarm when
+                // we have already explained above that a blank scan is expected here.
+                var notes = o.Scan.Notes
+                    .Where(n => !(knownBoardNoScan && n == EcDiffScanner.NoteNoneDetected))
+                    .ToList();
+                if(notes.Count > 0) {
+                    sb.AppendLine();
+                    foreach(var note in notes)
                         sb.AppendLine("> " + note);
                 }
                 if(o.Scan.All.Count > 0) {
