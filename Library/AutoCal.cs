@@ -99,6 +99,41 @@ namespace OmenMon.Library {
             _gpu = null;
         }
 
+        // Mirror-collision detector (issue #83, reported by @MartinSalg818 on 8BAD).
+        // Returns true when this board has a native preset that drives the CPU and GPU
+        // fans from DISTINCT tachometer registers, yet the currently-published overrides
+        // make both fans resolve to the SAME register — the condition under which the two
+        // fan readouts mirror each other.
+        //
+        // The classic trigger is a single-fan calibration scan: EcDiffScanner hands its
+        // sole candidate to CpuFan, and if that candidate is actually the GPU's tach
+        // register the CPU override then points at it while the GPU side, having no
+        // override, falls back to the preset's (same) register. Both fans then read the
+        // GPU's RPM.
+        //
+        // Compares the *effective* register each fan will read: the published override if
+        // present, otherwise the preset register Fan.GetSpeed() falls back to. Three classes
+        // of board are exempt because a shared register is legitimate there, not a misfire:
+        //   * boards with no native entry (no ground truth to compare against),
+        //   * boards whose preset already shares one register between both fans (single-fan
+        //     SKUs such as 8BB3, FanSpeedReg0 == FanSpeedReg1), and
+        //   * BiosLevelMirror overrides, whose 0 register is a sentinel rather than a real
+        //     EC offset (e.g. 8C9C).
+        internal static bool CollidesWithNativePreset(string productId) {
+            if(string.IsNullOrEmpty(productId) || Config.Models == null) return false;
+            if(!Config.Models.TryGetValue(productId, out var preset)) return false;
+            if(preset.FanSpeedReg0 == preset.FanSpeedReg1) return false;
+
+            bool haveCpu = TryGetCpu(out byte cReg, out EcDiffScanner.Mode cMode, out _);
+            bool haveGpu = TryGetGpu(out byte gReg, out EcDiffScanner.Mode gMode, out _);
+            if(haveCpu && cMode == EcDiffScanner.Mode.BiosLevelMirror) return false;
+            if(haveGpu && gMode == EcDiffScanner.Mode.BiosLevelMirror) return false;
+
+            byte effectiveCpu = haveCpu ? cReg : preset.FanSpeedReg0;
+            byte effectiveGpu = haveGpu ? gReg : preset.FanSpeedReg1;
+            return effectiveCpu == effectiveGpu;
+        }
+
 #region Persistence
         // Path of the sidecar file CliOpCalibration writes after a successful scan.
         // Kept separate from OmenMon.xml so the wizard never has to rewrite the main
@@ -229,6 +264,20 @@ namespace OmenMon.Library {
                 if(haveGpu) {
                     SetGpu(gReg, gMode);
                     anyApplied = true;
+                }
+
+                // Mirror-collision self-heal (issue #83): if the overrides we just
+                // restored collapse a distinct-register board's two fans onto the same
+                // tachometer — a single-fan scan that locked onto the other fan's
+                // register — discard the sidecar and fall back to the verified native
+                // preset so the CPU and GPU readouts stop mirroring. Evaluated after
+                // publishing so it weighs the exact effective registers Fan.GetSpeed()
+                // will use; Platform calls Prime() next to refill any fan still on the
+                // preset.
+                if(anyApplied && CollidesWithNativePreset(currentProductId)) {
+                    Clear();
+                    try { File.Delete(path); } catch { }
+                    return false;
                 }
 
                 return anyApplied;
