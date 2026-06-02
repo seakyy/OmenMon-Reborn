@@ -526,7 +526,9 @@ namespace OmenMon.AppCli {
             if(AutoCal.CollidesWithNativePreset(productId)) {
                 AutoCal.Clear();
                 AutoCal.Prime(productId);
-                string detected = scan.CpuFan != null ? $"0x{scan.CpuFan.Offset:X2}" : "the scanned offset";
+                string detected = scan.CpuFan != null ? $"0x{scan.CpuFan.Offset:X2}"
+                    : scan.GpuFan != null ? $"0x{scan.GpuFan.Offset:X2}"
+                    : "the scanned offset";
                 outcome.OverrideRejectedNote =
                     $"Detected register `{detected}` matches `{productId}`'s built-in mapping for the *other* fan, "
                     + "so applying it would make the CPU and GPU fan readouts mirror each other. OmenMon kept its "
