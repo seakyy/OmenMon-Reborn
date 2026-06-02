@@ -71,6 +71,11 @@ namespace OmenMon.AppCli {
             // override but a restart will lose it — surfaced in the Markdown report so
             // the user knows persistence didn't happen.
             public string SidecarError;
+            // Set when a detected register was rejected because applying it would make the
+            // CPU and GPU fan readouts mirror each other on a board whose built-in preset
+            // already drives the two fans from distinct registers (issue #83). The verified
+            // preset is kept and no sidecar is written.
+            public string OverrideRejectedNote;
         }
 
         // Per-step tachometer snapshot taken via the live IFan.GetSpeed() path, so the
@@ -291,7 +296,7 @@ namespace OmenMon.AppCli {
 
                 if(outcome.Scan.IsPlausible) {
                     progress("apply", "Applying detected registers to live session…", 98);
-                    outcome.SidecarError = ApplyToLiveSession(outcome.Scan, outcome.ProductId);
+                    outcome.SidecarError = ApplyToLiveSession(outcome.Scan, outcome.ProductId, outcome);
                 }
 
                 outcome.Markdown = BuildReport(outcome);
@@ -491,7 +496,7 @@ namespace OmenMon.AppCli {
         // Returns null on success, or a human-readable error string if the sidecar
         // write failed (typically ACL/UAC on a Program Files install). The in-memory
         // overrides are still applied either way — only persistence is at risk.
-        private static string ApplyToLiveSession(EcDiffScanner.Result scan, string productId) {
+        private static string ApplyToLiveSession(EcDiffScanner.Result scan, string productId, CalibrationOutcome outcome) {
             // Wipe any prior override (from a previous wizard run, the sidecar XML, or a
             // known-board prime) before publishing this run's results. Otherwise a scan
             // that finds only the CPU fan would leave a stale GPU mapping in place.
@@ -510,6 +515,26 @@ namespace OmenMon.AppCli {
                 AutoCal.SetCpu(scan.CpuFan.Offset, scan.CpuFan.Mode);
             if(scan.GpuFan != null)
                 AutoCal.SetGpu(scan.GpuFan.Offset, scan.GpuFan.Mode);
+
+            // Mirror-collision guard (issue #83): if applying the scan makes both fans
+            // resolve to the same tachometer on a board whose built-in preset already
+            // uses distinct CPU/GPU registers — classically a single-fan scan that locked
+            // onto the GPU's register, which EcDiffScanner assigns to CpuFan — keep the
+            // verified preset rather than persisting a sidecar AutoCal.Load() would only
+            // delete on the next launch. Revert the live overrides to the built-in mapping
+            // and skip the write.
+            if(AutoCal.CollidesWithNativePreset(productId)) {
+                AutoCal.Clear();
+                AutoCal.Prime(productId);
+                string detected = scan.CpuFan != null ? $"0x{scan.CpuFan.Offset:X2}"
+                    : scan.GpuFan != null ? $"0x{scan.GpuFan.Offset:X2}"
+                    : "the scanned offset";
+                outcome.OverrideRejectedNote =
+                    $"Detected register `{detected}` matches `{productId}`'s built-in mapping for the *other* fan, "
+                    + "so applying it would make the CPU and GPU fan readouts mirror each other. OmenMon kept its "
+                    + "verified built-in mapping and did not write a calibration override.";
+                return null;
+            }
 
             try {
                 // Single source of truth for the sidecar path — same constant the
@@ -610,9 +635,36 @@ namespace OmenMon.AppCli {
             } else {
                 AppendCandidate(sb, "CPU", o.Scan.CpuFan);
                 AppendCandidate(sb, "GPU", o.Scan.GpuFan);
-                if(o.Scan.Notes.Count > 0) {
+
+                // A detected register that would mirror the two fan readouts was rejected
+                // in favour of the board's verified built-in mapping (issue #83). Annotate
+                // it right under the candidate so the reading isn't read as "ignored".
+                if(!string.IsNullOrEmpty(o.OverrideRejectedNote)) {
                     sb.AppendLine();
-                    foreach(var note in o.Scan.Notes)
+                    sb.AppendLine("> **ℹ️ Detected register not applied.** " + o.OverrideRejectedNote);
+                }
+
+                // Boards with a built-in RPM mapping (KnownBoards) don't expose a
+                // 16-bit LE tachometer the EcDiffScanner can find — e.g. 8BB3's single
+                // fan reports via DirectMultiplier8 at 0xF1, 8C9C via BiosLevelMirror.
+                // A blank scan is expected there and the live RPM is already correct,
+                // so replace the generic "no plausible registers / share your dumps"
+                // alarm with a reassurance note (issue #81, @jpcaldwell30 on 8BB3).
+                bool knownBoardNoScan = o.Scan.CpuFan == null && o.Scan.GpuFan == null
+                    && AutoCal.IsKnownBoard(o.ProductId);
+                if(knownBoardNoScan) {
+                    sb.AppendLine();
+                    sb.AppendLine("> **ℹ️ This is expected on `" + o.ProductId + "`.** OmenMon already ships a built-in RPM mapping for this board, so fan speed is read correctly without auto-calibration. This model does not expose a 16-bit tachometer the scanner can detect — the blank scan result above is normal and **not** a malfunction.");
+                }
+
+                // Print scan notes, dropping the generic "nothing detected" alarm when
+                // we have already explained above that a blank scan is expected here.
+                var notes = o.Scan.Notes
+                    .Where(n => !(knownBoardNoScan && n == EcDiffScanner.NoteNoneDetected))
+                    .ToList();
+                if(notes.Count > 0) {
+                    sb.AppendLine();
+                    foreach(var note in notes)
                         sb.AppendLine("> " + note);
                 }
                 if(o.Scan.All.Count > 0) {

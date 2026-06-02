@@ -82,6 +82,12 @@
         <EcRetryLimit>3</EcRetryLimit>
         <!-- Iterations before waiting fails each time -->
         <EcWaitLimit>30</EcWaitLimit>
+        <!-- Fast status-port spins before backing off to a 1 ms sleep while
+             waiting on a busy EC. Stops OmenMon hammering the port while the
+             OS/BIOS ACPI driver is mid-transaction, which could otherwise
+             provoke an ACPI "EC did not respond before timeout" panic shutdown
+             (issue #88). Set >= EcWaitLimit to restore the legacy pure-spin. -->
+        <EcWaitSpinCount>5</EcWaitSpinCount>
         <!-- Fan Control -->
         <!-- Fan countdown will always be continually extended, even
              with no fan program running, no constant-speed button
@@ -738,6 +744,30 @@
             <!-- ProductId, so the entry is non-regressive. As with 8A42, if custom rate-writes have no audible  -->
             <!-- effect, try switching FanRateWriteReg0/1 to 58/59 (the 8A4C/8A4D family layout).                -->
             <Model ProductId="8A18" DisplayName="HP OMEN 17 ck1000nw (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A14: HP Omen (2021 EC layout) — issue #82 reported by @BinaryRider.                       -->
+            <!-- Confirmed via the user's Auto-Calibration report (0% → 30% → 70% → 100% profile):           -->
+            <!--   * 16-bit LE tach at 0xB0 (CPU) / 0xB2 (GPU): raw EC dumps decode to the reported live RPM  -->
+            <!--     — at 100% EC[0xB0..B1]=0A 0F → 0x0F0A = 3850 and EC[0xB2..B3]=D4 0E → 0x0ED4 = 3796,     -->
+            <!--     matching the report's CPU max=3850 / GPU max=3796; idle step reads 0/0. FanSpeed = 176/178. -->
+            <!--   * FanLevel 0x34/0x35 track the commanded step (0x00 → 0x10 → 0x26 → 0x26) and FanRate      -->
+            <!--     0x2C-0x2F mirror the percent (0x1E=30 → 0x46=70), i.e. the canonical 2022 layout         -->
+            <!--     (identical register set to the 8A18 / 8A42 entries above).                               -->
+            <!-- Mode/switch/manual/countdown inferred from the 2022 template (not stress-validated); mirrors -->
+            <!-- what v1.4.1 auto-detection already applied for this ProductId, so the entry is non-regressive. -->
+            <Model ProductId="8A14" DisplayName="HP Omen (8A14, 2021)">
                 <FanLevelReg0>52</FanLevelReg0>
                 <FanLevelReg1>53</FanLevelReg1>
                 <FanRateReadReg0>46</FanRateReadReg0>

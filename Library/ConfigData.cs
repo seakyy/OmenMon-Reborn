@@ -127,6 +127,7 @@ namespace OmenMon.Library {
         public static int EcFailLimit  = 15;  // Maximum number of failed attempts waiting to read
         public static int EcRetryLimit =  3;  // Maximum number of read and write attempts
         public static int EcWaitLimit  = 30;  // Iterations before waiting fails each time
+        public static int EcWaitSpinCount = 5; // Fast spins before backing off to a 1 ms sleep while waiting on a busy EC (issue #88; >= EcWaitLimit restores the legacy pure-spin)
 
         // Environment variable settings
         public static string EnvVarSelfName = AppName;
@@ -485,8 +486,14 @@ namespace OmenMon.Library {
         public const int TemperatureSensorMax = 9;
 
         // Model database (populated at runtime from XML, empty = use PlatformPreset.Default for all devices)
+        // Keyed by WMI baseboard ProductId. Case-insensitive so lookups stay consistent
+        // with AutoCal.KnownBoards and AutoCal.Load's OrdinalIgnoreCase product compare
+        // (WMI casing via Settings.GetProduct() is not guaranteed). ProductIds are
+        // uppercase hex by convention, so the shipped <Models> keys do not differ only
+        // by case; note that with OrdinalIgnoreCase any two entries that DID differ only
+        // by case would overwrite each other on load/save, so authors must keep keys unique.
         public static Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset> Models =
-            new Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset>();
+            new Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset>(StringComparer.OrdinalIgnoreCase);
 
         // Timestamp format in fan program status messages
         public const string TimestampFormat = "HH:mm:ss";

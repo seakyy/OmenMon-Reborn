@@ -99,6 +99,41 @@ namespace OmenMon.Library {
             _gpu = null;
         }
 
+        // Mirror-collision detector (issue #83, reported by @MartinSalg818 on 8BAD).
+        // Returns true when this board has a native preset that drives the CPU and GPU
+        // fans from DISTINCT tachometer registers, yet the currently-published overrides
+        // make both fans resolve to the SAME register — the condition under which the two
+        // fan readouts mirror each other.
+        //
+        // The classic trigger is a single-fan calibration scan: EcDiffScanner hands its
+        // sole candidate to CpuFan, and if that candidate is actually the GPU's tach
+        // register the CPU override then points at it while the GPU side, having no
+        // override, falls back to the preset's (same) register. Both fans then read the
+        // GPU's RPM.
+        //
+        // Compares the *effective* register each fan will read: the published override if
+        // present, otherwise the preset register Fan.GetSpeed() falls back to. Three classes
+        // of board are exempt because a shared register is legitimate there, not a misfire:
+        //   * boards with no native entry (no ground truth to compare against),
+        //   * boards whose preset already shares one register between both fans (single-fan
+        //     SKUs such as 8BB3, FanSpeedReg0 == FanSpeedReg1), and
+        //   * BiosLevelMirror overrides, whose 0 register is a sentinel rather than a real
+        //     EC offset (e.g. 8C9C).
+        internal static bool CollidesWithNativePreset(string productId) {
+            if(string.IsNullOrEmpty(productId) || Config.Models == null) return false;
+            if(!Config.Models.TryGetValue(productId, out var preset)) return false;
+            if(preset.FanSpeedReg0 == preset.FanSpeedReg1) return false;
+
+            bool haveCpu = TryGetCpu(out byte cReg, out EcDiffScanner.Mode cMode, out _);
+            bool haveGpu = TryGetGpu(out byte gReg, out EcDiffScanner.Mode gMode, out _);
+            if(haveCpu && cMode == EcDiffScanner.Mode.BiosLevelMirror) return false;
+            if(haveGpu && gMode == EcDiffScanner.Mode.BiosLevelMirror) return false;
+
+            byte effectiveCpu = haveCpu ? cReg : preset.FanSpeedReg0;
+            byte effectiveGpu = haveGpu ? gReg : preset.FanSpeedReg1;
+            return effectiveCpu == effectiveGpu;
+        }
+
 #region Persistence
         // Path of the sidecar file CliOpCalibration writes after a successful scan.
         // Kept separate from OmenMon.xml so the wizard never has to rewrite the main
@@ -231,6 +266,20 @@ namespace OmenMon.Library {
                     anyApplied = true;
                 }
 
+                // Mirror-collision self-heal (issue #83): if the overrides we just
+                // restored collapse a distinct-register board's two fans onto the same
+                // tachometer — a single-fan scan that locked onto the other fan's
+                // register — discard the sidecar and fall back to the verified native
+                // preset so the CPU and GPU readouts stop mirroring. Evaluated after
+                // publishing so it weighs the exact effective registers Fan.GetSpeed()
+                // will use; Platform calls Prime() next to refill any fan still on the
+                // preset.
+                if(anyApplied && CollidesWithNativePreset(currentProductId)) {
+                    Clear();
+                    try { File.Delete(path); } catch { }
+                    return false;
+                }
+
                 return anyApplied;
             } catch {
                 // Corrupt sidecar — better to fall through to the model preset / known-board
@@ -347,6 +396,21 @@ namespace OmenMon.Library {
                 GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
             },
 
+            // HP Omen Max 16 (8D41, 2025) — issue #87, reported by @Keith1341.
+            // The wizard's live-RPM column read blank because Fan.GetSpeed() fell back
+            // to the default 0xB0/0xB2 preset (wrong for this 2025 "Omen Max" layout),
+            // but the EcDiffScanner candidates and the raw EC dumps agree on 16-bit LE
+            // tachometers at 0x5C (CPU) / 0x9F (GPU). Decoded from the report's 100% step:
+            // EC[0x5C..0x5D] = 80 16 → 0x1680 = 5760 RPM (CPU) and EC[0x9F..0xA0] = 85 19
+            // → 0x1985 = 6533 RPM (GPU), matching the reported maxima exactly; the 0% step
+            // reads 0/0. Read-only mapping only — no fan-control registers are committed
+            // for this new layout (a wrong ManualReg/ModeReg could lock the EC), so this
+            // fixes the RPM display without risking the 100%-fan freeze class of bug.
+            ["8D41"] = new Mapping {
+                CpuReg = 0x5C, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0x9F, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
@@ -362,6 +426,16 @@ namespace OmenMon.Library {
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
             if(!HasCpu && (m.CpuReg != 0 || m.CpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
             if(!HasGpu && (m.GpuReg != 0 || m.GpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
+        }
+
+        // Reports whether a board has a built-in RPM mapping in KnownBoards.
+        // Used by the Auto-Calibration report to reassure the user when the
+        // EcDiffScanner heuristic detects nothing on boards that don't expose a
+        // 16-bit LE tachometer (e.g. 8BB3 — single-fan DirectMultiplier8 at 0xF1,
+        // 8C9C — BiosLevelMirror): RPM is already handled natively, so the scan
+        // returning no candidate is expected, not a malfunction (issue #81).
+        public static bool IsKnownBoard(string productId) {
+            return !string.IsNullOrEmpty(productId) && KnownBoards.ContainsKey(productId);
         }
 #endregion
 
