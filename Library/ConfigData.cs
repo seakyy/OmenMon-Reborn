@@ -488,8 +488,10 @@ namespace OmenMon.Library {
         // Model database (populated at runtime from XML, empty = use PlatformPreset.Default for all devices)
         // Keyed by WMI baseboard ProductId. Case-insensitive so lookups stay consistent
         // with AutoCal.KnownBoards and AutoCal.Load's OrdinalIgnoreCase product compare
-        // (WMI casing is not guaranteed); XML model keys are distinct uppercase hex, so
-        // the comparer change cannot collide two entries.
+        // (WMI casing via Settings.GetProduct() is not guaranteed). ProductIds are
+        // uppercase hex by convention, so the shipped <Models> keys do not differ only
+        // by case; note that with OrdinalIgnoreCase any two entries that DID differ only
+        // by case would overwrite each other on load/save, so authors must keep keys unique.
         public static Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset> Models =
             new Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset>(StringComparer.OrdinalIgnoreCase);
 
