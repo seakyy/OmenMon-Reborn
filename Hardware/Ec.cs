@@ -3,6 +3,7 @@
      //  https://omenmon.github.io/
 
 using System;
+using System.Threading;
 using OmenMon.Driver;
 using OmenMon.Library;
 
@@ -187,8 +188,16 @@ namespace OmenMon.Hardware.Ec {
                 // if(((byte) status & (isSet ? (byte) ~value : value)) == 0)
                 //     return true;
 
-                // Also in the updated version:
-                // Thread.Sleep(1); // using System.Threading;
+                // Back off to a 1 ms sleep once the initial fast spin is exhausted, so
+                // a busy EC is no longer hammered while the OS/BIOS ACPI driver may be
+                // mid-transaction. Relentless port polling raised the odds of an ACPI
+                // "Embedded Controller did not respond before timeout" → BIOS panic
+                // shutdown (issue #88, reported by @Bart82 on 8 16-am1001nw). The common
+                // case — EC ready within a spin or two — never sleeps, so GUI refresh
+                // latency is unchanged; only a contended EC yields the CPU. Set
+                // EcWaitSpinCount >= EcWaitLimit to restore the legacy pure-spin.
+                if(i >= Config.EcWaitSpinCount)
+                    Thread.Sleep(1);
             }
             return false;
         }

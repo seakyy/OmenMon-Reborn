@@ -127,6 +127,7 @@ namespace OmenMon.Library {
         public static int EcFailLimit  = 15;  // Maximum number of failed attempts waiting to read
         public static int EcRetryLimit =  3;  // Maximum number of read and write attempts
         public static int EcWaitLimit  = 30;  // Iterations before waiting fails each time
+        public static int EcWaitSpinCount = 5; // Fast spins before backing off to a 1 ms sleep while waiting on a busy EC (issue #88; >= EcWaitLimit restores the legacy pure-spin)
 
         // Environment variable settings
         public static string EnvVarSelfName = AppName;

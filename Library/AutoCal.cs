@@ -396,6 +396,21 @@ namespace OmenMon.Library {
                 GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
             },
 
+            // HP Omen Max 16 (8D41, 2025) — issue #87, reported by @Keith1341.
+            // The wizard's live-RPM column read blank because Fan.GetSpeed() fell back
+            // to the default 0xB0/0xB2 preset (wrong for this 2025 "Omen Max" layout),
+            // but the EcDiffScanner candidates and the raw EC dumps agree on 16-bit LE
+            // tachometers at 0x5C (CPU) / 0x9F (GPU). Decoded from the report's 100% step:
+            // EC[0x5C..0x5D] = 80 16 → 0x1680 = 5760 RPM (CPU) and EC[0x9F..0xA0] = 85 19
+            // → 0x1985 = 6533 RPM (GPU), matching the reported maxima exactly; the 0% step
+            // reads 0/0. Read-only mapping only — no fan-control registers are committed
+            // for this new layout (a wrong ManualReg/ModeReg could lock the EC), so this
+            // fixes the RPM display without risking the 100%-fan freeze class of bug.
+            ["8D41"] = new Mapping {
+                CpuReg = 0x5C, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0x9F, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from

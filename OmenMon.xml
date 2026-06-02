@@ -82,6 +82,12 @@
         <EcRetryLimit>3</EcRetryLimit>
         <!-- Iterations before waiting fails each time -->
         <EcWaitLimit>30</EcWaitLimit>
+        <!-- Fast status-port spins before backing off to a 1 ms sleep while
+             waiting on a busy EC. Stops OmenMon hammering the port while the
+             OS/BIOS ACPI driver is mid-transaction, which could otherwise
+             provoke an ACPI "EC did not respond before timeout" panic shutdown
+             (issue #88). Set >= EcWaitLimit to restore the legacy pure-spin. -->
+        <EcWaitSpinCount>5</EcWaitSpinCount>
         <!-- Fan Control -->
         <!-- Fan countdown will always be continually extended, even
              with no fan program running, no constant-speed button
