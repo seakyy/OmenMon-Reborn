@@ -192,7 +192,7 @@ namespace OmenMon.Hardware.Ec {
                 // a busy EC is no longer hammered while the OS/BIOS ACPI driver may be
                 // mid-transaction. Relentless port polling raised the odds of an ACPI
                 // "Embedded Controller did not respond before timeout" → BIOS panic
-                // shutdown (issue #88, reported by @Bart82 on 8 16-am1001nw). The common
+                // shutdown (issue #88, reported by @Bart82 on an HP Omen 16-am1001nw). The common
                 // case — EC ready within a spin or two — never sleeps, so GUI refresh
                 // latency is unchanged; only a contended EC yields the CPU. Set
                 // EcWaitSpinCount >= EcWaitLimit to restore the legacy pure-spin.

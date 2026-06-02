@@ -486,8 +486,12 @@ namespace OmenMon.Library {
         public const int TemperatureSensorMax = 9;
 
         // Model database (populated at runtime from XML, empty = use PlatformPreset.Default for all devices)
+        // Keyed by WMI baseboard ProductId. Case-insensitive so lookups stay consistent
+        // with AutoCal.KnownBoards and AutoCal.Load's OrdinalIgnoreCase product compare
+        // (WMI casing is not guaranteed); XML model keys are distinct uppercase hex, so
+        // the comparer change cannot collide two entries.
         public static Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset> Models =
-            new Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset>();
+            new Dictionary<string, OmenMon.Hardware.Platform.PlatformPreset>(StringComparer.OrdinalIgnoreCase);
 
         // Timestamp format in fan program status messages
         public const string TimestampFormat = "HH:mm:ss";
