@@ -244,20 +244,40 @@ namespace OmenMon.Library {
         }
 
         // Runs a batch of EC reads/writes under a single EC open + mutex hold (A3, issue #86).
-        // The regular monitoring path previously had every EcComponent.Update() open the
-        // driver and take/release the cross-process Global\Access_EC mutex on its own, so a
-        // single monitor tick churned the lock once per sensor — multiplying the collision
-        // window with the kernel ACPI EC driver that #88's backoff fights. Wrapping a tick's
-        // reads in this method holds the lock for the whole batch; the named mutex is
-        // reentrant on the owning thread, so the inner per-register EcGetByte/EcGetWord calls
-        // (which acquire via the (callback, Hw.Ec) overload) become uncontended re-entries
-        // rather than fresh cross-process acquisitions. If the EC cannot be opened the body
-        // is skipped for this tick, exactly as an individual EcExec would have failed.
-        public static void EcExecBatch(Action body) {
-            using(Ec = EcInterface()) {
-                if(Ec != null)
-                    EcExec(_ => body(), Ec);
+        // The regular monitoring path previously had every EcComponent.Update() take and
+        // release the cross-process Global\Access_EC mutex on its own, so a single monitor
+        // tick churned the lock once per sensor — multiplying the collision window with the
+        // kernel ACPI EC driver that #88's backoff fights. Wrapping a tick's reads in this
+        // method holds the lock for the whole batch; the named mutex is reentrant on the
+        // owning thread, so the inner per-register EcGetByte/EcGetWord calls (which acquire
+        // via the (callback, Hw.Ec) overload) become uncontended re-entries rather than
+        // fresh cross-process acquisitions.
+        //
+        // Reuse the persistently-initialized singleton (opened once via EcInit()) rather than
+        // opening it in a using() scope: Hw.Ec is the same instance the non-batched read path
+        // (EcGetByte/EcGetWord) operates on directly, so disposing it here would Close() Ring0
+        // + the Global\Access_EC mutex out from under the very next read outside the batch.
+        //
+        // Returns true if the body ran under the EC lock; false if the EC was unavailable or
+        // the lock could not be acquired this tick, so the caller can fall back to updating
+        // any non-EC (e.g. WMI-backed) sensors directly.
+        public static bool EcExecBatch(Action body) {
+            if(body == null)
+                return false;
+            if(Ec == null || !Ec.IsInitialized)
+                Ec = EcInterface();
+            if(Ec == null || !Ec.IsInitialized)
+                return false;
+            if(Ec.Request(Config.EcMutexTimeout)) {
+                try {
+                    body();
+                } finally {
+                    Ec.Release();
+                }
+                return true;
             }
+            App.Error("ErrEcLock");
+            return false;
         }
 
         // Prepares the Embedded Controller, runs operations while it is locked for exclusive use, and returns a result

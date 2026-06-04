@@ -358,13 +358,19 @@ namespace OmenMon.Hardware.Platform {
             // kernel ACPI EC driver (the same contention #88's backoff addresses). The
             // mutex is reentrant on the owning thread, so the inner per-register reads
             // are uncontended re-entries; WMI-backed sensors inside the block simply
-            // do not touch the EC. EcExecBatch skips the body if the EC cannot be
-            // opened, the same degradation a per-sensor EcExec would have produced.
-            Hw.EcExecBatch(() => {
+            // do not touch the EC.
+            Action updateAll = () => {
                 for(int i = 0; i < Temperature.Length; i++)
                     if(!onlyUsed || this.TemperatureUse[i])
                         this.Temperature[i].Update();
-            });
+            };
+
+            // If the EC can't be opened/locked this tick, still update directly so the
+            // WMI BIOS temperature sensor (which never touches the EC) keeps refreshing;
+            // the EC-backed sensors then degrade per-component exactly as they did before
+            // the batch existed, rather than the whole tick being skipped.
+            if(!Hw.EcExecBatch(updateAll))
+                updateAll();
         }
 #endregion
 

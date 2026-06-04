@@ -202,6 +202,19 @@ namespace OmenMon.AppCli {
             sb.AppendLine("## Live Fan Telemetry");
             sb.AppendLine();
             try {
+                // -Diag has not initialized the hardware interfaces yet at this point
+                // (ProbeEc, which opens Hw.Ec, runs later in DiagHardwareProbe). The fan
+                // readouts below go through FanArray/Fan, which read Hw.Bios and Hw.Ec, so
+                // open them here — otherwise this whole section devolves into a
+                // NullReferenceException row even on a perfectly healthy system. Both
+                // *Interface() helpers degrade gracefully (return null + App.Error) if the
+                // hardware genuinely can't be reached, in which case the calls below fall
+                // into the catch and report the real failure.
+                if(Hw.Bios == null || !Hw.Bios.IsInitialized)
+                    Hw.Bios = Hw.BiosInterface();
+                if(Hw.Ec == null || !Hw.Ec.IsInitialized)
+                    Hw.Ec = Hw.EcInterface();
+
                 var platform = new Platform();
                 var fans = platform.Fans;
 
