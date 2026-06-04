@@ -243,6 +243,23 @@ namespace OmenMon.Library {
             }
         }
 
+        // Runs a batch of EC reads/writes under a single EC open + mutex hold (A3, issue #86).
+        // The regular monitoring path previously had every EcComponent.Update() open the
+        // driver and take/release the cross-process Global\Access_EC mutex on its own, so a
+        // single monitor tick churned the lock once per sensor — multiplying the collision
+        // window with the kernel ACPI EC driver that #88's backoff fights. Wrapping a tick's
+        // reads in this method holds the lock for the whole batch; the named mutex is
+        // reentrant on the owning thread, so the inner per-register EcGetByte/EcGetWord calls
+        // (which acquire via the (callback, Hw.Ec) overload) become uncontended re-entries
+        // rather than fresh cross-process acquisitions. If the EC cannot be opened the body
+        // is skipped for this tick, exactly as an individual EcExec would have failed.
+        public static void EcExecBatch(Action body) {
+            using(Ec = EcInterface()) {
+                if(Ec != null)
+                    EcExec(_ => body(), Ec);
+            }
+        }
+
         // Prepares the Embedded Controller, runs operations while it is locked for exclusive use, and returns a result
         public static TResult EcExec<TResult>(Func<IEmbeddedController,TResult> callback) {
             using(Ec = EcInterface()) {
@@ -318,10 +335,19 @@ namespace OmenMon.Library {
             Discrete = 0x00000002   // Discrete GPU only
         }
 
-        // Retrieves the current nVidia multiplexer state from the Registry
-        public static NvMuxState NvMuxGetState() {
-            using(RegistryKey key = Registry.LocalMachine.OpenSubKey(Config.RegMuxKey, true))
-                return (NvMuxState) (int) key.GetValue(Config.RegMuxValue);
+        // Retrieves the current nVidia multiplexer state from the Registry, or null
+        // when the system has no such key/value. The mux registry key only exists on
+        // NV-Optimus laptops, so on an AMD/Intel-only or non-mux machine OpenSubKey
+        // returns null and GetValue could also be absent — the previous unconditional
+        // dereference threw a NullReferenceException there (C1). Callers compare the
+        // result against NvMuxState.Discrete, which a null cleanly fails.
+        public static NvMuxState? NvMuxGetState() {
+            using(RegistryKey key = Registry.LocalMachine.OpenSubKey(Config.RegMuxKey, true)) {
+                object value = key?.GetValue(Config.RegMuxValue);
+                if(value == null)
+                    return null;
+                return (NvMuxState) (int) value;
+            }
         }
 #endregion
 

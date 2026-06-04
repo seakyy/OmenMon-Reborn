@@ -101,6 +101,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8DD0` | Omen (2025) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #26, false-positive auto-cal mitigated via built-in `AutoCal.Prime` in v1.4.0 — issue #33) |
 | `8D26` | Omen 16-ap0007ns (2026) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #52) |
 | `88EB` | Victus 16 (2021) | ✅ 2023+ layout, RPM at `0xB0`/`0xB2` (issue #48) |
+| `8D41` | Omen Max 16 (2025) | ✅ RPM at `0x5C`/`0x9F` (16-bit LE; CPU ≈5760, GPU ≈6533 RPM at 100%). Issues #87/#90 — graduated from the read-only `AutoCal` mapping to a native entry in v1.4.5. Fan **control** registers are the legacy defaults (identical to the unknown-model fallback) and remain **unverified** on this 2025 "Max" layout; post a `-Diag` if the slider / manual mode has no effect. |
 | `8C77` | Omen 16-wf1012nl (2024) — single-fan SKU | ⚠️ Sidecar-resolved via the Auto-Calibration Wizard (issue #50). CPU fan at `EC[0xD2]` (`PeriodEncoded8`, idle ≈ `0xB2`, max ≈ `0x11`). No GPU fan detected — likely a physically single-fan chassis, not a missed register. Not yet added to the shipped native database: waiting on a second `8C77` owner to confirm the layout is consistent across the SKU (HP recycles product IDs across regional variants). Owners can install OmenMon as normal — the wizard's `OmenMon-AutoCal.xml` keeps the install working out of the box. |
 | `8A3E` | Victus 15 fb0102la | ❓ |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |
@@ -110,6 +111,24 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `878D` | Envy 15 ep0003nl (2020) | ❓ |
 
 To add a confirmed entry, open a pull request editing the default `OmenMon.xml` with the new `<Model>` block and attach the `-Probe` Markdown output as evidence.
+
+### Pending field reports (awaiting hardware data)
+
+These SKUs were reported in v1.4.5 issues but **cannot ship a native `<Model>`
+entry yet** — no confirmed Product ID + register dump is available, and HP
+recycles Product IDs across regional/CPU variants, so guessing a register map
+risks garbage RPM or a fan-controller lock on someone else's machine. They are
+**already usable today**: the read-only [Auto-Detector](Auto-Detection) picks a
+safe layout on launch, and the **Auto-Calibrate & Diagnose…** wizard resolves
+the tachometers into a local `OmenMon-AutoCal.xml`. To get a board promoted to
+the shipped database, attach the `OmenMon.exe -Diag` output (now including the
+Live Fan Telemetry table, issue #49) to the relevant issue.
+
+| Reported as | Issue | Needed to ship a native entry |
+|-------------|-------|-------------------------------|
+| HP Omen 16-wd0004nw | #51, #75 | `-Diag` Product ID + Auto-Calibration report (0/30/70/100 % sweep) confirming the tachometer registers |
+| HP (Victus/Omen) xd0020ax | #77 | `-Diag` Product ID + `-Probe` dump confirming fan-level / RPM register layout |
+| HP Omen, AMD Ryzen 9 7945HS SKU | #85 | `-Diag` Product ID + sustained-load Auto-Calibration report (a prior 7945HS-class report, #76/#85 on `8BCA`, gave conflicting tach layouts across SKUs — a third corroborating dump is needed before shipping) |
 
 ---
 

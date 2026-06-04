@@ -88,6 +88,13 @@
              provoke an ACPI "EC did not respond before timeout" panic shutdown
              (issue #88). Set >= EcWaitLimit to restore the legacy pure-spin. -->
         <EcWaitSpinCount>5</EcWaitSpinCount>
+        <!-- Iterations after EcWaitSpinCount that merely yield the timeslice
+             (Thread.Sleep(0)) before escalating to a full 1 ms sleep. Because
+             Wait() runs while the Global\Access_EC mutex is held, an all-1 ms
+             backoff could pin the mutex past EcMutexTimeout and starve other
+             waiters into ErrEcLock; yielding first bounds the worst-case hold
+             (A4, issue #88). Set to 0 to escalate to the 1 ms sleep immediately. -->
+        <EcWaitYieldCount>10</EcWaitYieldCount>
         <!-- Fan Control -->
         <!-- Fan countdown will always be continually extended, even
              with no fan program running, no constant-speed button
@@ -593,7 +600,12 @@
             <!-- 8E71: HP Omen 16-am1000 (2026 BIOS) — confirmed via Auto-Calibration Wizard (issue #22). -->
             <!-- Classic 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3660, GPU max ~3630 RPM).       -->
             <!-- Fan level at 0x11/0x12, rate write at 0x3A/0x3B — standard 2023+ layout.                 -->
-            <Model ProductId="8E71" DisplayName="HP Omen 16-am1000 (2026)">
+            <!-- Also covers the HP Omen 16-am1001nw (issue #31, @Bart82 — the same #88 EC-timeout         -->
+            <!-- reporter): am1001nw is a regional SKU of the am1xxx generation and is expected to report  -->
+            <!-- this same 8E71 ProductId and EC layout. If an am1001nw owner's -Diag shows a different    -->
+            <!-- ProductId or the RPM/controls misbehave, post it on #31 so a dedicated entry can ship —   -->
+            <!-- HP does occasionally fork the EC layout across regional am1xxx variants.                  -->
+            <Model ProductId="8E71" DisplayName="HP Omen 16-am1000 / am1001nw (2026)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
                 <FanRateReadReg0>46</FanRateReadReg0>
@@ -776,6 +788,33 @@
                 <FanRateWriteReg1>45</FanRateWriteReg1>
                 <FanSpeedReg0>176</FanSpeedReg0>
                 <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8D41: HP Omen Max 16 (2025) — issue #87 (@Keith1341), #90.                          -->
+            <!-- Graduated from the read-only AutoCal.KnownBoards RPM mapping (added v1.4.4) to a     -->
+            <!-- full native entry. Confirmed 16-bit LE tachometers at 0x5C (CPU) / 0x9F (GPU):       -->
+            <!-- the report's 100% step decodes EC[0x5C..0x5D]=80 16 → 5760 RPM and                   -->
+            <!-- EC[0x9F..0xA0]=85 19 → 6533 RPM, with the 0% step reading 0/0 — so FanSpeedReg0/1 =   -->
+            <!-- 92/159 (0x5C/0x9F). Without this entry the platform fell back to PlatformPreset.      -->
+            <!-- Default and read the wrong 0xB0/0xB2 tach (RPM was only correct via AutoCal.Prime).   -->
+            <!-- Fan CONTROL registers are the standard legacy defaults (Manual 0x62, Mode 0x95,       -->
+            <!-- Switch 0xF4, Countdown 0x63) — IDENTICAL to what the unknown-model fallback already   -->
+            <!-- applied for this board, so naming the entry is non-regressive for control while       -->
+            <!-- fixing the RPM read. The control map is still UNVERIFIED on this 2025 "Max" layout;    -->
+            <!-- if a user reports the fan slider/manual mode has no effect, post a -Diag so the        -->
+            <!-- control registers can be confirmed before any control-specific override ships.        -->
+            <Model ProductId="8D41" DisplayName="HP Omen Max 16 (2025)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>92</FanSpeedReg0>
+                <FanSpeedReg1>159</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>
                 <ManualReg>98</ManualReg>
                 <ModeReg>149</ModeReg>

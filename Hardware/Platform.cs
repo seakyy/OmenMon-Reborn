@@ -29,7 +29,13 @@ namespace OmenMon.Hardware.Platform {
         // CPU temp) from "this board has no real GPU temp sensor at all and GPTM
         // is just the default global config entry reading 0 forever" (fall back).
         // See Copilot review #1 on PR #62 / issue #66.
-        private bool gpuTempObserved = false;
+        //
+        // Marked volatile (B2): the flag is written from GetGpuTemperature() (GUI tick /
+        // fan-program tick) and read from HasObservedGpuTemperature() (FanProgram on a
+        // background path), so an unsynchronised plain bool could in principle have its
+        // first-non-zero transition seen late on a weak memory model. volatile gives the
+        // sticky latch a defined publish/acquire without the cost of a lock.
+        private volatile bool gpuTempObserved = false;
 
         // System information
         public ISettings System { get; private set; }
@@ -344,9 +350,21 @@ namespace OmenMon.Hardware.Platform {
 
         // Updates the temperature readings
         public void UpdateTemperature(bool onlyUsed = false) {
-            for(int i = 0; i < Temperature.Length; i++)
-                if(!onlyUsed || this.TemperatureUse[i])
-                    this.Temperature[i].Update();
+
+            // A3 (issue #86): batch every sensor read for this tick under one EC
+            // open + mutex hold instead of letting each EcComponent.Update() take and
+            // release Global\Access_EC on its own. This collapses N lock cycles per
+            // monitor tick to a single hold, shrinking the contention window with the
+            // kernel ACPI EC driver (the same contention #88's backoff addresses). The
+            // mutex is reentrant on the owning thread, so the inner per-register reads
+            // are uncontended re-entries; WMI-backed sensors inside the block simply
+            // do not touch the EC. EcExecBatch skips the body if the EC cannot be
+            // opened, the same degradation a per-sensor EcExec would have produced.
+            Hw.EcExecBatch(() => {
+                for(int i = 0; i < Temperature.Length; i++)
+                    if(!onlyUsed || this.TemperatureUse[i])
+                        this.Temperature[i].Update();
+            });
         }
 #endregion
 

@@ -84,12 +84,30 @@ namespace OmenMon.Hardware.Ec {
         public virtual ushort ReadWord(byte register) {
             int count = 0;
             ushort value = 0;
+            ushort previous = 0;
+            bool havePrevious = false;
             while(count < Config.EcRetryLimit) {
-                if(ReadWordImpl(register, out value))
-                    return (ushort) value;
+                if(ReadWordImpl(register, out value)) {
+
+                    // A2 (issue #86): ReadWordImpl reads the low and high byte as two
+                    // separate EC transactions, each with its own wait logic, so an EC
+                    // state change between the bytes (or a single-byte wait failure)
+                    // produces a self-inconsistent 16-bit value — directly visible as
+                    // implausible RPM spikes. Validate by requiring two consecutive
+                    // identical word reads before trusting the result: a genuine reading
+                    // is stable across a few microseconds, a torn one is not.
+                    if(havePrevious && value == previous)
+                        return value;
+                    previous = value;
+                    havePrevious = true;
+
+                }
                 count++;
             }
-            return (ushort) value;
+
+            // Could not obtain two agreeing reads within the retry budget: return the
+            // most recent successful read rather than a value known to be torn.
+            return value;
         }
 
         // Wrapper to write a byte to an Embedded Controller register
@@ -196,23 +214,46 @@ namespace OmenMon.Hardware.Ec {
                 // case — EC ready within a spin or two — never sleeps, so GUI refresh
                 // latency is unchanged; only a contended EC yields the CPU. Set
                 // EcWaitSpinCount >= EcWaitLimit to restore the legacy pure-spin.
+                //
+                // A4 (issue #88): the original #88 fix slept a full 1 ms for every
+                // backoff iteration. Because Wait() runs while Global\Access_EC is held,
+                // a Word read (up to ~8 Waits) could pin the mutex for far longer than
+                // EcMutexTimeout (200 ms), starving the heartbeat / GUI / AutoConfig
+                // waiters into ErrEcLock. Now the backoff is graduated: yield the
+                // timeslice (Thread.Sleep(0), no fixed delay) for EcWaitYieldCount
+                // iterations first so a momentarily-busy EC recovers without burning a
+                // millisecond per poll, and only escalate to the 1 ms sleep once even
+                // yielding hasn't cleared it. With the defaults (spin 5, yield 10, limit
+                // 30) the worst-case hold per Wait drops from 25 ms to 15 ms while still
+                // relieving the busy-spin that provoked the ACPI timeout shutdowns.
                 if(i >= Config.EcWaitSpinCount)
-                    Thread.Sleep(1);
+                    Thread.Sleep(i < Config.EcWaitSpinCount + Config.EcWaitYieldCount ? 0 : 1);
             }
             return false;
         }
 
         // Waits for a read operation
         protected bool WaitRead() {
-            if(WaitReadFailCount > Config.EcFailLimit) {
-                return true;
-            } else if(Wait(Status.OutFull, true)) {
+            if(Wait(Status.OutFull, true)) {
                 WaitReadFailCount = 0;
                 return true;
-            } else {
-                WaitReadFailCount++;
-                return false;
             }
+
+            // A1 (issue #86): the legacy implementation returned **true** once
+            // WaitReadFailCount exceeded EcFailLimit (15) even though OutFull was
+            // never set — the caller then read the Data port and got a stale/garbage
+            // byte. Worse, WaitReadFailCount was only ever reset on success, so the
+            // moment the EC was briefly wedged OmenMon latched permanently into the
+            // "always-true" mode and reported garbage for minutes. That self-
+            // perpetuating fail-limit hack is the most likely root cause of the
+            // recurring "RPM = negative / millions" and bad-temperature reports.
+            // A sustained wait failure now returns **false**: ReadByteImpl propagates
+            // the failure to the retry wrapper (ReadByte/ReadWord), which keeps the
+            // last good value instead of fabricating one. The counter is retained as
+            // a diagnostic signal (surfaced via EcTrace / -Diag) but no longer gates
+            // behaviour.
+            WaitReadFailCount++;
+            return false;
         }
 
         // Waits for a write operation
@@ -237,31 +278,45 @@ namespace OmenMon.Hardware.Ec {
             get { return instance; }
         }
 
+        // Serialises Initialize()/Close() on the singleton. The IsInitialized
+        // check-then-set in both methods was previously unsynchronised even though
+        // reads originate from the GUI tick, the AutoConfig background thread, the
+        // Omen-key handler and the heartbeat tick — so an EcInterface() init could
+        // race a parallel Close() and dispose the Ring0 driver out from under an
+        // in-flight read (use-after-close). The cross-process EC mutex only serialises
+        // port I/O during EcExec, not lifecycle, so this in-process lock closes the gap
+        // (B1).
+        private readonly object lifecycleLock = new object();
+
         // Initializes the kernel driver and creates a lock on the Embedded Controller
         public override void Initialize() {
-            if(!this.IsInitialized) {
-                Ring0.Open();
-                if(Ring0.IsOpen) {
-                    this.IsInitialized = true;
-                    EmbeddedControllerMutex.Open();
-                } else {
-                    // Report driver installation failure details
-                    App.Error(Ring0.GetStatus());
+            lock(this.lifecycleLock) {
+                if(!this.IsInitialized) {
+                    Ring0.Open();
+                    if(Ring0.IsOpen) {
+                        this.IsInitialized = true;
+                        EmbeddedControllerMutex.Open();
+                    } else {
+                        // Report driver installation failure details
+                        App.Error(Ring0.GetStatus());
+                    }
                 }
             }
         }
 
         // Closes the kernel driver and clears the Embedded Controller lock
         public override void Close() {
-            if(this.IsInitialized) {
-                this.IsInitialized = false;
-                try {
-                    EmbeddedControllerMutex.Close();
-                } catch {
-                }
-                try {
-                    Ring0.Close();
-                } catch {
+            lock(this.lifecycleLock) {
+                if(this.IsInitialized) {
+                    this.IsInitialized = false;
+                    try {
+                        EmbeddedControllerMutex.Close();
+                    } catch {
+                    }
+                    try {
+                        Ring0.Close();
+                    } catch {
+                    }
                 }
             }
         }

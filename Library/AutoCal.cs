@@ -333,6 +333,9 @@ namespace OmenMon.Library {
         private struct Mapping {
             public byte CpuReg; public EcDiffScanner.Mode CpuMode; public int CpuMul;
             public byte GpuReg; public EcDiffScanner.Mode GpuMode; public int GpuMul;
+            // Single physical fan: the GPU fan row should mirror the CPU reading rather
+            // than fall back to the (wrongly-decoded) preset FanSpeedReg1 (#81).
+            public bool SingleFan;
         }
 
         private static readonly Dictionary<string, Mapping> KnownBoards =
@@ -394,6 +397,7 @@ namespace OmenMon.Library {
             ["8BB3"] = new Mapping {
                 CpuReg = 0xF1, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
                 GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
+                SingleFan = true,
             },
 
             // HP Omen Max 16 (8D41, 2025) — issue #87, reported by @Keith1341.
@@ -411,6 +415,21 @@ namespace OmenMon.Library {
                 GpuReg = 0x9F, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
+            // HP OMEN 17 ck1000nw (8A18, 2022) — issue #84, reported by @xenon205.
+            // The native <Model> entry already pins FanSpeedReg0/1 = 0xB0/0xB2, but a
+            // stale or foreign AutoCal sidecar (or a single-fan rescan) could override
+            // that with a wrong register and reintroduce the post-calibration "garbage
+            // RPM → fan lock / hibernation" symptom the user reported. Pinning the
+            // confirmed 16-bit LE tachometers here too means Load()'s collision
+            // self-heal always has a verified built-in mapping to fall back to, and a
+            // wizard-free install reads correct RPM out of the box. Decoded from the
+            // user's report (0/30/70/100% sweep): CPU 0/1476/3218/3422, GPU
+            // 0/1448/3115/3363 — matching the native preset exactly.
+            ["8A18"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
@@ -426,6 +445,17 @@ namespace OmenMon.Library {
             if(!KnownBoards.TryGetValue(productId, out var m)) return;
             if(!HasCpu && (m.CpuReg != 0 || m.CpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetCpu(m.CpuReg, m.CpuMode, m.CpuMul);
             if(!HasGpu && (m.GpuReg != 0 || m.GpuMode == EcDiffScanner.Mode.BiosLevelMirror)) SetGpu(m.GpuReg, m.GpuMode, m.GpuMul);
+
+            // #81 (reported by @jpcaldwell30 on 8BB3): single-fan SKUs expose one physical
+            // fan, but the GUI/preset still carries a GPU fan whose FanSpeedReg1 points at
+            // the same register decoded the wrong way (a DirectMultiplier8 byte read as an
+            // LE16 word), so the GPU row showed garbage. When the board is flagged single-fan
+            // and the GPU side has no override of its own, mirror the resolved CPU mapping
+            // onto the GPU so both rows report the one real fan's RPM. CollidesWithNativePreset()
+            // exempts single-fan presets (FanSpeedReg0 == FanSpeedReg1), so this mirror is not
+            // mistaken for a #83 mis-detection.
+            if(m.SingleFan && !HasGpu && TryGetCpu(out byte cReg, out var cMode, out int cMul))
+                SetGpu(cReg, cMode, cMul);
         }
 
         // Reports whether a board has a built-in RPM mapping in KnownBoards.
