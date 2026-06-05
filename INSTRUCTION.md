@@ -243,9 +243,26 @@ Located in the same folder as `OmenMon.exe`. Key settings:
 
     <!-- GPU power default -->
     <GpuPowerDefault>Maximum</GpuPowerDefault>
+
+    <!-- Embedded Controller timing (advanced — defaults are fine for almost everyone) -->
+    <EcWaitSpinCount>5</EcWaitSpinCount>
+    <EcWaitYieldCount>10</EcWaitYieldCount>
   </Config>
 </OmenMon>
 ```
+
+### EcWaitSpinCount / EcWaitYieldCount
+
+**Advanced EC-timing knobs.** When OmenMon waits for the Embedded Controller it
+first spins (`EcWaitSpinCount` iterations, default **5**), then yields the CPU
+timeslice for `EcWaitYieldCount` iterations (default **10**), and only then
+sleeps 1 ms per poll. The yield stage was added in **v1.4.5** (issue #88, the
+"A4" follow-up): because the wait runs while OmenMon holds the cross-process EC
+mutex, an all-1 ms backoff could pin the mutex past the 200 ms `EcMutexTimeout`
+and make other waiters (heartbeat, GUI tick, calibration) report `ErrEcLock`.
+Yielding first bounds the worst-case hold. Leave these at the defaults unless
+you are diagnosing EC contention; set `EcWaitSpinCount` ≥ `EcWaitLimit` to
+restore the legacy pure busy-spin.
 
 ### BiosHeartbeatPauseOnBattery
 
@@ -286,6 +303,34 @@ Your device's EC register layout may differ from the default. Run **Auto-Calibra
 ### CPU temperature not shown or wrong zone count (RGB)
 
 Known on some OMEN Max 16 / non-standard models. Use `Probe` mode to identify your EC layout. See [wiki/Contributing-Hardware-Data.md](wiki/Contributing-Hardware-Data.md).
+
+### Fan RPM or temperature reads as negative, "millions", or obviously wrong
+
+Two independent causes, both improved in **v1.4.5**:
+
+1. **Transient garbage from a busy EC.** Earlier builds, after enough failed
+   read-waits, returned the Data port unconditionally — a stale/garbage byte —
+   and once that happened the controller stayed stuck in the garbage path for
+   minutes (the recurring "RPM = negative / millions" reports, issue #86).
+   v1.4.5 makes a sustained wait-failure fail cleanly so the last good value is
+   kept instead, and validates 16-bit reads against torn high/low bytes. No
+   action needed — just update.
+2. **Wrong tachometer register for your board.** If the *steady-state* RPM is
+   wrong (not just an occasional spike), your model's EC layout differs from the
+   preset. Run **Auto-Calibrate & Diagnose…** from the tray menu, or run
+   `OmenMon.exe -Diag` and check the new **Live Fan Telemetry** section (issue
+   #49): it shows each fan's level, rate, resolved speed, and the exact
+   register/mode/multiplier used — so a bad RPM is immediately traceable to the
+   register. Paste the `-Diag` output into a GitHub issue and the board can be
+   added to the native database.
+
+### Over-temperature (Thermal Panic) protection and the tray icon
+
+As of **v1.4.5** the over-temperature safety net (both fans forced to maximum
+above the configured threshold) runs on every monitor tick whenever
+`ThermalPanicEnabled` is set — **independently of whether the dynamic
+temperature tray icon is enabled**. Previously, turning the dynamic icon off
+silently disabled thermal-panic protection (issue addressed as bug "C3").
 
 ### BSOD / Memory integrity conflicts
 

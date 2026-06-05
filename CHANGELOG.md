@@ -3,6 +3,120 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.5-reborn] - 2026-06-04
+
+> **EC read-path hardening + field-report sweep.** This release attacks the
+> root cause of the recurring "RPM = negative / millions" and bad-temperature
+> reports (#86) at the Embedded Controller read path itself, rather than per
+> board: a failed read now fails *cleanly* instead of returning a garbage byte,
+> 16-bit reads are validated against torn high/low bytes, the monitoring tick
+> batches its reads under a single mutex hold, and the #88 busy-wait backoff is
+> graduated so it can no longer pin the EC mutex past its timeout. Plus a
+> lifecycle-lock and a memory-model fix on the threading side, a null-guard for
+> non-Optimus systems, a thermal-panic safety fix, a more robust auto-detector,
+> live fan telemetry in `-Diag`, and a batch of model-database / calibration
+> updates.
+
+### Fixed
+
+- **Garbage bytes after the EC wait fail-limit (A1, issue #86).** `WaitRead()`
+  returned `true` unconditionally once `WaitReadFailCount` exceeded `EcFailLimit`
+  (15) — even though `OutFull` was never set — and the caller then read a
+  stale/garbage Data byte. Because the counter only reset on success, a briefly
+  wedged EC latched OmenMon permanently into the garbage path for minutes. This
+  is the most likely common root cause of the recurring "RPM = negative /
+  millions" and bad-temperature reports. A sustained wait-failure now returns
+  `false`, so the retry wrapper keeps the last good value instead of fabricating
+  one.
+- **Torn 16-bit reads (A2, issue #86).** `ReadWordImpl` reads the low and high
+  byte as two separate EC transactions, so an EC state change between them yields
+  a self-inconsistent word (implausible RPM). `ReadWord` now requires two
+  consecutive identical reads before trusting the value, falling back to the most
+  recent successful read.
+- **Per-sensor EC lock churn on the monitoring path (A3, issue #86).** Each
+  `EcComponent.Update()` opened the driver and took/released the cross-process
+  `Global\Access_EC` mutex on its own, so a monitor tick churned the lock once per
+  sensor and widened the collision window with the kernel ACPI EC driver. New
+  `Hw.EcExecBatch()` holds the EC open and the (reentrant) mutex for the whole
+  tick; `Platform.UpdateTemperature()` reads the full sensor array inside one
+  batch.
+- **EC wait backoff could exceed the mutex timeout (A4, issue #88).** The #88
+  backoff slept a full 1 ms per iteration while holding `Global\Access_EC`, so a
+  Word read could pin the mutex past `EcMutexTimeout` (200 ms) and starve other
+  waiters into `ErrEcLock`. `Wait()` now yields the timeslice (`Sleep(0)`) for a
+  configurable `EcWaitYieldCount` (default 10) iterations before escalating to the
+  1 ms sleep, cutting the worst-case per-`Wait` hold from 25 ms to 15 ms.
+- **EC lifecycle race (B1).** `Initialize()`/`Close()` checked and set
+  `IsInitialized` without synchronisation while reads ran from the GUI tick,
+  AutoConfig thread, key handler and heartbeat — a use-after-close window. Both
+  now run under a per-singleton lifecycle lock.
+- **`gpuTempObserved` data race (B2).** The sticky observed-GPU-temperature flag
+  is now `volatile` so its first-non-zero transition publishes deterministically.
+- **`NullReferenceException` in `NvMuxGetState()` on non-Optimus systems (C1).**
+  The mux registry key only exists on NV-Optimus laptops; the method now returns
+  `NvMuxState?` and yields `null` when the key/value is absent instead of
+  dereferencing it.
+- **Thermal-panic protection was tied to the dynamic tray icon (C3).** The
+  forced temperature read and `CheckThermalPanic()` lived inside the
+  `if(Icon.IsDynamic)` branch, so turning the dynamic icon off silently disabled
+  over-temperature protection. Thermal panic now runs on every icon tick whenever
+  enabled (or a latched panic needs clearing), independent of icon mode, while
+  still skipping the EC read when neither the icon nor panic needs it.
+- **8A18 (OMEN 17 ck1000nw) post-calibration fan lock (issue #84).** The
+  confirmed `0xB0`/`0xB2` tachometers are now pinned in `AutoCal.KnownBoards` too,
+  so `Load()`'s collision self-heal always has a verified built-in mapping to fall
+  back to and a stale/foreign sidecar can no longer relock the fans.
+- **GPU fan row showed garbage on single-fan boards (issue #81, 8BB3).** A
+  `Mapping.SingleFan` flag now makes `Prime()` mirror the resolved CPU mapping onto
+  the GPU when the board is single-fan and the GPU has no override, so both rows
+  report the one real fan instead of decoding `0xF1` as a word.
+
+### Added
+
+- **More robust EC layout auto-detection (issue #37).** The 2022 match no longer
+  *requires* a live tachometer (idle fans / off-`0xB0` tachs made it misfire to the
+  2023 layout); a plausible fan level at the layout's setpoint register is required
+  instead, and a fan-level fallback tier now handles boards whose `CPUT` is neither
+  a valid temperature nor the `0xFF` sentinel. Read-only and conservative.
+- **Live Fan Telemetry section in `-Diag` (issue #49).** Per-fan BIOS level,
+  duty-cycle rate, resolved live speed, and the exact register/mode/multiplier
+  `Fan.GetSpeed()` used — so a wrong RPM is immediately traceable to the register.
+- **Native HP Omen Max 16 (8D41, 2025) entry (issues #87, #90).** Graduated from
+  the read-only `AutoCal` RPM mapping to a full `<Model>` entry with the confirmed
+  16-bit LE tachometers at `0x5C` (CPU) / `0x9F` (GPU). Fan-control registers are
+  the legacy defaults the unknown-model fallback already applied (non-regressive
+  for control) and remain flagged unverified pending an owner `-Diag`.
+- **Omen 16-am1001nw coverage (issue #31).** Documented as covered by the existing
+  `8E71` (Omen 16-am1xxx) entry; `@Bart82`'s board is the same `#88` EC-timeout
+  reporter and benefits from the A4 backoff fix.
+- **`EcWaitYieldCount` configuration knob** in `OmenMon.xml` (default 10), wired
+  through `Config`/`ConfigData`, plus documentation of the EC-timing knobs and an
+  RPM/temperature troubleshooting section (issue #14).
+- **HP OMEN 16 wd0xxx (8BA9, 2024) RPM read mapping** (`Library/AutoCal.cs`
+  `KnownBoards`, issue #92 reported by @M1918IIBAR). The Auto-Calibration scan found
+  a single 16-bit LE tachometer at `0xF1` and no GPU fan. The raw EC dumps confirm it:
+  `EC[0xF1..0xF2]` decodes to `0x0701` = 1793 RPM at 0% (idle) and `0x1405` = 5125 RPM
+  at 100% (max), matching the reported idle/max exactly and rising monotonically across
+  the 0/30/70/100% steps — LE16, not the `DirectMultiplier8` single-byte read 8BB3 uses
+  (which would decode the 100% step as 0x05 × 100 = 500 RPM). Added as a **read-only**
+  `KnownBoards` mapping flagged `SingleFan`, so RPM now displays correctly out of the box
+  and the GPU row mirrors the one real fan instead of decoding `0xF1` as a second word
+  (#81 pattern). No `<Model>` entry / fan-control registers are committed for this board —
+  a wrong `ManualReg`/`ModeReg` could lock the EC — so fan *control* stays on the
+  auto-detector's safe legacy fallback pending a confirmed register map.
+
+### Deferred (need confirmed data before a code change is safe)
+
+- **HP Omen 16-wd0004nw (#51 model / #75 calibration), xd0020ax (#77), and the
+  AMD Ryzen 9 7945HS SKU (#85).** No confirmed Product ID + register dump is
+  available, and HP recycles Product IDs across regional/CPU variants — a prior
+  7945HS-class report (#76/#85 on `8BCA`) already gave conflicting tachometer
+  layouts. Shipping a guessed register map risks garbage RPM or a fan-controller
+  lock on other owners' machines. All are usable today via the read-only
+  auto-detector + the Auto-Calibration wizard; documented under "Pending field
+  reports" in `wiki/Model-Database.md` with exactly the `-Diag`/calibration data
+  needed to promote each to the shipped database.
+
 ## [1.4.4-reborn] - 2026-06-02
 
 > **Post-v1.4.3 field-report sweep.** A patch closing the non-pending issues that arrived after v1.4.3: a new board for the native model database, a tray-menu fan-control gap that left fans pinned at maximum after switching to an automatic mode, a calibration self-heal for a CPU fan reading that mirrored the GPU after a single-fan scan, a misleading Auto-Calibration report on boards whose RPM is already handled by a built-in mapping, an EC busy-wait backoff that stops OmenMon hammering the controller while the OS/BIOS holds it (a suspected cause of ACPI-timeout shutdowns), and a read-only RPM mapping for the 2025 Omen Max 16. No hardware-control behaviour changes beyond releasing Max Fan when the user picks a fan mode.

@@ -243,6 +243,43 @@ namespace OmenMon.Library {
             }
         }
 
+        // Runs a batch of EC reads/writes under a single EC open + mutex hold (A3, issue #86).
+        // The regular monitoring path previously had every EcComponent.Update() take and
+        // release the cross-process Global\Access_EC mutex on its own, so a single monitor
+        // tick churned the lock once per sensor — multiplying the collision window with the
+        // kernel ACPI EC driver that #88's backoff fights. Wrapping a tick's reads in this
+        // method holds the lock for the whole batch; the named mutex is reentrant on the
+        // owning thread, so the inner per-register EcGetByte/EcGetWord calls (which acquire
+        // via the (callback, Hw.Ec) overload) become uncontended re-entries rather than
+        // fresh cross-process acquisitions.
+        //
+        // Reuse the persistently-initialized singleton (opened once via EcInit()) rather than
+        // opening it in a using() scope: Hw.Ec is the same instance the non-batched read path
+        // (EcGetByte/EcGetWord) operates on directly, so disposing it here would Close() Ring0
+        // + the Global\Access_EC mutex out from under the very next read outside the batch.
+        //
+        // Returns true if the body ran under the EC lock; false if the EC was unavailable or
+        // the lock could not be acquired this tick, so the caller can fall back to updating
+        // any non-EC (e.g. WMI-backed) sensors directly.
+        public static bool EcExecBatch(Action body) {
+            if(body == null)
+                return false;
+            if(Ec == null || !Ec.IsInitialized)
+                Ec = EcInterface();
+            if(Ec == null || !Ec.IsInitialized)
+                return false;
+            if(Ec.Request(Config.EcMutexTimeout)) {
+                try {
+                    body();
+                } finally {
+                    Ec.Release();
+                }
+                return true;
+            }
+            App.Error("ErrEcLock");
+            return false;
+        }
+
         // Prepares the Embedded Controller, runs operations while it is locked for exclusive use, and returns a result
         public static TResult EcExec<TResult>(Func<IEmbeddedController,TResult> callback) {
             using(Ec = EcInterface()) {
@@ -318,10 +355,19 @@ namespace OmenMon.Library {
             Discrete = 0x00000002   // Discrete GPU only
         }
 
-        // Retrieves the current nVidia multiplexer state from the Registry
-        public static NvMuxState NvMuxGetState() {
-            using(RegistryKey key = Registry.LocalMachine.OpenSubKey(Config.RegMuxKey, true))
-                return (NvMuxState) (int) key.GetValue(Config.RegMuxValue);
+        // Retrieves the current nVidia multiplexer state from the Registry, or null
+        // when the system has no such key/value. The mux registry key only exists on
+        // NV-Optimus laptops, so on an AMD/Intel-only or non-mux machine OpenSubKey
+        // returns null and GetValue could also be absent — the previous unconditional
+        // dereference threw a NullReferenceException there (C1). Callers compare the
+        // result against NvMuxState.Discrete, which a null cleanly fails.
+        public static NvMuxState? NvMuxGetState() {
+            using(RegistryKey key = Registry.LocalMachine.OpenSubKey(Config.RegMuxKey, true)) {
+                object value = key?.GetValue(Config.RegMuxValue);
+                if(value == null)
+                    return null;
+                return (NvMuxState) (int) value;
+            }
         }
 #endregion
 

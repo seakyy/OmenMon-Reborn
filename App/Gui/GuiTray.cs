@@ -603,10 +603,19 @@ namespace OmenMon.AppGui {
             // Update the notification icon and tray tooltip
             if(this.UpdateIconTick++ == 0) {
 
-                // Only force a fresh EC temperature read when the dynamic icon is active
-                // (same behavior as v1.1.x — avoids spurious hardware reads that can
-                // interfere with HP firmware power-management and cause forced hibernate)
-                if(this.Icon.IsDynamic) {
+                bool dynamicIcon = this.Icon.IsDynamic;
+
+                // C3: overtemperature protection must run on every icon tick whenever
+                // it is enabled (or needs clearing) — NOT only when the dynamic icon is
+                // active. Previously the forced temperature read, and with it the entire
+                // CheckThermalPanic call, lived inside the dynamic-icon branch, so simply
+                // turning the dynamic icon off silently disabled the thermal safety net.
+                // We still skip the read entirely when neither the icon nor panic
+                // protection needs it, preserving the spurious-read avoidance (v1.1.x)
+                // that keeps OmenMon from interfering with HP firmware power management.
+                bool panicActive = Config.ThermalPanicEnabled || this.Op.IsThermalPanic;
+
+                if(dynamicIcon || panicActive) {
 
                     bool needForcedUpdate =
                         (this.FormMain == null || !this.FormMain.Visible)
@@ -614,31 +623,31 @@ namespace OmenMon.AppGui {
 
                     byte maxTemp = this.Op.Platform.GetMaxTemperature(needForcedUpdate);
 
-                    // Thermal panic — only runs when we have a fresh, hardware-verified reading
+                    // Thermal panic — runs on a fresh, hardware-verified reading
+                    // regardless of icon mode. When ThermalPanicEnabled is false but a
+                    // panic is still latched (user disabled it at runtime), CheckThermalPanic
+                    // clears the stuck max-fan state itself.
                     this.Op.CheckThermalPanic(maxTemp);
 
-                    // Update the icon background based on fan mode
-                    this.Icon.SetBackground(
-                        this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
-                            GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
+                    if(dynamicIcon) {
 
-                    // Show temperature in configured unit.
-                    // The dynamic icon uses a custom bitmap font — only the localized °C glyph
-                    // is guaranteed to render. Omit the suffix when Fahrenheit is active rather
-                    // than passing a literal "°F" that may produce garbled characters.
-                    int displayTemp = Config.TemperatureUseFahrenheit
-                        ? (maxTemp * 9 / 5) + 32 : maxTemp;
-                    string unitSuffix = Config.TemperatureUseFahrenheit
-                        ? string.Empty
-                        : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
-                    this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
+                        // Update the icon background based on fan mode
+                        this.Icon.SetBackground(
+                            this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
+                                GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
 
-                } else if(this.Op.IsThermalPanic) {
+                        // Show temperature in configured unit.
+                        // The dynamic icon uses a custom bitmap font — only the localized °C glyph
+                        // is guaranteed to render. Omit the suffix when Fahrenheit is active rather
+                        // than passing a literal "°F" that may produce garbled characters.
+                        int displayTemp = Config.TemperatureUseFahrenheit
+                            ? (maxTemp * 9 / 5) + 32 : maxTemp;
+                        string unitSuffix = Config.TemperatureUseFahrenheit
+                            ? string.Empty
+                            : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
+                        this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
 
-                    // Dynamic icon was disabled while panic was active: silently restore fans.
-                    // ClearThermalPanic() skips the "Temperature normalized" balloon — the user
-                    // turned off the icon deliberately, not because the temperature dropped.
-                    this.Op.ClearThermalPanic();
+                    }
 
                 }
 

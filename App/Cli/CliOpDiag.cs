@@ -23,6 +23,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using OmenMon.Driver;
+using OmenMon.Hardware.Bios;
+using OmenMon.Hardware.Ec;
 using OmenMon.Hardware.Platform;
 using OmenMon.Library;
 
@@ -46,6 +48,7 @@ namespace OmenMon.AppCli {
             DiagEnvironment(sb);
             DiagDriverStatus(sb);
             DiagModelPreset(sb);
+            DiagFanState(sb);
             DiagAutoCalSidecar(sb);
             DiagEcTrace(sb);
             DiagCrashLogs(sb);
@@ -183,6 +186,81 @@ namespace OmenMon.AppCli {
 
         private static void AppendPresetRow(StringBuilder sb, string name, byte value) {
             sb.AppendLine($"| {name} | {value} | 0x{value:X2} |");
+        }
+#endregion
+
+#region Section: Live fan telemetry
+        // Live per-fan readout (issue #49 — "debug fans"). The single most common
+        // fan bug report is "RPM looks wrong / fan won't move", and triaging it
+        // previously meant cross-referencing the raw EC dump against the preset by
+        // hand. This section reads each fan's BIOS level, duty-cycle rate, the
+        // resolved live speed, AND the exact register/mode/multiplier Fan.GetSpeed()
+        // used to produce that speed — so a bogus RPM is immediately attributable to
+        // a wrong tachometer register or decode mode. Read-only: GetLevel/GetRate/
+        // GetSpeed never write to the EC.
+        private static void DiagFanState(StringBuilder sb) {
+            sb.AppendLine("## Live Fan Telemetry");
+            sb.AppendLine();
+            try {
+                // -Diag has not initialized the hardware interfaces yet at this point
+                // (ProbeEc, which opens Hw.Ec, runs later in DiagHardwareProbe). The fan
+                // readouts below go through FanArray/Fan, which read Hw.Bios and Hw.Ec, so
+                // open them here — otherwise this whole section devolves into a
+                // NullReferenceException row even on a perfectly healthy system. Both
+                // *Interface() helpers degrade gracefully (return null + App.Error) if the
+                // hardware genuinely can't be reached, in which case the calls below fall
+                // into the catch and report the real failure.
+                if(Hw.Bios == null || !Hw.Bios.IsInitialized)
+                    Hw.Bios = Hw.BiosInterface();
+                if(Hw.Ec == null || !Hw.Ec.IsInitialized)
+                    Hw.Ec = Hw.EcInterface();
+
+                var platform = new Platform();
+                var fans = platform.Fans;
+
+                sb.AppendLine($"- Mode: `{fans.GetMode()}`, Manual: `{fans.GetManual()}`, Max: `{fans.GetMax()}`, Off: `{fans.GetOff()}`, Countdown: `{fans.GetCountdown()}` s");
+                sb.AppendLine();
+                sb.AppendLine("| Fan | Level [krpm] | Rate [%] | Speed [rpm] | RPM source |");
+                sb.AppendLine("|-----|--------------|----------|-------------|------------|");
+
+                foreach(var fan in fans.Fan) {
+                    string type = fan.GetFanType().ToString();
+                    string level = TryFan(() => fan.GetLevel().ToString());
+                    string rate  = TryFan(() => fan.GetRate().ToString());
+                    string speed = TryFan(() => fan.GetSpeed().ToString());
+
+                    // Describe where the RPM came from, mirroring Fan.GetSpeed()'s
+                    // resolution order (AutoCal override → preset EC speed register).
+                    string source = "preset EC speed register";
+                    try {
+                        byte reg = 0;
+                        EcDiffScanner.Mode mode = default(EcDiffScanner.Mode);
+                        int mul = 0;
+                        bool have =
+                            fan.GetFanType() == BiosData.FanType.Cpu ? AutoCal.TryGetCpu(out reg, out mode, out mul) :
+                            fan.GetFanType() == BiosData.FanType.Gpu ? AutoCal.TryGetGpu(out reg, out mode, out mul) :
+                            false;
+                        if(have)
+                            source = mode == EcDiffScanner.Mode.BiosLevelMirror
+                                ? $"AutoCal BiosLevelMirror ×{(mul > 0 ? mul : 100)}"
+                                : $"AutoCal reg=0x{reg:X2}, mode={mode}, ×{mul}";
+                    } catch { }
+
+                    sb.AppendLine($"| {type} | {level} | {rate} | {speed} | {source} |");
+                }
+
+                string product = TryFan(() => new Settings().GetProduct());
+                if(AutoCal.IsKnownBoard(product))
+                    sb.AppendLine($"\n- `{product}` has a built-in RPM mapping (`AutoCal.KnownBoards`) — a blank EcDiffScanner result on this board is expected, not a fault.");
+
+            } catch(Exception ex) {
+                sb.AppendLine($"- Error reading fan telemetry: `{ex.GetType().Name}: {ex.Message}`");
+            }
+            sb.AppendLine();
+        }
+
+        private static string TryFan(Func<string> f) {
+            try { return f() ?? "?"; } catch(Exception ex) { return "err:" + ex.GetType().Name; }
         }
 #endregion
 

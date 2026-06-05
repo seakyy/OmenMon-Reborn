@@ -259,6 +259,9 @@ namespace OmenMon.Library {
                     if(GetWord(xml, XmlPrefix + "EcWaitSpinCount", out value))
                         EcWaitSpinCount = value;
 
+                    if(GetWord(xml, XmlPrefix + "EcWaitYieldCount", out value))
+                        EcWaitYieldCount = value;
+
                     if(GetBool(xml, XmlPrefix + "FanCountdownExtendAlways", out flag))
                         FanCountdownExtendAlways = flag;
 
@@ -692,6 +695,7 @@ namespace OmenMon.Library {
                     SetUInt(xml, XmlPrefix + "EcRetryLimit", (uint) EcRetryLimit);
                     SetUInt(xml, XmlPrefix + "EcWaitLimit", (uint) EcWaitLimit);
                     SetUInt(xml, XmlPrefix + "EcWaitSpinCount", (uint) EcWaitSpinCount);
+                    SetUInt(xml, XmlPrefix + "EcWaitYieldCount", (uint) EcWaitYieldCount);
                     SetBool(xml, XmlPrefix + "FanCountdownExtendAlways", FanCountdownExtendAlways);
                     SetUInt(xml, XmlPrefix + "FanCountdownExtendInterval", (uint) FanCountdownExtendInterval);
                     SetUInt(xml, XmlPrefix + "FanCountdownExtendThreshold", (uint) FanCountdownExtendThreshold);
