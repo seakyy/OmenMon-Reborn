@@ -400,6 +400,26 @@ namespace OmenMon.Library {
                 SingleFan = true,
             },
 
+            // HP OMEN 16 wd0xxx (8BA9, 2024) — issue #92, reported by @M1918IIBAR.
+            // Single-fan SKU. The Auto-Calibration scan detected one 16-bit LE
+            // tachometer at 0xF1 and no GPU fan (physically single-fan chassis or a
+            // second fan on a different bus). Decoded from the report's 0/30/70/100%
+            // sweep, EC[0xF1..0xF2]: 0% = 01 07 → 0x0701 = 1793 RPM (idle), 100% =
+            // 05 14 → 0x1405 = 5125 RPM (max), matching the reported idle/max exactly
+            // and rising monotonically across the steps — so LE16 at 0xF1, not the
+            // DirectMultiplier8 single-byte read 8BB3 uses (which would decode 100% as
+            // 0x05 × 100 = 500 RPM, far below the audible max). Read-only mapping only:
+            // no fan-control registers are committed for this board (a wrong
+            // ManualReg/ModeReg could lock the EC), so RPM displays correctly while
+            // fan *control* stays on the auto-detector's safe legacy fallback. SingleFan
+            // mirrors the resolved CPU mapping onto the GPU row so it stops decoding
+            // 0xF1 as a second word (#81 pattern).
+            ["8BA9"] = new Mapping {
+                CpuReg = 0xF1, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
+                SingleFan = true,
+            },
+
             // HP Omen Max 16 (8D41, 2025) — issue #87, reported by @Keith1341.
             // The wizard's live-RPM column read blank because Fan.GetSpeed() fell back
             // to the default 0xB0/0xB2 preset (wrong for this 2025 "Omen Max" layout),

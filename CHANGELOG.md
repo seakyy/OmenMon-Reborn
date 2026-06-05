@@ -92,6 +92,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`EcWaitYieldCount` configuration knob** in `OmenMon.xml` (default 10), wired
   through `Config`/`ConfigData`, plus documentation of the EC-timing knobs and an
   RPM/temperature troubleshooting section (issue #14).
+- **HP OMEN 16 wd0xxx (8BA9, 2024) RPM read mapping** (`Library/AutoCal.cs`
+  `KnownBoards`, issue #92 reported by @M1918IIBAR). The Auto-Calibration scan found
+  a single 16-bit LE tachometer at `0xF1` and no GPU fan. The raw EC dumps confirm it:
+  `EC[0xF1..0xF2]` decodes to `0x0701` = 1793 RPM at 0% (idle) and `0x1405` = 5125 RPM
+  at 100% (max), matching the reported idle/max exactly and rising monotonically across
+  the 0/30/70/100% steps — LE16, not the `DirectMultiplier8` single-byte read 8BB3 uses
+  (which would decode the 100% step as 0x05 × 100 = 500 RPM). Added as a **read-only**
+  `KnownBoards` mapping flagged `SingleFan`, so RPM now displays correctly out of the box
+  and the GPU row mirrors the one real fan instead of decoding `0xF1` as a second word
+  (#81 pattern). No `<Model>` entry / fan-control registers are committed for this board —
+  a wrong `ManualReg`/`ModeReg` could lock the EC — so fan *control* stays on the
+  auto-detector's safe legacy fallback pending a confirmed register map.
 
 ### Deferred (need confirmed data before a code change is safe)
 
