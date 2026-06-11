@@ -289,16 +289,26 @@ namespace OmenMon.AppGui {
 
             // Show a safety warning for models where 100% max fan can freeze the EC.
             // Centralised in GuiOp.ConfirmMaxFanIfRisky so the wording / title /
-            // default button stay in sync across every entry point.
+            // default button stay in sync across every entry point. Kept OUTSIDE the
+            // hardware lock so the dialog never blocks the monitor (and its thermal-panic
+            // safety net) while it is open.
             if(enableMax && !GuiOp.ConfirmMaxFanIfRisky(Context.Op.Platform.System.GetProduct()))
                 return;
 
-            // Clear fan-off latch before enabling max so the BIOS will honour SetMax
-            if(enableMax && Context.Op.Platform.Fans.GetOff())
-                Context.Op.Platform.Fans.SetOff(false);
+            // Serialise the fan-control writes with the monitor thread
+            lock(Context.Op.HardwareLock) {
 
-            // Toggle the maximum fan speed
-            Context.Op.Platform.Fans.SetMax(enableMax);
+                // Clear fan-off latch before enabling max so the BIOS will honour SetMax
+                if(enableMax && Context.Op.Platform.Fans.GetOff())
+                    Context.Op.Platform.Fans.SetOff(false);
+
+                // Toggle the maximum fan speed
+                Context.Op.Platform.Fans.SetMax(enableMax);
+
+            }
+
+            // Publish a fresh snapshot so the open form + menu reflect the change at once
+            Context.Monitor?.SampleNow();
 
             // Update the main form, if available
             if(Context.FormMain != null)
@@ -313,7 +323,11 @@ namespace OmenMon.AppGui {
         private void EventActionFanOff(object sender, EventArgs e) {
 
             // Toggle the fan on or off
-            Context.Op.Platform.Fans.SetOff(!((ToolStripMenuItem) sender).Checked);
+            lock(Context.Op.HardwareLock)
+                Context.Op.Platform.Fans.SetOff(!((ToolStripMenuItem) sender).Checked);
+
+            // Publish a fresh snapshot so the open form + menu reflect the change at once
+            Context.Monitor?.SampleNow();
 
             // Update the main form, if available
             if(Context.FormMain != null)
@@ -327,39 +341,51 @@ namespace OmenMon.AppGui {
         // Switches the fan mode
         private void EventActionFanMode(object sender, EventArgs e) {
 
-            // Retrieve the current fan mode
-            BiosData.FanMode fanModeNow = Context.Op.Platform.Fans.GetMode();
-
             // Retrieve the requested fan mode
             BiosData.FanMode fanModeAsk = (BiosData.FanMode) Enum.Parse(
-                typeof(BiosData.FanMode), 
+                typeof(BiosData.FanMode),
                 ((ToolStripMenuItem) sender).Name.Remove(0, P_FAN_MODE.Length));
 
-            // "Max Fan" is a separate BIOS toggle (SetMaxFan) from the fan mode
-            // (SetFanMode), and SetMode does not clear it — so choosing Auto/Default
-            // (or any mode) while Max Fan was engaged left the fans pinned at maximum
-            // (issue #77, reported by @AbhinavGenos on 8BCD). Release a *manually*
-            // engaged Max Fan when the user picks a mode. This has to run even when the
-            // requested mode equals the current one, because Max Fan sits on top of any
-            // mode — the common "already in Default, toggled Max Fan, now click Default
-            // to go back" case, where SetMode alone is a no-op. An active Thermal Panic
-            // is deliberately left alone: that is a safety feature with its own max-fan
-            // state machine, and clearing it from a menu click would just make it
-            // re-assert on the next hot tick. Releasing Max Fan only ever lowers fan
-            // speed, so it cannot trigger the 100%-fan EC-freeze quirk on
-            // FanArray.HasMaxFanFreeze boards.
-            bool manualMaxReleased = !Context.Op.IsThermalPanic
-                && Context.Op.Platform.Fans.GetMax();
-            if(manualMaxReleased)
-                Context.Op.Platform.Fans.SetMax(false);
+            bool applied = false;
 
-            // Apply the requested mode if it differs, or re-assert it when Max Fan was
-            // just released, so the fans actually return to the automatic curve
-            // (mirrors the main-window "Automatic" path in GuiFormMain).
-            if(fanModeAsk != fanModeNow || manualMaxReleased) {
+            // Serialise the read-modify-write with the monitor thread
+            lock(Context.Op.HardwareLock) {
 
-                // Set the requested fan mode
-                Context.Op.Platform.Fans.SetMode(fanModeAsk);
+                // Retrieve the current fan mode
+                BiosData.FanMode fanModeNow = Context.Op.Platform.Fans.GetMode();
+
+                // "Max Fan" is a separate BIOS toggle (SetMaxFan) from the fan mode
+                // (SetFanMode), and SetMode does not clear it — so choosing Auto/Default
+                // (or any mode) while Max Fan was engaged left the fans pinned at maximum
+                // (issue #77, reported by @AbhinavGenos on 8BCD). Release a *manually*
+                // engaged Max Fan when the user picks a mode. This has to run even when the
+                // requested mode equals the current one, because Max Fan sits on top of any
+                // mode — the common "already in Default, toggled Max Fan, now click Default
+                // to go back" case, where SetMode alone is a no-op. An active Thermal Panic
+                // is deliberately left alone: that is a safety feature with its own max-fan
+                // state machine, and clearing it from a menu click would just make it
+                // re-assert on the next hot tick. Releasing Max Fan only ever lowers fan
+                // speed, so it cannot trigger the 100%-fan EC-freeze quirk on
+                // FanArray.HasMaxFanFreeze boards.
+                bool manualMaxReleased = !Context.Op.IsThermalPanic
+                    && Context.Op.Platform.Fans.GetMax();
+                if(manualMaxReleased)
+                    Context.Op.Platform.Fans.SetMax(false);
+
+                // Apply the requested mode if it differs, or re-assert it when Max Fan was
+                // just released, so the fans actually return to the automatic curve
+                // (mirrors the main-window "Automatic" path in GuiFormMain).
+                if(fanModeAsk != fanModeNow || manualMaxReleased) {
+                    Context.Op.Platform.Fans.SetMode(fanModeAsk);
+                    applied = true;
+                }
+
+            }
+
+            if(applied) {
+
+                // Publish a fresh snapshot so the open form + menu reflect the change at once
+                Context.Monitor?.SampleNow();
 
                 // Update the main form, if available
                 if(Context.FormMain != null)
@@ -375,34 +401,31 @@ namespace OmenMon.AppGui {
         // Switches the fan program
         private void EventActionFanProg(object sender, EventArgs e) {
 
-            // Retrieve the current fan program
-            string fanProgNameNow = Context.Op.Program.GetName();
-
             // Retrieve the requested fan program
             string fanProgNameAsk =
                 ((ToolStripMenuItem) sender).Name.Remove(0, P_FAN_PROG.Length);
 
-            // If the requested mode is the same as the current one
-            // and the program is already enabled
-            if(fanProgNameAsk == fanProgNameNow
-                && Context.Op.Program.IsEnabled)
+            // Serialise with the monitor's fan-program tick — FanProgram state is mutated
+            // here and on the monitor thread, so start/stop must be mutually exclusive.
+            lock(Context.Op.HardwareLock) {
 
-                // Terminate the current program
-                Context.Op.Program.Terminate();
+                // If the requested program is the same as the running one, toggle it off;
+                // otherwise start the requested program.
+                if(fanProgNameAsk == Context.Op.Program.GetName()
+                    && Context.Op.Program.IsEnabled)
+                    Context.Op.Program.Terminate();
+                else
+                    Context.Op.Program.Run(fanProgNameAsk);
 
-            else
+            }
 
-                // Start a new program
-                Context.Op.Program.Run(fanProgNameAsk);
+            // Delay the monitor's next program tick — Run() has already applied the curve
+            Context.Monitor?.ResetProgramTick();
 
-            // Reset the tick counter
-            Context.UpdateProgramTick = 1;
-
-            // Update the main form
+            // Publish a fresh snapshot, then refresh the form + menu
+            Context.Monitor?.SampleNow();
             if(Context.FormMain != null)
                 Context.FormMain.UpdateFanCtl();
-
-            // Update the menu section
             UpdateFan();
 
         }
@@ -418,25 +441,41 @@ namespace OmenMon.AppGui {
         // Switches the GPU mode
         private void EventActionGpuMode(object sender, EventArgs e) {
 
-            // Retrieve the current GPU mode
-            BiosData.GpuMode gpuModeNow = Context.Op.Platform.System.GetGpuMode(true);
-            BiosData.GpuMode gpuModeAsk =
-                ((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_MODE_DISCRETE) ?
-                    BiosData.GpuMode.Discrete :
-                       Context.Op.Platform.System.GetSystemData()
-                       .GpuModeSwitch.HasFlag(BiosData.SysGpuModeSwitch.Supported8) ?
-                           BiosData.GpuMode.Optimus : BiosData.GpuMode.Hybrid;
+            bool changed = false;
 
-            // Proceed only if the mode is different than now
-            if(gpuModeAsk != gpuModeNow) {
+            // Serialise the GPU read/write with the monitor (shared Settings caches)
+            lock(Context.Op.HardwareLock) {
 
-                // Set the requested GPU mode
-                Context.Op.Platform.System.SetGpuMode(gpuModeAsk);
+                // Retrieve the current GPU mode
+                BiosData.GpuMode gpuModeNow = Context.Op.Platform.System.GetGpuMode(true);
+                BiosData.GpuMode gpuModeAsk =
+                    ((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_MODE_DISCRETE) ?
+                        BiosData.GpuMode.Discrete :
+                           Context.Op.Platform.System.GetSystemData()
+                           .GpuModeSwitch.HasFlag(BiosData.SysGpuModeSwitch.Supported8) ?
+                               BiosData.GpuMode.Optimus : BiosData.GpuMode.Hybrid;
 
-                // Update the menu section
+                // Proceed only if the mode is different than now
+                if(gpuModeAsk != gpuModeNow) {
+
+                    // Set the requested GPU mode
+                    Context.Op.Platform.System.SetGpuMode(gpuModeAsk);
+
+                    changed = true;
+
+                }
+
+            }
+
+            if(changed) {
+
+                // Publish a fresh snapshot (re-reads the GPU mode), then refresh the
+                // menu checkmarks from it
+                Context.Monitor?.SampleNow();
                 UpdateGpuMode();
 
-                // A restart is needed for the change to take effect
+                // A restart is needed for the change to take effect (dialog kept
+                // outside the hardware lock so it never blocks the monitor while open)
                 Gui.ShowPromptReboot();
 
             }
@@ -452,14 +491,22 @@ namespace OmenMon.AppGui {
                 ((ToolStripMenuItem) sender).Name.EndsWith(S_GPU_POWER_MED) ? BiosData.GpuPowerLevel.Medium :
                 BiosData.GpuPowerLevel.Minimum;
 
-            // Set the requested GPU power
-            Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(requested));
+            BiosData.GpuPowerData applied;
 
-            // Read the live state straight back. SetGpuPower waits Config.GpuPowerSetInterval
-            // after the BIOS write, so this reflects what the firmware actually stored.
-            BiosData.GpuPowerData applied = Context.Op.Platform.System.GetGpuPower(true);
+            // Serialise the GPU read/write with the monitor (shared Settings caches)
+            lock(Context.Op.HardwareLock) {
 
-            // Refresh the menu checkmarks from the value we just read
+                // Set the requested GPU power
+                Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(requested));
+
+                // Read the live state straight back. SetGpuPower waits Config.GpuPowerSetInterval
+                // after the BIOS write, so this reflects what the firmware actually stored.
+                applied = Context.Op.Platform.System.GetGpuPower(true);
+
+            }
+
+            // Refresh the menu checkmarks from the value we just read (pure UI work,
+            // kept outside the hardware lock)
             UpdateGpuPower(applied);
 
             // If the firmware did not honour the request, the menu just snaps back to
@@ -771,6 +818,12 @@ namespace OmenMon.AppGui {
             // in which case the system "optimizes" its cancel flag to true, overriden here
             e.Cancel = false;
 
+            // Ask the monitor for one fresh full sample, off-thread: by the time the
+            // user reaches a submenu, the published snapshot reflects current hardware,
+            // and the menu render itself never touches the EC/BIOS on the UI thread
+            // (issue #98 — the right-click → seconds-long stall).
+            Context.Monitor?.RequestSample();
+
             // Update the main menu
             UpdateMain();
 
@@ -932,16 +985,23 @@ namespace OmenMon.AppGui {
 #endregion
 
 #region Menu Update
-        // Updates the checkboxes in the fan mode section
+        // Updates the checkboxes in the fan mode section. Renders from the monitor
+        // snapshot — the EC/BIOS reads run on the monitor thread (kicked off by
+        // EventOpening's RequestSample), never here on the UI thread, where a
+        // contended EC mutex used to stall the opening menu for seconds (issue #98).
+        // Until the first sample lands, the items simply keep their previous state.
         public void UpdateFan() {
 
+            MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+            if(s == null)
+                return;
+
             // Retrieve the current fan mode
-            BiosData.FanMode fanModeNow = Context.Op.Platform.Fans.GetMode();
-            string fanModeNameNow = Enum.GetName(typeof(BiosData.FanMode), fanModeNow);
-            string fanProgNameNow = Context.Op.Program.GetName();
-            bool isFanMax = Context.Op.Platform.Fans.GetMax();
-            bool isFanProg = Context.Op.Program.IsEnabled;
-            bool isFanOff = Context.Op.Platform.Fans.GetOff();
+            string fanModeNameNow = Enum.GetName(typeof(BiosData.FanMode), s.Mode);
+            string fanProgNameNow = s.ProgramName;
+            bool isFanMax = s.Max;
+            bool isFanProg = s.ProgramEnabled;
+            bool isFanOff = s.Off;
 
             // Set the checked and enabled state on individual menu items
             ((ToolStripMenuItem) MenuFan.DropDownItems[I_FAN_MAX]).Checked = isFanMax;
@@ -1002,20 +1062,28 @@ namespace OmenMon.AppGui {
             }
         }
 
-        // Updates the checkboxes in the GPU mode switch section
+        // Updates the checkboxes in the GPU mode switch section. The support flag comes
+        // from the BIOS system-data struct cached at startup; the current mode comes
+        // from the monitor snapshot. No forced BIOS reads and no HardwareLock here on
+        // the UI thread — a monitor pass holding the lock through a slow EC batch
+        // would otherwise stall the opening submenu (issue #98).
         public void UpdateGpuMode() {
 
-            // Only if GPU mode switching is supported
-            if(Context.Op.Platform.System.GetGpuModeSupport()) {
+            bool supported = false;
+            try { supported = Context.Op.Platform.System.GetGpuModeSupport(); } catch { }
 
-                // Retrieve the current GPU mode
-                BiosData.GpuMode gpuMode = Context.Op.Platform.System.GetGpuMode(true);
+            // Only if GPU mode switching is supported
+            if(supported) {
+
+                MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+                if(s == null)
+                    return;
 
                 // Set the checked status accordingly
                 ((ToolStripMenuItem) MenuGpu.DropDownItems[I_GPU_MODE_DISCRETE]).Checked =
-                    gpuMode == BiosData.GpuMode.Discrete;
+                    s.GpuMode == BiosData.GpuMode.Discrete;
                 ((ToolStripMenuItem) MenuGpu.DropDownItems[I_GPU_MODE_OPTIMUS]).Checked =
-                    (gpuMode == BiosData.GpuMode.Hybrid || gpuMode == BiosData.GpuMode.Optimus);
+                    (s.GpuMode == BiosData.GpuMode.Hybrid || s.GpuMode == BiosData.GpuMode.Optimus);
 
             } else {
 
@@ -1027,10 +1095,14 @@ namespace OmenMon.AppGui {
 
         }
 
-        // Updates the checkboxes in the GPU power settings section
+        // Updates the checkboxes in the GPU power settings section — renders the
+        // monitor snapshot's cached GPU power table (refreshed by the full sample
+        // EventOpening requests); no forced BIOS read on the UI thread (issue #98).
         public void UpdateGpuPower() {
-            // Retrieve the current graphics setting table, then delegate
-            UpdateGpuPower(Context.Op.Platform.System.GetGpuPower(true));
+            MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+            if(s == null || !s.HasFanSys)
+                return;
+            UpdateGpuPower(s.GpuPower);
         }
 
         // Same, but reusing a GPU power reading the caller already took — avoids a

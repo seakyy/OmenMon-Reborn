@@ -19,6 +19,11 @@ namespace OmenMon.External {
 
         public const uint ATTACH_PARENT_PROCESS = 0xFFFFFFFF;
 
+        public const int STD_OUTPUT_HANDLE = -11;
+        public const int STD_ERROR_HANDLE  = -12;
+
+        public static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+
         // File operations
 
         public enum MoveFileFlags : uint {
@@ -110,6 +115,10 @@ namespace OmenMon.External {
         [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern IntPtr GetConsoleWindow();
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        public static extern IntPtr GetStdHandle(int nStdHandle);
 
         // File operations
 

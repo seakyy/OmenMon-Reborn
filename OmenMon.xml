@@ -315,6 +315,12 @@
             <!-- 8D87: HP Omen (2025, ak0xxx / ak0003nr) — issue #61, snowfallhateall. -->
             <!-- Classic 16-bit LE RPM tachometers at 0x70/0x9F (CPU max ~6000, GPU max ~5550 RPM). -->
             <!-- Standard 2023+ register layout. -->
+            <!-- Temperature (issue #97): the legacy CPUT register 0x57 lands on firmware string data    -->
+            <!-- on this board and reads a constant 52 (ASCII '4'), so the CPU temperature appeared      -->
+            <!-- stuck and fan programs never ramped. Since v1.4.6 GetCpuTemperature takes the higher    -->
+            <!-- of CPUT and the WMI BIOS sensor, so the curve follows the real temperature again.       -->
+            <!-- A TempCpuReg override (the proper per-board fix, as on 8C9C) needs a -Probe register    -->
+            <!-- dump under load to identify the real EC temperature offset — pending reporter data.     -->
             <Model ProductId="8D87" DisplayName="HP Omen (2025, ak0xxx)">
                 <FanLevelReg0>17</FanLevelReg0>
                 <FanLevelReg1>18</FanLevelReg1>
@@ -674,6 +680,28 @@
                 <FanRateReadReg1>47</FanRateReadReg1>
                 <FanRateWriteReg0>58</FanRateWriteReg0>
                 <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 88ED: HP Victus 16-e0xxx (2022) — issue #99, robbert1978.                                 -->
+            <!-- Auto-Calibration confirmed 16-bit LE RPM tachometers at 0xB0/0xB2 (CPU max ~3138,         -->
+            <!-- GPU max ~3369 RPM); fan level at 0x34/0x35 and rate write at 0x2C/0x2D — classic 2022     -->
+            <!-- layout. This is exactly the preset the heuristic auto-detector already produced on the    -->
+            <!-- reporter's machine ("Auto-detected 2022 layout"), field-tested by the reporter and posted -->
+            <!-- verbatim on the issue; the native entry pins it so detection can never drift. Note from   -->
+            <!-- the report: the 100% step gains <150 RPM over 70% — the manual level scale tops out at    -->
+            <!-- the physical ceiling on this board, which is normal and not a stuck fan.                  -->
+            <Model ProductId="88ED" DisplayName="HP Victus 16-e0xxx (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
                 <FanSpeedReg0>176</FanSpeedReg0>
                 <FanSpeedReg1>178</FanSpeedReg1>
                 <CountdownReg>99</CountdownReg>

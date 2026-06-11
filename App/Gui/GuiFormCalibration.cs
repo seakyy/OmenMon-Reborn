@@ -185,6 +185,11 @@ namespace OmenMon.AppGui {
             if(throttle)
                 ProcessGuard.PauseHeavyHitters(line => Log(line));
 
+            // Pause the background monitor so its periodic EC sampling neither perturbs the
+            // calibration's RPM measurements nor fights its fan-control writes. Resumed in
+            // the worker's finally{} below (covers success, failure, and mid-run close).
+            GuiTray.Context?.Monitor?.Pause();
+
             Cts = new CancellationTokenSource();
             var token = Cts.Token;
             var fans = this.Fans;
@@ -195,6 +200,12 @@ namespace OmenMon.AppGui {
             // marshal is gated on IsClosingDown so a user dismissing the form mid-run
             // doesn't trip an ObjectDisposedException on the (now-destroyed) handle.
             WorkerTask = Task.Run(() => {
+                // Quiet EC-lock handling for the whole sweep: a transient mutex
+                // timeout during the scan's mass reads degrades to a skipped sample
+                // the ranking logic absorbs, instead of one modal error box per
+                // occurrence (issue #94). Reset in finally — this is a thread-pool
+                // thread, so the thread-static flag must not leak to unrelated work.
+                Hw.EcLockQuiet = true;
                 try {
                     var outcome = CliOp.AutoCalibrate(
                         progress: (phase, detail, pct) => SafeInvoke(() => {
@@ -213,6 +224,9 @@ namespace OmenMon.AppGui {
                         ResetButtons(success: false);
                     });
                 } finally {
+                    Hw.EcLockQuiet = false;
+                    // Resume the background monitor (paused in Start()).
+                    GuiTray.Context?.Monitor?.Resume();
                     if(throttle)
                         ProcessGuard.ResumeHeavyHitters();
                 }

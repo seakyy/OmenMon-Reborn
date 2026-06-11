@@ -12,7 +12,7 @@ using System.Reflection;
 // gets the full four segments including BUILD_NUMBER (auto-incremented by
 // .github/workflows/build_bump.yml), so shipped binaries appear as
 // X.Y.Z.<build#> in File Explorer / Get-FileHash properties.
-[assembly: AssemblyVersion("1.4.5.0")]
-[assembly: AssemblyFileVersion("1.4.5.0")]
-[assembly: AssemblyInformationalVersion("1.4.5-reborn")]
+[assembly: AssemblyVersion("1.4.6.0")]
+[assembly: AssemblyFileVersion("1.4.6.0")]
+[assembly: AssemblyInformationalVersion("1.4.6-reborn")]
 [assembly: AssemblyMetadata("Timestamp", "Undefined")]
