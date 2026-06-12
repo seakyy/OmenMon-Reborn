@@ -95,8 +95,69 @@ namespace OmenMon.Library {
 
         }
 
+        // Non-zero while a display-off keep-awake holder thread is alive,
+        // so repeated menu clicks don't stack up redundant threads
+        private static int displayOffKeepAwakeActive;
+
         // Sets the display to standby
         public static void SetDisplayOff() {
+
+            // On Modern Standby (S0 low-power idle) systems, Windows treats
+            // "display off" as the sleep entry point, so the SC_MONITORPOWER
+            // broadcast alone puts the whole machine to sleep (issue #103).
+            // Hold ES_SYSTEM_REQUIRED on a dedicated thread while the display
+            // is off — SetThreadExecutionState is per-thread, so the holder
+            // must stay alive — and release it on the first user input, which
+            // is also what turns the display back on.
+            if(Config.DisplayOffKeepAwake
+                && Interlocked.CompareExchange(ref displayOffKeepAwakeActive, 1, 0) == 0) {
+
+                Thread keepAwake = new Thread(() => {
+                    bool held = false;
+                    try {
+
+                        // Same success-detection dance as PowerGuard.AssertGuard():
+                        // clear last-error first, since a 0 return is ambiguous
+                        // (failure vs. legitimate previous state of None)
+                        Kernel32.SetLastError(0);
+                        held = Kernel32.SetThreadExecutionState(
+                            Kernel32.ExecutionState.Continuous | Kernel32.ExecutionState.SystemRequired)
+                            != Kernel32.ExecutionState.None
+                            || Marshal.GetLastWin32Error() == 0;
+
+                        // Let the menu-click input that triggered this action age out
+                        // before sampling the baseline, so it doesn't count as the
+                        // wake-up input on the very first poll
+                        Thread.Sleep(1000);
+
+                        User32.LASTINPUTINFO info = new User32.LASTINPUTINFO();
+                        info.cbSize = (uint) Marshal.SizeOf(typeof(User32.LASTINPUTINFO));
+                        if(!User32.GetLastInputInfo(ref info))
+                            return;
+                        uint baseline = info.dwTime;
+
+                        // Poll until new user input arrives (which wakes the display)
+                        while(User32.GetLastInputInfo(ref info) && info.dwTime == baseline)
+                            Thread.Sleep(1000);
+
+                    } catch {
+
+                        // Never let the holder thread take down the process;
+                        // worst case the display-off degrades to the old behavior
+
+                    } finally {
+                        if(held)
+                            try {
+                                Kernel32.SetThreadExecutionState(Kernel32.ExecutionState.Continuous);
+                            } catch { }
+                        Interlocked.Exchange(ref displayOffKeepAwakeActive, 0);
+                    }
+                });
+                keepAwake.Name = "OmenMon Display-Off Keep-Awake";
+                keepAwake.IsBackground = true;
+                keepAwake.Start();
+
+            }
 
             // Send a system command message
             User32.SendMessage(

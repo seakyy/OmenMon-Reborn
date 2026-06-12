@@ -3,6 +3,95 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.6-reborn] - 2026-06-12
+
+> **UI responsiveness restored + CLI restored + temperature-policy fix.**
+> v1.4.5's threading/safety sweep serialised hardware access correctly but left
+> the periodic EC/BIOS traffic on the WinForms UI thread, so a contended EC
+> mutex stalled the tray menu and window dragging for seconds (#98). v1.4.6
+> moves **all** periodic hardware access onto a dedicated background monitor
+> thread that publishes immutable sensor snapshots for the UI to render — the
+> message pump never waits on the EC again. On top of that: the CLI works again
+> (#101), a stuck EC temperature byte can no longer pin the fan curve (#97),
+> recoverable EC-lock timeouts no longer raise modal error boxes (#94), the
+> Set Display Off action no longer puts Modern Standby laptops to sleep (#103),
+> and the model database gains 88ED and 8A3E.
+
+### Fixed
+
+- **Graphics → Set Display Off put the laptop to sleep (#103, reported by
+  @Bart82).** On Modern Standby (S0 low-power idle) systems Windows treats
+  "display off" as the sleep entry point, so the `SC_MONITORPOWER` broadcast
+  the action has always used now suspends the whole machine instead of just
+  blanking the screen. OmenMon now holds `ES_SYSTEM_REQUIRED` on a dedicated
+  background thread while the display is off and releases it on the first user
+  input (which is also what wakes the display) — the screen turns off, the
+  system keeps running, and normal sleep behaviour resumes the moment you
+  return. Opt out with `<DisplayOffKeepAwake>false</DisplayOffKeepAwake>` in
+  `OmenMon.xml` to restore the previous bare broadcast.
+- **CLI produced no output for any argument (#101, reported by @David112x).**
+  The redirection guard added to `Cli.Initialize()` in v1.4.2 (for the issue #76
+  crash) early-returned whenever `Console.IsOutputRedirected` was true — but a
+  GUI-subsystem process launched from cmd/PowerShell *without* redirection has
+  NULL standard handles, which .NET also reports as "redirected". The console
+  was therefore never attached and every CLI invocation (`-Bios`, `-Ec`,
+  `-Usage`, …) wrote into the void. The guard now only skips attaching when a
+  *real* non-console handle exists (`Kernel32.GetStdHandle`), so plain CLI use
+  prints again while `-Diag > file.md` style redirection keeps working.
+- **Sluggish tray menu and "teleporting" window drag since v1.4.5 (#98,
+  reported by @snowfallhateall).** New `GuiMonitor` background thread owns all
+  periodic hardware work — sensor sampling, the fan-program tick, thermal-panic
+  checks, constant-speed countdown maintenance, and the BIOS heartbeat — and
+  publishes an immutable `MonitorSnapshot` the UI thread renders lock-free. The
+  tray menu and the main form no longer perform any EC/BIOS I/O on the UI
+  thread during passive operation: opening the tray menu now requests one fresh
+  sample off-thread and renders from the snapshot, instead of issuing EC reads
+  (`GetMode`/`GetMax`/`GetOff`) that could block seconds behind the
+  `Global\Access_EC` mutex. User-initiated control actions are serialised with
+  the monitor through a single in-process hardware lock; balloon tips and
+  fan-program status updates cross back to the UI thread via a message queue.
+- **CPU temperature stuck at a constant reading pinned the fan curve (#97,
+  reported by @snowfallhateall, 8D87).** On 8D87 the legacy CPUT register
+  `0x57` lands on firmware string data and reads a permanent 52 (ASCII `'4'`).
+  `Platform.GetCpuTemperature()` trusted CPUT whenever it was non-zero, so fan
+  programs followed the 52 °C curve row while the die overheated. The CPU
+  temperature is now the **higher** of CPUT and the WMI BIOS sensor — covering
+  both known failure shapes (CPUT stuck non-zero, and CPUT reading 0xFF→0 as on
+  8C9C/8BBE) with one policy that can only ever err towards more cooling.
+- **"Failed to acquire embedded controller exclusive lock" error boxes (#94,
+  reported by @DreamStare0, also #96).** EC-mutex timeouts on the periodic /
+  recoverable paths (background monitor, AutoConfig startup thread, the
+  Auto-Calibration worker) now degrade to a skipped operation that retries next
+  tick, instead of a modal error box — the once-per-startup box (HP's own
+  services hold `Global\Access_EC` at logon) and the repeated boxes during
+  calibration sweeps are gone. User-initiated actions stay loud. Timeouts are
+  counted and surfaced as a new "EC lock timeouts this session" row in `-Diag`
+  so contention still shows up in field reports.
+- **Calibration pause race.** `GuiMonitor.Pause()` could return while one last
+  monitor pass was still about to start; the paused check now happens inside
+  the pass gate, so after `Pause()` returns the wizard owns the hardware alone.
+
+### Added
+
+- **HP Victus 16-e0xxx (88ED, 2022) native model entry (#99, reported by
+  @robbert1978).** Classic 2022 layout (level `0x34`/`0x35`, rate write
+  `0x2C`/`0x2D`), 16-bit LE tachometers at `0xB0`/`0xB2` — exactly the preset
+  the auto-detector chose on the reporter's machine, field-tested and now
+  pinned natively.
+- **HP Victus 15-fb0102la (8A3E, 2023) read-only RPM mapping (#96, reported by
+  @David112x).** Confirmed 16-bit LE tachometers at `0xB0`/`0xB2` (CPU idle
+  ≈435 — never fully stops — max ≈5404; GPU 0…≈5195 RPM), added to
+  `AutoCal.KnownBoards`; fan control stays on the default 2022 layout the
+  calibration sweep already drove successfully.
+- **`-Diag`: EC lock timeout counter** in the Kernel Driver section (issue #94
+  forensics).
+- **Model coverage notes (wiki):** HP Omen 15-en0037AX (8787, #95) confirmed on
+  the default 2022 layout — the probe's `GetFanLevel` "Unknown response from
+  BIOS: 45" is expected on the 2020 generation and harmless; Victus 16-s1084AX
+  (#100) documented as a pending second hardware variant behind `8C9C` (real
+  tachometers at `0xD6`/`0xD8`) awaiting a `-Diag` Product ID confirmation
+  before any shipped-mapping change.
+
 ## [1.4.5-reborn] - 2026-06-04
 
 > **EC read-path hardening + field-report sweep.** This release attacks the

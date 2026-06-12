@@ -1,0 +1,46 @@
+name: Bug report
+description: Something already implemented is not working as it should.
+labels: ["Bug Report"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: OmenMon-Reborn version
+      placeholder: "1.4.6"
+    validations:
+      required: true
+  - type: input
+    id: product_id
+    attributes:
+      label: Product ID (board ID)
+      description: Run `OmenMon.exe -Probe` as Administrator (e.g. `8C30`). Many bugs are model-specific — this is the first thing we check.
+      placeholder: "8C30"
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include exact steps to reproduce if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: diag
+    attributes:
+      label: Diagnostic output
+      description: |
+        Run `OmenMon.exe -Diag` as Administrator and paste the output (or tray menu →
+        "Copy Diagnostic Info"). This includes the EC trace of recent reads/writes,
+        which is usually what identifies the cause.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: crash_logs
+    attributes:
+      label: Crash logs (if OmenMon crashed)
+      description: |
+        Look for `OmenMon-crash-*.log` next to OmenMon.exe (or in
+        `%LOCALAPPDATA%\OmenMon-Reborn\`) and paste the newest one. These are NOT
+        collected automatically — we only see them if you attach them.
+      render: text

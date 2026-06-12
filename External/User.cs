@@ -131,6 +131,13 @@ namespace OmenMon.External {
             STANDBY     =  2
 
         }
+
+        // Last-input timestamp record for GetLastInputInfo
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LASTINPUTINFO {
+            public uint cbSize;
+            public uint dwTime;
+        }
 #endregion
 
 #region Windows User Interface API Imports
@@ -163,6 +170,10 @@ namespace OmenMon.External {
         [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern IntPtr GetDlgItem(IntPtr hDlg, int nIDDlgItem);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Winapi, CharSet = CharSet.Unicode)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
