@@ -1,0 +1,59 @@
+name: Model / hardware compatibility report
+description: Add support for your HP Omen / Victus model, or report wrong fan/temperature readings on it.
+title: "[Model] "
+labels: ["Model Info"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping grow the model database! Reports that include the three
+        items below can usually be handled in a single round — reports without them
+        stall in "Pending" until the data arrives.
+  - type: input
+    id: product_id
+    attributes:
+      label: Product ID (board ID)
+      description: Run `OmenMon.exe -Probe` as Administrator — the Product ID is in the WMI section (e.g. `8C30`).
+      placeholder: "8C9C"
+    validations:
+      required: true
+  - type: input
+    id: model_name
+    attributes:
+      label: Full laptop model name
+      placeholder: "HP Victus 16-s1034nf"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OmenMon-Reborn version
+      description: Tray → About, or the file version of OmenMon.exe.
+      placeholder: "1.4.6"
+    validations:
+      required: true
+  - type: textarea
+    id: diag
+    attributes:
+      label: Diagnostic output
+      description: |
+        Run `OmenMon.exe -Diag` as Administrator and paste the full Markdown output here
+        (or use the tray menu → "Copy Diagnostic Info"). It contains no personal data —
+        only hardware registers, driver status, and the model preset in use.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: calibration
+    attributes:
+      label: Auto-Calibration report (optional but very helpful)
+      description: |
+        Tray → "Auto-Calibrate & Diagnose…" (or `OmenMon.exe -run Calibration`) and paste
+        the report. If calibration misbehaves (fans stuck, wrong RPM), stop and say so here
+        instead — do not retry repeatedly.
+      render: markdown
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: What works and what doesn't
+      description: e.g. "Fan RPM shows 0", "temperature stuck at 52 °C", "max fan does nothing".
