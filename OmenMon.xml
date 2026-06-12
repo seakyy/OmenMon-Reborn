@@ -52,6 +52,12 @@
         <BatteryGlitchGuardOnBattery>false</BatteryGlitchGuardOnBattery>
         <BatteryGlitchGuardDisableTimeout>false</BatteryGlitchGuardDisableTimeout>
         <BatteryGlitchGuardHoldAlways>false</BatteryGlitchGuardHoldAlways>
+        <!-- Keep the system awake while the display is off via Graphics -> Set
+             Display Off (issue #103): on Modern Standby laptops Windows treats
+             "display off" as the sleep trigger, so without this the action puts
+             the whole machine to sleep. Released on the first user input.
+             Set to false to restore the previous bare display-off behaviour. -->
+        <DisplayOffKeepAwake>true</DisplayOffKeepAwake>
         <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
         <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
         <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->

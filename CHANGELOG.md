@@ -13,11 +13,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > thread that publishes immutable sensor snapshots for the UI to render — the
 > message pump never waits on the EC again. On top of that: the CLI works again
 > (#101), a stuck EC temperature byte can no longer pin the fan curve (#97),
-> recoverable EC-lock timeouts no longer raise modal error boxes (#94), and the
-> model database gains 88ED and 8A3E.
+> recoverable EC-lock timeouts no longer raise modal error boxes (#94), the
+> Set Display Off action no longer puts Modern Standby laptops to sleep (#103),
+> and the model database gains 88ED and 8A3E.
 
 ### Fixed
 
+- **Graphics → Set Display Off put the laptop to sleep (#103, reported by
+  @Bart82).** On Modern Standby (S0 low-power idle) systems Windows treats
+  "display off" as the sleep entry point, so the `SC_MONITORPOWER` broadcast
+  the action has always used now suspends the whole machine instead of just
+  blanking the screen. OmenMon now holds `ES_SYSTEM_REQUIRED` on a dedicated
+  background thread while the display is off and releases it on the first user
+  input (which is also what wakes the display) — the screen turns off, the
+  system keeps running, and normal sleep behaviour resumes the moment you
+  return. Opt out with `<DisplayOffKeepAwake>false</DisplayOffKeepAwake>` in
+  `OmenMon.xml` to restore the previous bare broadcast.
 - **CLI produced no output for any argument (#101, reported by @David112x).**
   The redirection guard added to `Cli.Initialize()` in v1.4.2 (for the issue #76
   crash) early-returned whenever `Console.IsOutputRedirected` was true — but a
