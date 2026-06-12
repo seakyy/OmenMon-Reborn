@@ -30,7 +30,7 @@
     <StartupObject>OmenMon.App</StartupObject>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <WarningLevel>4</WarningLevel>
-    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">1.4.6.0</AssemblyVersion>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">1.4.7.0</AssemblyVersion>
     <AssemblyVersionWord Condition="'$(AssemblyVersionWord)' == ''">reborn</AssemblyVersionWord>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

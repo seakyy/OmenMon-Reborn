@@ -30,6 +30,7 @@ namespace OmenMon.AppCli {
             ProbeLine(sb, "> Paste this output into a GitHub issue to contribute model database entries.");
             ProbeLine(sb, "");
             ProbeBaseboard(sb);
+            ProbePresetResolution(sb);
             ProbeBios(sb);
             ProbeEc(sb, includeEcDiff);
             return sb.ToString();
@@ -76,6 +77,34 @@ namespace OmenMon.AppCli {
                 ProbeLine(sb, $"| Error | `{ex.GetType().Name}: {ex.Message}` |");
             }
 
+            ProbeLine(sb, "");
+
+        }
+
+        // States which fan-register source the running app resolves for this board,
+        // so a pasted report answers "is this model already in the database?" without
+        // a follow-up round asking for -Diag output.
+        private static void ProbePresetResolution(StringBuilder sb) {
+
+            ProbeLine(sb, "## Preset Resolution");
+            ProbeLine(sb, "");
+
+            string productId = "?";
+            try { productId = new Settings().GetProduct() ?? "?"; } catch { }
+
+            bool inXml = false;
+            try { inXml = Config.Models != null && Config.Models.ContainsKey(productId); } catch { }
+
+            bool knownBoard = false;
+            try { knownBoard = AutoCal.IsKnownBoard(productId); } catch { }
+
+            bool sidecar = false;
+            try { sidecar = File.Exists(AutoCal.SidecarPath); } catch { }
+
+            ProbeLine(sb, $"- **Product ID:** `{productId}`");
+            ProbeLine(sb, $"- **`OmenMon.xml` `<Model>` entry:** {(inXml ? "yes" : "no — using a built-in default preset")}");
+            ProbeLine(sb, $"- **Built-in RPM mapping (`KnownBoards`):** {(knownBoard ? "yes" : "no")}");
+            ProbeLine(sb, $"- **Auto-calibration sidecar present:** {(sidecar ? "yes (`" + AutoCal.SidecarFileName + "`)" : "no")}");
             ProbeLine(sb, "");
 
         }
@@ -206,6 +235,8 @@ namespace OmenMon.AppCli {
             ProbeEcGrid(sb, snap1);
             ProbeLine(sb, "");
 
+            ProbeEcDecoded(sb, snap1);
+
             if(!includeDiff)
                 return;
 
@@ -247,6 +278,54 @@ namespace OmenMon.AppCli {
         // delegates to Hw.EcDump to perform the dump atomically under a single lock
         private static byte[] ProbeEcSnapshot() {
             return Hw.EcDump();
+        }
+
+        // Decodes the well-known register locations from the snapshot so a pasted
+        // report is readable without cross-referencing the DSDT register table by
+        // hand. These are the legacy/default locations — boards that relocate them
+        // (8BD4 repurposes 0xB0/0xB2 as temperatures, 8C9C remaps CPU temp to 0xB0,
+        // …) will show implausible values here, which is itself useful triage signal.
+        private static void ProbeEcDecoded(StringBuilder sb, byte[] d) {
+
+            ProbeLine(sb, "## Well-Known Registers (decoded from Snapshot 1)");
+            ProbeLine(sb, "");
+            ProbeLine(sb, "_Default-layout locations; implausible values usually mean this board relocates the register, not a broken sensor._");
+            ProbeLine(sb, "");
+            ProbeLine(sb, "| Register | Name | Raw | Interpretation |");
+            ProbeLine(sb, "|----------|------|-----|----------------|");
+
+            ProbeDecodedByte(sb, d, 0x2C, "XSS1", v => $"{v} % commanded (L fan)");
+            ProbeDecodedByte(sb, d, 0x2D, "XSS2", v => $"{v} % commanded (R fan)");
+            ProbeDecodedByte(sb, d, 0x2E, "XGS1", v => $"{v} % reported (L fan)");
+            ProbeDecodedByte(sb, d, 0x2F, "XGS2", v => $"{v} % reported (R fan)");
+            ProbeDecodedByte(sb, d, 0x34, "SRP1", v => $"{v * 100} rpm set-point (L fan)");
+            ProbeDecodedByte(sb, d, 0x35, "SRP2", v => $"{v * 100} rpm set-point (R fan)");
+            ProbeDecodedByte(sb, d, 0x57, "CPUT", v => $"{v} °C CPU (52 = ASCII '4' firmware-string overlap on some 2023+ boards)");
+            ProbeDecodedByte(sb, d, 0x62, "OMCC", v => v == 0 ? "BIOS fan control" : $"manual fan control (0x{v:X2})");
+            ProbeDecodedByte(sb, d, 0x63, "XFCD", v => $"{v} s manual-mode countdown");
+            ProbeDecodedByte(sb, d, 0x95, "HPCM", v => $"performance mode raw value 0x{v:X2}");
+            ProbeDecodedByte(sb, d, 0x96, "XBCH", v => $"{v} % battery charge");
+            ProbeDecodedWord(sb, d, 0xB0, "RPM1/RPM2", v => $"{v} rpm (L fan, legacy LE16 tachometer)");
+            ProbeDecodedWord(sb, d, 0xB2, "RPM3/RPM4", v => $"{v} rpm (R fan, legacy LE16 tachometer)");
+            ProbeDecodedByte(sb, d, 0xB7, "GPTM", v => v == 0xFF ? "0xFF — GPU sensor parked (dGPU asleep)" : $"{v} °C GPU");
+            ProbeDecodedByte(sb, d, 0xEC, "FFFF", v => v == 0 ? "max-fan off" : $"max-fan flag 0x{v:X2}");
+            ProbeDecodedByte(sb, d, 0xF4, "SFAN", v => $"fan toggle 0x{v:X2}");
+
+            ProbeLine(sb, "");
+
+        }
+
+        private static void ProbeDecodedByte(StringBuilder sb, byte[] d, byte reg, string name, Func<byte, string> interpret) {
+            string text;
+            try { text = interpret(d[reg]); } catch { text = "—"; }
+            ProbeLine(sb, $"| `0x{reg:X2}` | {name} | `0x{d[reg]:X2}` | {text} |");
+        }
+
+        private static void ProbeDecodedWord(StringBuilder sb, byte[] d, byte reg, string name, Func<int, string> interpret) {
+            int value = d[reg] | (d[reg + 1] << 8);
+            string text;
+            try { text = interpret(value); } catch { text = "—"; }
+            ProbeLine(sb, $"| `0x{reg:X2}/0x{reg + 1:X2}` | {name} | `0x{d[reg + 1]:X2}{d[reg]:X2}` | {text} |");
         }
 
         // Renders all 256 bytes as a 16×16 hex grid in Markdown code block format

@@ -3,6 +3,55 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.7-reborn] - Unreleased
+
+> **Smarter calibration, richer field reports.** First instalment of the
+> v1.4.7 plan from `docs/ARCHITECTURE_AUDIT.md`: the auto-calibration heuristic
+> gains a return-to-idle verification pass that eliminates the timer/counter
+> false-positive class, calibration reports now end with a ready-to-merge
+> database entry, `-Probe` reports decode the well-known EC registers and state
+> how the board resolves against the model database, and the RPM-encoding
+> heuristics are now under direct unit-test coverage together with source-level
+> tripwires for the incident-derived guard ledger.
+
+### Added
+
+- **Return-to-idle verification in the Auto-Calibration Wizard.** A one-way
+  upward sweep cannot distinguish a fan tachometer from a register that merely
+  increases with time (tick counters, charge meters) — both rise monotonically
+  with the samples. After the sweep the wizard now commands the fans back to
+  the lowest profile step, settles, takes one more EC dump, and rejects every
+  candidate whose value did not move back toward its idle reading. Rejected
+  candidates are listed in the report with their evidence instead of silently
+  occupying a fan slot. Skipped after a plateau abort (the EC fan controller
+  may be unresponsive there) and on any capture failure, in which case the
+  legacy unverified scan runs unchanged.
+- **"Proposed Database Entry" section in calibration reports.** When the scan
+  finds tachometers on a board with no built-in mapping, the report now ends
+  with the exact change a maintainer needs: a decimal `<FanSpeedReg0/1>` XML
+  fragment when both fans are 16-bit little-endian, or a ready `KnownBoards`
+  C# snippet for encodings the `<Models>` schema cannot express.
+- **`-Probe` report upgrades.** New "Preset Resolution" section states the
+  Product ID and whether the board matches an `OmenMon.xml` `<Model>` entry, a
+  built-in `KnownBoards` RPM mapping, and/or an auto-calibration sidecar — so a
+  pasted report answers "is this model already supported?" without a follow-up
+  round. New "Well-Known Registers" table decodes the default-layout locations
+  (fan set/get, legacy LE16 tachometers, CPUT/GPTM temperatures, manual-control
+  and countdown bytes, performance mode, battery charge) from the first
+  snapshot, with annotations for the known firmware quirks (CPUT 52 = ASCII
+  firmware-string overlap, GPTM 0xFF = dGPU asleep).
+- **Heuristic scanner under unit test.** `EcDiffScanner` is link-compiled into
+  the .NET 8 test project (it is deliberately dependency-free) and covered by
+  regression tests built from real board signatures: classic 0xB0/0xB2 LE16,
+  8BD4-style byte×100 level mirrors, 8C77-style period encoding, the 8BB3
+  single-fan case (#81), write-register exclusion, slow-mover (temperature)
+  rejection, and the counter false-positive the verification pass eliminates.
+- **Guard-ledger tripwire tests.** Source-level tests now fail CI if the
+  `HasMaxFanFreeze` blacklist (8C30/8D07/8BAD/8E35/8C77/88F4), a curated
+  `KnownBoards` entry, or a user-facing setting documented in `OmenMon.xml`
+  is removed, and if a new `ConfigData` field is added without load/save
+  plumbing in `Config.cs` (the 3-place-edit drift identified in the audit).
+
 ## [1.4.6-reborn] - 2026-06-12
 
 > **UI responsiveness restored + CLI restored + temperature-policy fix.**
