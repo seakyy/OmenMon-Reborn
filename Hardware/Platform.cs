@@ -236,10 +236,19 @@ namespace OmenMon.Hardware.Platform {
 
         }
 
-        // Obtains the CPU temperature from the CPUT sensor (or BIOS fallback).
-        // On 2023+ boards where EC 0x57 overlaps firmware data and returns 0xFF
-        // (filtered by MaxBelievableTemperature → 0), the WMI BIOS sensor is
-        // used as a proxy — same logic the tray tooltip already applies.
+        // Obtains the CPU temperature as the higher of the CPUT sensor and the
+        // WMI BIOS sensor. Taking the maximum (instead of trusting CPUT whenever
+        // it is non-zero) covers both known CPUT failure shapes with one policy:
+        //   * CPUT reads 0xFF (filtered by MaxBelievableTemperature → 0) because
+        //     EC 0x57 overlaps firmware data — 8C9C, 8BBE and similar 2023+
+        //     boards; the BIOS sensor is the only valid proxy there.
+        //   * CPUT is stuck on a constant non-zero byte of firmware string data —
+        //     8D87 reads a permanent 52 (ASCII '4'), so the old "CPUT wins if
+        //     non-zero" rule kept fan programs pinned to the 52 °C curve row
+        //     while the die overheated (issue #97). With max(), the BIOS sensor
+        //     takes over as soon as the real temperature exceeds the stuck byte.
+        // Erring towards the higher reading only ever speeds fans up, never
+        // starves cooling, so a disagreeing sensor pair degrades safely.
         public byte GetCpuTemperature(bool forceUpdate = false) {
 
             if(forceUpdate)
@@ -253,9 +262,7 @@ namespace OmenMon.Hardware.Platform {
                 else if(name == "BIOS" && val > 0) bios = val;
             }
 
-            // Fallback: BIOS sensor is the only valid CPU-temp proxy on boards
-            // where CPUT reads 0xFF (8C9C, 8BBE, and similar 2023+ models)
-            this.LastCpuTemperature = cpu > 0 ? cpu : bios;
+            this.LastCpuTemperature = bios > cpu ? bios : cpu;
             return this.LastCpuTemperature;
 
         }

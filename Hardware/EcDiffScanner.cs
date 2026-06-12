@@ -8,6 +8,10 @@ using System.Collections.Generic;
 using System.Linq;
 using OmenMon.Hardware.Ec;
 
+// This file is link-compiled into the .NET 8 test project, whose nullable
+// context would otherwise flood the build with annotation warnings.
+#nullable disable
+
 namespace OmenMon.Hardware.Ec {
 
     // Heuristic scanner that compares EC dumps taken at different fan levels
@@ -35,6 +39,9 @@ namespace OmenMon.Hardware.Ec {
             public int Score;
             public int[] Values;            // value at each sample step
             public string Description;
+            // Value decoded from the return-to-idle verification dump, or -1 when
+            // the caller supplied no verification dump (legacy single-sweep scan).
+            public int VerifyValue = -1;
 
             public override string ToString() {
                 return $"0x{Offset:X2} ({Mode}) score={Score} [{string.Join(",", Values)}]";
@@ -51,6 +58,12 @@ namespace OmenMon.Hardware.Ec {
             public Candidate CpuFan;        // null if not found
             public Candidate GpuFan;        // null if not found
             public List<Candidate> All = new List<Candidate>();
+            // Candidates that looked plausible during the one-way upward sweep but
+            // failed the return-to-idle verification — registers that correlate with
+            // time (tick counters, charge meters), not with fan load. Kept separate
+            // so the calibration report can show them with their verification value.
+            public List<Candidate> RejectedByVerification = new List<Candidate>();
+            public bool VerificationUsed;
             public List<string> Notes = new List<string>();
             public bool IsPlausible => CpuFan != null;
         }
@@ -99,12 +112,23 @@ namespace OmenMon.Hardware.Ec {
         public const string NoteNoneDetected =
             "No plausible fan tachometer registers detected. The board may use a polling interval longer than the test window, or the EC may be locked by HP firmware. Please share the raw dumps from the report.";
 
-        public static Result Scan(IList<Sample> samples) {
+        // <verificationDump> is an optional 256-byte EC dump taken AFTER the sweep,
+        // with the fans commanded back to the lowest profile level and given time to
+        // settle. A one-way upward sweep cannot distinguish a fan tachometer from a
+        // register that merely increases with time (tick counters, charge meters):
+        // both rise monotonically across the samples. The verification dump provides
+        // the discriminator — a true tachometer has moved back toward its idle
+        // reading by then, while a time-correlated register kept going in the sweep
+        // direction. Pass null to skip (legacy behaviour, e.g. after a plateau abort
+        // where the EC fan controller may no longer be responding to commands).
+        public static Result Scan(IList<Sample> samples, byte[] verificationDump = null) {
             if(samples == null || samples.Count < 2)
                 throw new ArgumentException("Need at least two samples (idle + max).");
             foreach(var s in samples)
                 if(s.Memory == null || s.Memory.Length != 256)
                     throw new ArgumentException("Each sample must be a 256-byte EC dump.");
+            if(verificationDump != null && verificationDump.Length != 256)
+                throw new ArgumentException("The verification dump must be a 256-byte EC dump.");
 
             var result = new Result();
             var ordered = samples.OrderBy(s => s.LevelPercent).ToList();
@@ -116,6 +140,26 @@ namespace OmenMon.Hardware.Ec {
 
             // Resolve overlap: a 16-bit hit at r dominates 8-bit hits at r and r+1.
             hits = Deduplicate(hits);
+
+            // Return-to-idle verification — must run before the top-two pick so a
+            // rejected counter can't occupy a fan slot ahead of the real tachometer.
+            if(verificationDump != null) {
+                result.VerificationUsed = true;
+                var survivors = new List<Candidate>(hits.Count);
+                foreach(var h in hits) {
+                    if(VerifyAgainstReturnDump(h, verificationDump))
+                        survivors.Add(h);
+                    else
+                        result.RejectedByVerification.Add(h);
+                }
+                hits = survivors;
+                if(result.RejectedByVerification.Count > 0)
+                    result.Notes.Add(
+                        result.RejectedByVerification.Count + " candidate(s) rejected by the return-to-idle verification pass: "
+                        + "their value did not move back toward the idle reading after the fans were commanded back down — "
+                        + "the signature of a register that correlates with time (timer/counter), not with fan load.");
+            }
+
             hits.Sort((a, b) => b.Score.CompareTo(a.Score));
             result.All = hits;
 
@@ -260,6 +304,33 @@ namespace OmenMon.Hardware.Ec {
         // units (so for DirectMultiplier8 it lets ±200 RPM slip through).
         private const int RpmInversionTolerance = 50;
         private const int ByteInversionTolerance = 2;
+
+        // Decides whether a candidate survives the return-to-idle verification.
+        // Rejection requires the verification value to still be at or beyond the
+        // top-of-sweep reading (within the per-mode jitter tolerance): a counter
+        // always lands there because it kept advancing after the sweep, while even
+        // a fan that is slow to spin down has dropped at least somewhat after the
+        // settle window. Records the decoded value on the candidate either way so
+        // the calibration report can show the evidence.
+        private static bool VerifyAgainstReturnDump(Candidate c, byte[] dump) {
+            int top = c.Values[c.Values.Length - 1];
+            switch(c.Mode) {
+                case Mode.LittleEndian16:
+                    c.VerifyValue = dump[c.Offset] | (dump[c.Offset + 1] << 8);
+                    return c.VerifyValue < top - RpmInversionTolerance;
+                case Mode.DirectMultiplier8:
+                    c.VerifyValue = dump[c.Offset];
+                    return c.VerifyValue < top - ByteInversionTolerance;
+                case Mode.PeriodEncoded8:
+                    // Period encoding falls with load, so after returning to idle the
+                    // value must have risen back above the top-of-sweep (lowest) reading.
+                    c.VerifyValue = dump[c.Offset];
+                    return c.VerifyValue > top + ByteInversionTolerance;
+                default:
+                    // BiosLevelMirror is never produced by the scanner (see Mode docs).
+                    return true;
+            }
+        }
 
         private static List<Candidate> Deduplicate(List<Candidate> hits) {
             var le16 = hits.Where(h => h.Mode == Mode.LittleEndian16).ToList();

@@ -3,6 +3,144 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.7-reborn] - Unreleased
+
+> **Smarter calibration, richer field reports.** First instalment of the
+> v1.4.7 plan from `docs/ARCHITECTURE_AUDIT.md`: the auto-calibration heuristic
+> gains a return-to-idle verification pass that eliminates the timer/counter
+> false-positive class, calibration reports now end with a ready-to-merge
+> database entry, `-Probe` reports decode the well-known EC registers and state
+> how the board resolves against the model database, and the RPM-encoding
+> heuristics are now under direct unit-test coverage together with source-level
+> tripwires for the incident-derived guard ledger.
+
+### Added
+
+- **Return-to-idle verification in the Auto-Calibration Wizard.** A one-way
+  upward sweep cannot distinguish a fan tachometer from a register that merely
+  increases with time (tick counters, charge meters) — both rise monotonically
+  with the samples. After the sweep the wizard now commands the fans back to
+  the lowest profile step, settles, takes one more EC dump, and rejects every
+  candidate whose value did not move back toward its idle reading. Rejected
+  candidates are listed in the report with their evidence instead of silently
+  occupying a fan slot. Skipped after a plateau abort (the EC fan controller
+  may be unresponsive there) and on any capture failure, in which case the
+  legacy unverified scan runs unchanged.
+- **"Proposed Database Entry" section in calibration reports.** When the scan
+  finds tachometers on a board with no built-in mapping, the report now ends
+  with the exact change a maintainer needs: a decimal `<FanSpeedReg0/1>` XML
+  fragment when both fans are 16-bit little-endian, or a ready `KnownBoards`
+  C# snippet for encodings the `<Models>` schema cannot express.
+- **`-Probe` report upgrades.** New "Preset Resolution" section states the
+  Product ID and whether the board matches an `OmenMon.xml` `<Model>` entry, a
+  built-in `KnownBoards` RPM mapping, and/or an auto-calibration sidecar — so a
+  pasted report answers "is this model already supported?" without a follow-up
+  round. New "Well-Known Registers" table decodes the default-layout locations
+  (fan set/get, legacy LE16 tachometers, CPUT/GPTM temperatures, manual-control
+  and countdown bytes, performance mode, battery charge) from the first
+  snapshot, with annotations for the known firmware quirks (CPUT 52 = ASCII
+  firmware-string overlap, GPTM 0xFF = dGPU asleep).
+- **Heuristic scanner under unit test.** `EcDiffScanner` is link-compiled into
+  the .NET 8 test project (it is deliberately dependency-free) and covered by
+  regression tests built from real board signatures: classic 0xB0/0xB2 LE16,
+  8BD4-style byte×100 level mirrors, 8C77-style period encoding, the 8BB3
+  single-fan case (#81), write-register exclusion, slow-mover (temperature)
+  rejection, and the counter false-positive the verification pass eliminates.
+- **Guard-ledger tripwire tests.** Source-level tests now fail CI if the
+  `HasMaxFanFreeze` blacklist (8C30/8D07/8BAD/8E35/8C77/88F4), a curated
+  `KnownBoards` entry, or a user-facing setting documented in `OmenMon.xml`
+  is removed, and if a new `ConfigData` field is added without load/save
+  plumbing in `Config.cs` (the 3-place-edit drift identified in the audit).
+
+## [1.4.6-reborn] - 2026-06-12
+
+> **UI responsiveness restored + CLI restored + temperature-policy fix.**
+> v1.4.5's threading/safety sweep serialised hardware access correctly but left
+> the periodic EC/BIOS traffic on the WinForms UI thread, so a contended EC
+> mutex stalled the tray menu and window dragging for seconds (#98). v1.4.6
+> moves **all** periodic hardware access onto a dedicated background monitor
+> thread that publishes immutable sensor snapshots for the UI to render — the
+> message pump never waits on the EC again. On top of that: the CLI works again
+> (#101), a stuck EC temperature byte can no longer pin the fan curve (#97),
+> recoverable EC-lock timeouts no longer raise modal error boxes (#94), the
+> Set Display Off action no longer puts Modern Standby laptops to sleep (#103),
+> and the model database gains 88ED and 8A3E.
+
+### Fixed
+
+- **Graphics → Set Display Off put the laptop to sleep (#103, reported by
+  @Bart82).** On Modern Standby (S0 low-power idle) systems Windows treats
+  "display off" as the sleep entry point, so the `SC_MONITORPOWER` broadcast
+  the action has always used now suspends the whole machine instead of just
+  blanking the screen. OmenMon now holds `ES_SYSTEM_REQUIRED` on a dedicated
+  background thread while the display is off and releases it on the first user
+  input (which is also what wakes the display) — the screen turns off, the
+  system keeps running, and normal sleep behaviour resumes the moment you
+  return. Opt out with `<DisplayOffKeepAwake>false</DisplayOffKeepAwake>` in
+  `OmenMon.xml` to restore the previous bare broadcast.
+- **CLI produced no output for any argument (#101, reported by @David112x).**
+  The redirection guard added to `Cli.Initialize()` in v1.4.2 (for the issue #76
+  crash) early-returned whenever `Console.IsOutputRedirected` was true — but a
+  GUI-subsystem process launched from cmd/PowerShell *without* redirection has
+  NULL standard handles, which .NET also reports as "redirected". The console
+  was therefore never attached and every CLI invocation (`-Bios`, `-Ec`,
+  `-Usage`, …) wrote into the void. The guard now only skips attaching when a
+  *real* non-console handle exists (`Kernel32.GetStdHandle`), so plain CLI use
+  prints again while `-Diag > file.md` style redirection keeps working.
+- **Sluggish tray menu and "teleporting" window drag since v1.4.5 (#98,
+  reported by @snowfallhateall).** New `GuiMonitor` background thread owns all
+  periodic hardware work — sensor sampling, the fan-program tick, thermal-panic
+  checks, constant-speed countdown maintenance, and the BIOS heartbeat — and
+  publishes an immutable `MonitorSnapshot` the UI thread renders lock-free. The
+  tray menu and the main form no longer perform any EC/BIOS I/O on the UI
+  thread during passive operation: opening the tray menu now requests one fresh
+  sample off-thread and renders from the snapshot, instead of issuing EC reads
+  (`GetMode`/`GetMax`/`GetOff`) that could block seconds behind the
+  `Global\Access_EC` mutex. User-initiated control actions are serialised with
+  the monitor through a single in-process hardware lock; balloon tips and
+  fan-program status updates cross back to the UI thread via a message queue.
+- **CPU temperature stuck at a constant reading pinned the fan curve (#97,
+  reported by @snowfallhateall, 8D87).** On 8D87 the legacy CPUT register
+  `0x57` lands on firmware string data and reads a permanent 52 (ASCII `'4'`).
+  `Platform.GetCpuTemperature()` trusted CPUT whenever it was non-zero, so fan
+  programs followed the 52 °C curve row while the die overheated. The CPU
+  temperature is now the **higher** of CPUT and the WMI BIOS sensor — covering
+  both known failure shapes (CPUT stuck non-zero, and CPUT reading 0xFF→0 as on
+  8C9C/8BBE) with one policy that can only ever err towards more cooling.
+- **"Failed to acquire embedded controller exclusive lock" error boxes (#94,
+  reported by @DreamStare0, also #96).** EC-mutex timeouts on the periodic /
+  recoverable paths (background monitor, AutoConfig startup thread, the
+  Auto-Calibration worker) now degrade to a skipped operation that retries next
+  tick, instead of a modal error box — the once-per-startup box (HP's own
+  services hold `Global\Access_EC` at logon) and the repeated boxes during
+  calibration sweeps are gone. User-initiated actions stay loud. Timeouts are
+  counted and surfaced as a new "EC lock timeouts this session" row in `-Diag`
+  so contention still shows up in field reports.
+- **Calibration pause race.** `GuiMonitor.Pause()` could return while one last
+  monitor pass was still about to start; the paused check now happens inside
+  the pass gate, so after `Pause()` returns the wizard owns the hardware alone.
+
+### Added
+
+- **HP Victus 16-e0xxx (88ED, 2022) native model entry (#99, reported by
+  @robbert1978).** Classic 2022 layout (level `0x34`/`0x35`, rate write
+  `0x2C`/`0x2D`), 16-bit LE tachometers at `0xB0`/`0xB2` — exactly the preset
+  the auto-detector chose on the reporter's machine, field-tested and now
+  pinned natively.
+- **HP Victus 15-fb0102la (8A3E, 2023) read-only RPM mapping (#96, reported by
+  @David112x).** Confirmed 16-bit LE tachometers at `0xB0`/`0xB2` (CPU idle
+  ≈435 — never fully stops — max ≈5404; GPU 0…≈5195 RPM), added to
+  `AutoCal.KnownBoards`; fan control stays on the default 2022 layout the
+  calibration sweep already drove successfully.
+- **`-Diag`: EC lock timeout counter** in the Kernel Driver section (issue #94
+  forensics).
+- **Model coverage notes (wiki):** HP Omen 15-en0037AX (8787, #95) confirmed on
+  the default 2022 layout — the probe's `GetFanLevel` "Unknown response from
+  BIOS: 45" is expected on the 2020 generation and harmless; Victus 16-s1084AX
+  (#100) documented as a pending second hardware variant behind `8C9C` (real
+  tachometers at `0xD6`/`0xD8`) awaiting a `-Diag` Product ID confirmation
+  before any shipped-mapping change.
+
 ## [1.4.5-reborn] - 2026-06-04
 
 > **EC read-path hardening + field-report sweep.** This release attacks the
