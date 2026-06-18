@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > (#101), a stuck EC temperature byte can no longer pin the fan curve (#97),
 > recoverable EC-lock timeouts no longer raise modal error boxes (#94), the
 > Set Display Off action no longer puts Modern Standby laptops to sleep (#103),
-> and the model database gains 88ED and 8A3E.
+> the model database gains 88ED and 8A3E, and 8A4F joins the 100 %-fan safety
+> list (#107).
 
 ### Fixed
 
@@ -83,6 +84,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ≈435 — never fully stops — max ≈5404; GPU 0…≈5195 RPM), added to
   `AutoCal.KnownBoards`; fan control stays on the default 2022 layout the
   calibration sweep already drove successfully.
+- **HP Victus 15 (8A4F, 2023) added to the 100 %-fan safety list
+  (`FanArray.HasMaxFanFreeze`) (#107, reported by @richardcofie).** The
+  auto-calibration plateau detector tripped at 30 %, with live RPM collapsing
+  back to idle (CPU 5109→1585, GPU 4418→1597) rather than climbing — the
+  physical-ceiling signature shared by the other rate-limiter boards. Fan
+  registers are `PeriodEncoded8` (CPU `0x2E`, GPU `0x2F`), so RPM stays
+  sidecar-supported only (the `<Models>` schema is LE16-only) and the safety
+  list is the protection that applies.
 - **`-Diag`: EC lock timeout counter** in the Kernel Driver section (issue #94
   forensics).
 - **Model coverage notes (wiki):** HP Omen 15-en0037AX (8787, #95) confirmed on
