@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using OmenMon.Hardware.Bios;
 using OmenMon.Hardware.Ec;
+using OmenMon.Hardware.Platform;
 using OmenMon.Library;
 
 namespace OmenMon.AppGui {
@@ -30,6 +31,14 @@ namespace OmenMon.AppGui {
         // Stores the main GUI form
         internal GuiFormMain FormMain;
 
+        // Background monitor thread that owns all periodic hardware sampling/control, and
+        // publishes the latest sensor snapshot the UI renders from (v1.4.6, issue #98).
+        internal GuiMonitor Monitor;
+
+        // Whether the main form is currently visible. Set by the form on show/hide, read
+        // by the monitor thread to decide whether to sample the fan/system fields.
+        internal volatile bool FormVisible;
+
         // Stores the class managing the dynamic notification icon
         internal GuiIcon Icon;
 
@@ -42,11 +51,9 @@ namespace OmenMon.AppGui {
         // Stores the operation-running class
         internal GuiOp Op;
 
-        // Stores the system timer
+        // Stores the system timer (UI-thread only: renders the snapshot, runs the cheap
+        // AC-flicker machine, drains the monitor's UI-message queue — never touches the EC/BIOS)
         private System.Windows.Forms.Timer Timer;
-
-        // Stores the BIOS heartbeat timer
-        private System.Windows.Forms.Timer HeartbeatTimer;
 
         // AC-flicker debounce (issue #70). When a PowerModeChanged StatusChange
         // event fires and Config.AcFlickerGuard is on, we record the UTC time
@@ -98,11 +105,10 @@ namespace OmenMon.AppGui {
         // all of that state stays single-threaded. Accessed only via Interlocked.
         private int PendingPowerEventSignal = 0;
 
-        // Stores the number of ticks elapsed since
-        // the last update of a particular category
+        // Stores the number of ticks elapsed since the last RENDER of a particular
+        // category (the fan-program tick counter lives in GuiMonitor now)
         internal int UpdateIconTick;
         internal int UpdateMonitorTick;
-        internal int UpdateProgramTick;
 #endregion
 
 #region Construction & Disposal
@@ -126,6 +132,11 @@ namespace OmenMon.AppGui {
 
             // Initialize the operation-running class
             this.Op = new GuiOp(Context);
+
+            // Initialize the background monitor (created here so it exists before anything
+            // — AutoConfig, the icon, the first Update() — references it; started at the
+            // end of the constructor once the rest of the context is wired up).
+            this.Monitor = new GuiMonitor(Context);
 
             // Initialize the icon management class
             this.Icon = new GuiIcon(Context);
@@ -155,18 +166,8 @@ namespace OmenMon.AppGui {
             this.Timer.Tick += EventTimerTick;
             this.Timer.Enabled = true;
 
-            // Set up the BIOS heartbeat timer if enabled
-            if(Config.BiosHeartbeatInterval > 0) {
-                this.HeartbeatTimer = new System.Windows.Forms.Timer(Components);
-                this.HeartbeatTimer.Interval = Config.BiosHeartbeatInterval;
-                this.HeartbeatTimer.Tick += EventHeartbeatTick;
-                // Pause immediately if starting on battery (prevents hibernate on battery).
-                // Multi-source check so a boot landing mid-flicker (issue #70) doesn't
-                // start the heartbeat off and then never re-enable it because no
-                // PowerModeChanged ever fires for the recovery.
-                this.HeartbeatTimer.Enabled = !Config.BiosHeartbeatPauseOnBattery
-                    || this.Op.Platform.System.IsFullPowerConfirmed();
-            }
+            // The BIOS heartbeat is now driven by the monitor thread (folded into its
+            // periodic pass, paused-on-battery per pass), so there is no separate timer.
 
             // Show the main form if requested by the environment variable
             if(Environment.GetEnvironmentVariable(Config.EnvVarSelfName) != null
@@ -191,6 +192,11 @@ namespace OmenMon.AppGui {
             // detected on the first tick is the correct behaviour.
             PowerGuard.Initialize();
 
+            // Start the background monitor now that the whole context is wired up. From
+            // here on, all periodic EC/BIOS access happens on the monitor thread, never
+            // on the UI thread (issue #98).
+            this.Monitor.Start();
+
         }
 
         // Handles component disposal
@@ -212,6 +218,12 @@ namespace OmenMon.AppGui {
 
         // Handles exit tasks
         protected override void ExitThreadCore() {
+
+            // Stop the background monitor first so nothing samples/controls the hardware
+            // concurrently while we tear down (the fan-program terminate below then runs
+            // uncontended on the UI thread).
+            if(this.Monitor != null)
+                this.Monitor.Stop();
 
             // The icon has to be removed beforehand,
             // otherwise it will linger in the tray
@@ -301,18 +313,11 @@ namespace OmenMon.AppGui {
         // logic runs whether the deferred path or the immediate path triggered it.
         private void ApplyPowerStatusChange() {
 
-            this.Op.PowerChange();
-
-            // Pause BIOS heartbeat on battery to prevent HP firmware from triggering
-            // unexpected hibernate; re-enable it when AC power is restored.
-            // IsFullPowerConfirmed is used here so an in-progress flicker that
-            // makes it past the confirmation gate (or has the guard disabled)
-            // still gets the firmware/charging cross-check before toggling the
-            // heartbeat — keeping the heartbeat alive saves users who do see a
-            // false AC-offline reading without a corresponding fan-program switch
-            // (e.g. AutoConfig is off, no fan program active).
-            if(this.HeartbeatTimer != null && Config.BiosHeartbeatPauseOnBattery)
-                this.HeartbeatTimer.Enabled = this.Op.Platform.System.IsFullPowerConfirmed();
+            // Defer the fan-program switch (and its EC/BIOS traffic) to the monitor thread
+            // so it never runs on the UI thread (issue #98). The heartbeat's
+            // pause-on-battery behaviour is now enforced per-pass by the monitor, so there
+            // is no timer to toggle here.
+            this.Monitor?.RequestPowerApply();
 
         }
 
@@ -466,10 +471,8 @@ namespace OmenMon.AppGui {
             ApplyPowerStatusChange();
         }
 
-        // Handles the BIOS heartbeat tick — keeps Performance Control alive
-        private void EventHeartbeatTick(object sender, EventArgs e) {
-            try { BiosCtl.Instance.GetFanCount(); } catch { }
-        }
+        // Note: the BIOS heartbeat (keeps Performance Control alive) is now issued from
+        // the monitor thread's periodic pass — see GuiMonitor.Pass().
 #endregion
 
 #region Visual Methods
@@ -567,140 +570,145 @@ namespace OmenMon.AppGui {
         }
 #endregion
 
-        // Performs update operations as scheduled
-        // This method is called periodically by a timer event
+        // Renders the latest monitor snapshot into the UI and drains any UI work the
+        // monitor thread queued. Called periodically by the timer on the UI thread —
+        // does NO EC/BIOS I/O (all periodic hardware access lives on the monitor thread
+        // now, issue #98), so it can never stall the message pump.
         public void Update() {
 
-            // Reset the tick counters
+            // Show anything the monitor thread asked the UI thread to show (balloon tips,
+            // fan-program status) — must happen on the UI thread.
+            if(this.Monitor != null)
+                this.Monitor.DrainUiMessages();
+
+            // The most recently published sensor snapshot (null until the first sample)
+            MonitorSnapshot snap = this.Monitor != null ? this.Monitor.Current : null;
+
+            // Reset the render-cadence tick counters
             if(this.UpdateIconTick >= Config.UpdateIconInterval)
                 this.UpdateIconTick = 0;
             if(this.UpdateMonitorTick >= Config.UpdateMonitorInterval)
                 this.UpdateMonitorTick = 0;
-            if(this.UpdateProgramTick >= Config.UpdateProgramInterval)
-                this.UpdateProgramTick = 0;
 
-            // Update the fan program or extend the countdown
-            if(this.UpdateProgramTick++ == 0) {
-
-                // Update the program, if active
-                if(this.Op.Program.IsEnabled)
-                    this.Op.Program.Update();
-
-                // Alternatively, update any non-zero countdown
-                // depending on the configuration settings
-                else if(Config.FanCountdownExtendAlways)
-                    this.Op.Program.UpdateCountdown(false, true);
-
-            }
-
-            // Update the main form, only if visible
-            if(this.FormMain != null && this.FormMain.Visible && this.UpdateMonitorTick++ == 0) {
+            // Render the main form from the snapshot, only if visible
+            if(this.FormMain != null && this.FormMain.Visible
+                && this.UpdateMonitorTick++ == 0 && snap != null) {
                 this.FormMain.UpdateFan();
                 this.FormMain.UpdateSys();
                 this.FormMain.UpdateTmp();
             }
 
-            // Update the notification icon and tray tooltip
+            // Render the notification icon and tray tooltip from the snapshot.
+            // Thermal-panic protection no longer lives here — it runs on every monitor
+            // pass (GuiMonitor.Pass → Op.CheckThermalPanic) so the safety net is decoupled
+            // from UI responsiveness and from the dynamic-icon setting.
             if(this.UpdateIconTick++ == 0) {
 
-                bool dynamicIcon = this.Icon.IsDynamic;
+                if(snap != null && this.Icon.IsDynamic) {
 
-                // C3: overtemperature protection must run on every icon tick whenever
-                // it is enabled (or needs clearing) — NOT only when the dynamic icon is
-                // active. Previously the forced temperature read, and with it the entire
-                // CheckThermalPanic call, lived inside the dynamic-icon branch, so simply
-                // turning the dynamic icon off silently disabled the thermal safety net.
-                // We still skip the read entirely when neither the icon nor panic
-                // protection needs it, preserving the spurious-read avoidance (v1.1.x)
-                // that keeps OmenMon from interfering with HP firmware power management.
-                bool panicActive = Config.ThermalPanicEnabled || this.Op.IsThermalPanic;
+                    // Update the icon background based on fan mode
+                    this.Icon.SetBackground(
+                        snap.Mode == BiosData.FanMode.Performance ?
+                            GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
 
-                if(dynamicIcon || panicActive) {
-
-                    bool needForcedUpdate =
-                        (this.FormMain == null || !this.FormMain.Visible)
-                        && (!this.Op.Program.IsEnabled || this.UpdateProgramTick != 1);
-
-                    byte maxTemp = this.Op.Platform.GetMaxTemperature(needForcedUpdate);
-
-                    // Thermal panic — runs on a fresh, hardware-verified reading
-                    // regardless of icon mode. When ThermalPanicEnabled is false but a
-                    // panic is still latched (user disabled it at runtime), CheckThermalPanic
-                    // clears the stuck max-fan state itself.
-                    this.Op.CheckThermalPanic(maxTemp);
-
-                    if(dynamicIcon) {
-
-                        // Update the icon background based on fan mode
-                        this.Icon.SetBackground(
-                            this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
-                                GuiIcon.BackgroundType.Warm : GuiIcon.BackgroundType.Cool);
-
-                        // Show temperature in configured unit.
-                        // The dynamic icon uses a custom bitmap font — only the localized °C glyph
-                        // is guaranteed to render. Omit the suffix when Fahrenheit is active rather
-                        // than passing a literal "°F" that may produce garbled characters.
-                        int displayTemp = Config.TemperatureUseFahrenheit
-                            ? (maxTemp * 9 / 5) + 32 : maxTemp;
-                        string unitSuffix = Config.TemperatureUseFahrenheit
-                            ? string.Empty
-                            : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
-                        this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
-
-                    }
+                    // Show temperature in configured unit.
+                    // The dynamic icon uses a custom bitmap font — only the localized °C glyph
+                    // is guaranteed to render. Omit the suffix when Fahrenheit is active rather
+                    // than passing a literal "°F" that may produce garbled characters.
+                    int displayTemp = Config.TemperatureUseFahrenheit
+                        ? (snap.MaxTemp * 9 / 5) + 32 : snap.MaxTemp;
+                    string unitSuffix = Config.TemperatureUseFahrenheit
+                        ? string.Empty
+                        : Config.Locale.Get(Config.L_UNIT + "Temperature" + Config.LS_CUSTOM_FONT);
+                    this.Icon.Update(Conv.GetString((uint) displayTemp, 2, 10) + unitSuffix);
 
                 }
 
-                // Tooltip: use only values already cached by the icon or form update —
-                // never triggers additional hardware reads on its own
-                SetNotifyText(BuildTrayTooltip());
+                // Tooltip from the snapshot's cached values — never triggers a hardware read
+                SetNotifyText(BuildTrayTooltip(snap));
 
             }
 
         }
 
-        // Builds the tray tooltip from CACHED sensor values only — no hardware reads.
-        // Shows CPU/GPU temperatures (cached by the last GetMaxTemperature or fan-program tick)
-        // plus panic/program status. Fan RPMs are intentionally omitted to avoid calling
-        // GetSpeed() (a WinRing0 EC read) a second time per tick while the form is already open.
-        private string BuildTrayTooltip() {
+        // Builds the tray tooltip from a monitor SNAPSHOT — no hardware reads. CPU/GPU
+        // temperatures and the panic/program indicators come straight off the snapshot
+        // (the snapshot's CpuTemp already applies the BIOS-temperature fallback used on
+        // boards where EC CPUT reads 0xFF — 8C9C, 8BBE, …). Fan RPMs are intentionally
+        // omitted; they are visible in the main form.
+        private string BuildTrayTooltip(MonitorSnapshot snap) {
             try {
-                // Temperature: use LastMaxTemperature (set by GetMaxTemperature or fan program)
-                // GetValue() on each sensor returns the last Update()-cached result — no EC access
-                int cpuTemp = 0, gpuTemp = 0, biosTemp = 0;
-                for(int i = 0; i < this.Op.Platform.Temperature.Length; i++) {
-                    string name = this.Op.Platform.Temperature[i].GetName();
-                    int val = this.Op.Platform.Temperature[i].GetValue();
-                    if(name == "CPUT" && val > 0) cpuTemp = val;
-                    else if(name == "GPTM" && val > 0) gpuTemp = val;
-                    else if(name == "BIOS" && val > 0) biosTemp = val;
-                }
-                // On devices where EC CPUT register (0x57) overlaps with firmware data and
-                // returns 0xFF (filtered out by MaxBelievableTemperature), fall back to the
-                // WMI BIOS temperature — the only valid CPU-temp proxy on those models (8C9C, 8BBE, …)
-                if(cpuTemp == 0 && biosTemp > 0) cpuTemp = biosTemp;
+                if(snap == null)
+                    return Config.AppName + " " + Config.AppVersion;
+
+                int cpuTemp = snap.CpuTemp;
+                int gpuTemp = snap.GpuTemp;
 
                 string unit = Config.TemperatureUseFahrenheit ? "°F" : "°C";
                 int cpu = Config.TemperatureUseFahrenheit && cpuTemp > 0 ? (cpuTemp * 9 / 5) + 32 : cpuTemp;
                 int gpu = Config.TemperatureUseFahrenheit && gpuTemp > 0 ? (gpuTemp * 9 / 5) + 32 : gpuTemp;
 
-                // Fan RPMs are visible in the main form; omitting them here avoids calling
-                // GetSpeed() (WinRing0 EC read) a second time per tick while the form is open.
                 string tip = string.Format("CPU: {0}{1} | GPU: {2}{1}",
                     cpu > 0 ? cpu.ToString() : "--", unit,
                     gpu > 0 ? gpu.ToString() : "--");
 
                 // Append panic or program indicator
-                if(this.Op.IsThermalPanic)
+                if(snap.IsThermalPanic)
                     tip += Environment.NewLine + "⚠ THERMAL PANIC — fans at MAX";
-                else if(this.Op.Program.IsEnabled)
+                else if(snap.ProgramEnabled)
                     tip += Environment.NewLine + Config.Locale.Get(Config.L_PROG)
-                        + ": " + this.Op.Program.GetName();
+                        + ": " + snap.ProgramName;
 
                 return tip;
             } catch {
                 return Config.AppName + " " + Config.AppVersion;
             }
+        }
+
+        // Executes a UI-message the monitor thread queued — always on the UI thread
+        // (called from Update() via Monitor.DrainUiMessages()).
+        internal void HandleMonitorUiMessage(MonitorUiMessage msg) {
+            switch(msg.Kind) {
+                case MonitorUiMessage.MessageKind.Balloon:
+                    ShowBalloonTip(msg.Text, msg.Title, msg.Icon);
+                    break;
+                case MonitorUiMessage.MessageKind.ProgramStatus:
+                    HandleProgramStatus(msg.Severity, msg.Text);
+                    break;
+            }
+        }
+
+        // Renders a fan-program status update on the UI thread (moved here from
+        // GuiOp.FanProgramCallback, which now only enqueues the status). Important →
+        // balloon; Notice → main-form status line (if visible) + tray tooltip.
+        private void HandleProgramStatus(FanProgram.Severity severity, string message) {
+
+            if(severity == FanProgram.Severity.Important)
+                ShowBalloonTip(message);
+
+            else if(severity == FanProgram.Severity.Notice) {
+
+                // Add a prefix if an alternate fan program
+                string name = this.Op.Program.IsAlternate ?
+                    Config.Locale.Get(Config.L_PROG + "Alt") + " " + this.Op.Program.GetName()
+                    : this.Op.Program.GetName();
+
+                // If the main form is available, update the status there
+                if(this.FormMain != null && this.FormMain.Visible)
+                    this.FormMain.UpdateSysMsg(
+                        message.Replace(
+                            Config.Locale.Get(Config.L_PROG + "SubMax"),
+                            Conv.RTF_SUB1 + Config.Locale.Get(Config.L_PROG + "SubMax") + Conv.RTF_SUBSUP0)
+                        + ": " + name);
+
+                // Also put it in the tray icon tooltip
+                SetNotifyText(
+                    Config.Locale.Get(Config.L_PROG) + ": " + name
+                    + " @ " + DateTime.Now.ToString(Config.TimestampFormat)
+                    + Environment.NewLine + message);
+
+            }
+
         }
 
     }

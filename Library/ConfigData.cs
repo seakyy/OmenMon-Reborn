@@ -62,6 +62,15 @@ namespace OmenMon.Library {
         public static bool BatteryGlitchGuardDisableTimeout = false; // disable 60-second safety timeout
         public static bool BatteryGlitchGuardHoldAlways = false; // permanently hold the hibernation blocker
 
+        // Keep the system awake while the display is switched off via the
+        // Graphics → Set Display Off tray action. On Modern Standby (S0) systems
+        // "display off" doubles as the sleep trigger, so without this guard the
+        // action puts the whole laptop to sleep instead of just blanking the
+        // screen (issue #103). Held via ES_SYSTEM_REQUIRED on a dedicated thread,
+        // released automatically on the first user input (= display wake).
+        // Set to false to restore the bare SC_MONITORPOWER broadcast.
+        public static bool DisplayOffKeepAwake = true;
+
         // AC-flicker debounce. Some HP Omen / Victus SKUs briefly report AC as disconnected
         // (PowerLineStatus goes Online -> Offline -> Online for a few seconds) under load,
         // even though the laptop is physically plugged in. Without this guard, the AutoConfig

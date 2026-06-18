@@ -182,6 +182,29 @@ namespace OmenMon.Library {
         // Embedded Controller interface
         public static IEmbeddedController Ec;
 
+        // Set on threads whose EC traffic is periodic and recoverable (the GUI background
+        // monitor, the calibration worker): an EC mutex acquisition timeout there degrades
+        // to a skipped operation — callers keep the last good reading and retry next tick —
+        // instead of a modal error box. Raised from a non-UI thread, that box would also
+        // stall the thread's safety duties (thermal panic) for as long as it stayed open,
+        // and it is exactly the once-per-startup / per-calibration noise of issue #94.
+        // Thread-static so user-initiated actions on the UI thread stay loud.
+        [ThreadStatic] public static bool EcLockQuiet;
+
+        // Running total of EC mutex acquisition timeouts in this process, surfaced in the
+        // diagnostic report so contention with other EC users (HP Omen Gaming Hub, the
+        // kernel ACPI driver) shows up in field reports without a debugger attached.
+        private static int ecLockTimeoutCount;
+        public static int EcLockTimeoutCount { get { return ecLockTimeoutCount; } }
+
+        // Records an EC mutex acquisition timeout and reports it unless the
+        // current thread opted into quiet (retry-next-tick) handling
+        private static void EcLockTimeout() {
+            Interlocked.Increment(ref ecLockTimeoutCount);
+            if(!EcLockQuiet)
+                App.Error("ErrEcLock");
+        }
+
         // Prepares the embedded controller for use
         public static void EcInit() {
             Ec = EcInterface();
@@ -216,7 +239,7 @@ namespace OmenMon.Library {
                 }
             }
             else {
-                App.Error("ErrEcLock");
+                EcLockTimeout();
             }
         }
 
@@ -229,7 +252,7 @@ namespace OmenMon.Library {
                     ec.Release();
                 }
             } else {
-                App.Error("ErrEcLock");
+                EcLockTimeout();
                 return default(TResult);
             }
         }
@@ -276,7 +299,7 @@ namespace OmenMon.Library {
                 }
                 return true;
             }
-            App.Error("ErrEcLock");
+            EcLockTimeout();
             return false;
         }
 

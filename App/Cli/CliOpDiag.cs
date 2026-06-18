@@ -135,6 +135,15 @@ namespace OmenMon.AppCli {
             string status = Ring0.GetStatus();
 
             sb.AppendLine($"- IsOpen: `{Ring0.IsOpen}`");
+
+            // EC mutex acquisition timeouts since this process started. Non-zero
+            // numbers point at Global\Access_EC contention (HP Omen Gaming Hub,
+            // the kernel ACPI driver) — the root of the issue #94 reports. Only
+            // meaningful in the GUI-collected report; a fresh -Diag process has
+            // had no time to contend.
+            try {
+                sb.AppendLine($"- EC lock timeouts this session: `{Hw.EcLockTimeoutCount}`");
+            } catch { }
             if(!string.IsNullOrWhiteSpace(status)) {
                 sb.AppendLine();
                 sb.AppendLine("Status log:");

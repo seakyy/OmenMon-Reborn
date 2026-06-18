@@ -185,6 +185,9 @@ namespace OmenMon.Library {
                     if(GetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", out flag))
                         BatteryGlitchGuardHoldAlways = flag;
 
+                    if(GetBool(xml, XmlPrefix + "DisplayOffKeepAwake", out flag))
+                        DisplayOffKeepAwake = flag;
+
                     if(GetBool(xml, XmlPrefix + "AcFlickerGuard", out flag))
                         AcFlickerGuard = flag;
 
@@ -650,6 +653,7 @@ namespace OmenMon.Library {
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardOnBattery", BatteryGlitchGuardOnBattery);
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardDisableTimeout", BatteryGlitchGuardDisableTimeout);
                     SetBool(xml, XmlPrefix + "BatteryGlitchGuardHoldAlways", BatteryGlitchGuardHoldAlways);
+                    SetBool(xml, XmlPrefix + "DisplayOffKeepAwake", DisplayOffKeepAwake);
                     SetBool(xml, XmlPrefix + "AcFlickerGuard", AcFlickerGuard);
                     SetUInt(xml, XmlPrefix + "AcFlickerHoldMs", (uint) AcFlickerHoldMs);
                     SetUInt(xml, XmlPrefix + "AcFlickerConfirmSamples", (uint) AcFlickerConfirmSamples);

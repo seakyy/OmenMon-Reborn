@@ -1,0 +1,22 @@
+name: Feature request
+description: Request an enhancement beyond the current scope of the project.
+labels: ["Feature Request"]
+body:
+  - type: textarea
+    id: feature
+    attributes:
+      label: What should OmenMon-Reborn do?
+      description: Describe the feature and the problem it solves for you.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you do this today?
+      description: e.g. "I keep OMEN Gaming Hub installed just for this", another tool, a manual workaround.
+  - type: input
+    id: product_id
+    attributes:
+      label: Product ID (optional)
+      description: If the feature is hardware-related, run `OmenMon.exe -Probe` and include your board ID.
+      placeholder: "8BD4"

@@ -289,6 +289,11 @@ namespace OmenMon.AppGui {
             bool isFanMax = Context.Op.Platform.Fans.GetMax();
             bool isFanOff = Context.Op.Platform.Fans.GetOff();
 
+            // Pause the monitor's constant-speed countdown maintenance while we reconfigure,
+            // so it cannot issue a SetMode/SetCountdown in the middle of this change. It is
+            // re-evaluated from the resulting radio state at the end of the method.
+            Context.Op.ConstantSpeedActive = false;
+
             // Enable fan program
             if(this.RdoFanProg.Checked) {
 
@@ -303,11 +308,13 @@ namespace OmenMon.AppGui {
                     if(isFanMax) // Disable maximum speed first
                         Context.Op.Platform.Fans.SetMax(false);
 
-                    // Start the selected program
-                    Context.Op.Program.Run((string) this.CmbFanProg.SelectedValue);
+                    // Start the selected program (locked: serialise with the monitor's
+                    // fan-program tick so FanProgram state is never mutated concurrently)
+                    lock(Context.Op.HardwareLock)
+                        Context.Op.Program.Run((string) this.CmbFanProg.SelectedValue);
 
-                    // Reset the program update counter
-                    Context.UpdateProgramTick = 1;
+                    // Delay the monitor's next program tick — Run() above already applied the curve
+                    Context.Monitor?.ResetProgramTick();
 
                 } else {
 
@@ -323,8 +330,10 @@ namespace OmenMon.AppGui {
             // Switch off the fan
             } else if(this.RdoFanOff.Checked) {
 
-                // Terminate any running fan program
-                Context.Op.Program.Terminate();
+                // Terminate any running fan program (locked: serialise with the monitor's
+                // fan-program tick so FanProgram state is never mutated concurrently)
+                lock(Context.Op.HardwareLock)
+                    Context.Op.Program.Terminate();
 
                 if(!isFanOff) { // Skip if already off
 
@@ -339,8 +348,10 @@ namespace OmenMon.AppGui {
             // Set fan to maximum speed
             } else if(this.RdoFanMax.Checked) {
 
-                // Terminate any running fan program
-                Context.Op.Program.Terminate();
+                // Terminate any running fan program (locked: serialise with the monitor's
+                // fan-program tick so FanProgram state is never mutated concurrently)
+                lock(Context.Op.HardwareLock)
+                    Context.Op.Program.Terminate();
 
                 if(!isFanMax) { // Skip if already maximum speed
 
@@ -362,8 +373,10 @@ namespace OmenMon.AppGui {
             // Enable fan constant speed
             } else if(this.RdoFanConst.Checked) {
 
-                // Terminate any running fan program
-                Context.Op.Program.Terminate();
+                // Terminate any running fan program (locked: serialise with the monitor's
+                // fan-program tick so FanProgram state is never mutated concurrently)
+                lock(Context.Op.HardwareLock)
+                    Context.Op.Program.Terminate();
 
                 // The BIOS mandates that at least one fan
                 // be left running at any given time, so if the user
@@ -434,8 +447,10 @@ namespace OmenMon.AppGui {
             // Enable automatic fan mode (default)
             } else if(this.RdoFanAuto.Checked) {
 
-                // Terminate any running fan program
-                Context.Op.Program.Terminate();
+                // Terminate any running fan program (locked: serialise with the monitor's
+                // fan-program tick so FanProgram state is never mutated concurrently)
+                lock(Context.Op.HardwareLock)
+                    Context.Op.Program.Terminate();
 
                 // Query the current and requested mode
                 BiosData.FanMode fanModeNow = Context.Op.Platform.Fans.GetMode();
@@ -459,6 +474,11 @@ namespace OmenMon.AppGui {
 
             // Restore the default button look
             this.BtnFanSet.Checked = false;
+
+            // Re-evaluate constant-speed maintenance for the monitor from the resulting
+            // mode, then publish a fresh snapshot so the form reflects the change at once.
+            Context.Op.ConstantSpeedActive = this.RdoFanConst.Checked;
+            Context.Monitor?.SampleNow();
 
         }
 
@@ -597,6 +617,11 @@ namespace OmenMon.AppGui {
         // Handles the event when the form visibility changes
         private void EventFormVisibleChanged(object sender, EventArgs e) {
 
+            // Tell the monitor whether to sample the heavier fan/system fields — these are
+            // only read while the form is open, preserving the legacy "read only what is
+            // shown" footprint (no spurious EC/BIOS traffic when the form is hidden).
+            Context.FormVisible = this.Visible;
+
             // Reset the update counter,
             // the form is always updated immediately as it opens
             Context.UpdateMonitorTick = 0;
@@ -717,6 +742,12 @@ namespace OmenMon.AppGui {
         // Updates all of the form
         public void UpdateAll() {
 
+            // Refresh the snapshot synchronously so a freshly-shown (or just-changed) form
+            // renders live hardware values immediately rather than waiting for the next
+            // monitor pass. This is the one place the UI thread reads hardware on purpose
+            // (a user opened/changed the form) — never on the passive per-tick path.
+            Context.Monitor?.SampleNow();
+
             // Update form dimensions following a scaling change
             UpdateDpi(this.LastDpi);
 
@@ -764,16 +795,18 @@ namespace OmenMon.AppGui {
 
         }
 
-        // Updates the fan group monitoring section
+        // Updates the fan group monitoring section — renders the latest monitor snapshot,
+        // no hardware I/O on the UI thread (issue #98).
         public void UpdateFan() {
 
-            // Update the platform fan readings
-            Context.Op.Platform.UpdateFans();
+            MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+            if(s == null)
+                return;
 
             // Update the fan speed [rpm]
             try {
-                this.LblFan0Val.Text = Context.Op.Platform.Fans.Fan[0].GetSpeed().ToString(Config.FormatFanSpeed);
-                this.LblFan1Val.Text = Context.Op.Platform.Fans.Fan[1].GetSpeed().ToString(Config.FormatFanSpeed);
+                this.LblFan0Val.Text = s.FanSpeed[0].ToString(Config.FormatFanSpeed);
+                this.LblFan1Val.Text = s.FanSpeed[1].ToString(Config.FormatFanSpeed);
             } catch { }
 
             // Update the fan level [krpm]
@@ -781,58 +814,61 @@ namespace OmenMon.AppGui {
             try {
                 if(!this.TrkFan0Lvl.Enabled)
                     this.TrkFan0Lvl.Value = Conv.GetConstrained(
-                        Context.Op.Platform.Fans.Fan[0].GetLevel(), this.TrkFan0Lvl.Minimum, this.TrkFan1Lvl.Maximum);
+                        s.FanLevel[0], this.TrkFan0Lvl.Minimum, this.TrkFan1Lvl.Maximum);
                 if(!this.TrkFan1Lvl.Enabled)
                     this.TrkFan1Lvl.Value = Conv.GetConstrained(
-                        Context.Op.Platform.Fans.Fan[1].GetLevel(), this.TrkFan1Lvl.Minimum, this.TrkFan1Lvl.Maximum);
+                        s.FanLevel[1], this.TrkFan1Lvl.Minimum, this.TrkFan1Lvl.Maximum);
             } catch { }
 
             // Update the fan rate [%]
             try {
-                this.BarFan0Rte.Value = Context.Op.Platform.Fans.Fan[0].GetRate();
-                this.BarFan1Rte.Value = Context.Op.Platform.Fans.Fan[1].GetRate();
+                this.BarFan0Rte.Value = s.FanRate[0];
+                this.BarFan1Rte.Value = s.FanRate[1];
                 this.LblFan0Rte.Text = this.BarFan0Rte.Value.ToString();
                 this.LblFan1Rte.Text = this.BarFan1Rte.Value.ToString();
             } catch { }
 
             // Show the countdown, if applicable
-            int countdown = Context.Op.Platform.Fans.GetCountdown();
-            this.LblFanCountdown.Text = countdown > 0 ?
-                countdown.ToString() + Config.Locale.Get(Config.L_UNIT + "TimeSecond" + Config.LS_CUSTOM_FONT) : "";
+            this.LblFanCountdown.Text = s.Countdown > 0 ?
+                s.Countdown.ToString() + Config.Locale.Get(Config.L_UNIT + "TimeSecond" + Config.LS_CUSTOM_FONT) : "";
 
-            // In constant-speed mode, keep resetting the countdown, while also reapplying the current mode
-            if(this.RdoFanConst.Checked == true && countdown < Config.UpdateMonitorInterval + Config.FanCountdownExtendThreshold) {
-                Context.Op.Platform.Fans.SetMode(Context.Op.Platform.Fans.GetMode());
-                Context.Op.Platform.Fans.SetCountdown(Config.FanCountdownExtendInterval);
-            }
+            // (Constant-speed countdown maintenance now runs on the monitor thread, gated by
+            // Op.ConstantSpeedActive — set from EventActionFanSet / UpdateFanCtl. See GuiMonitor.Pass.)
 
             // Update the current fan mode
             // Hold if the Set button is already highlighted or the list is currently open
             if(!this.BtnFanSet.Checked && !this.CmbFanMode.DroppedDown)
             try {
-                this.CmbFanMode.SelectedValue = Enum.GetName(typeof(BiosData.FanMode), Context.Op.Platform.Fans.GetMode());
+                this.CmbFanMode.SelectedValue = Enum.GetName(typeof(BiosData.FanMode), s.Mode);
             } catch { }
 
             // Update the current fan program
             // Hold if the Set button is already highlighted or the list is currently open
             if(!this.BtnFanSet.Checked && !this.CmbFanProg.DroppedDown)
             try {
-                this.CmbFanProg.SelectedValue = Context.Op.Program.GetName();
+                this.CmbFanProg.SelectedValue = s.ProgramName;
             } catch { }
 
 
         }
 
-        // Updates the fan group controls section
+        // Updates the fan group controls section. Renders from the monitor snapshot —
+        // callers that change fan state (user actions) publish a fresh snapshot via
+        // SampleNow() first; the cancel/refresh paths intentionally render the last
+        // published (unchanged) state.
         public void UpdateFanCtl() {
 
+            MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+            if(s == null)
+                return;
+
             // Query and retrieve fan control state
-            bool isFanMax = Context.Op.Platform.Fans.GetMax();
-            bool isFanOff = Context.Op.Platform.Fans.GetOff();
+            bool isFanMax = s.Max;
+            bool isFanOff = s.Off;
 
             // Fan program is active if a flag to that effect is set
             // This takes precedence over all the other queries
-            if(Context.Op.Program.IsEnabled)
+            if(s.ProgramEnabled)
                 this.RdoFanProg.Checked = true;
 
             // If the fan is switched off, the setting should reflect that
@@ -853,6 +889,10 @@ namespace OmenMon.AppGui {
 
             // Restore the Set button default look
             this.BtnFanSet.Checked = false;
+
+            // Keep the monitor's constant-speed countdown maintenance in sync with the
+            // displayed mode (the monitor cannot read the radio button off-thread).
+            Context.Op.ConstantSpeedActive = this.RdoFanConst.Checked;
 
         }
 
@@ -915,43 +955,43 @@ namespace OmenMon.AppGui {
             this.CmbKbdColorPreset.SelectedValue = Kbd.GetPreset();
         }
 
-        // Update the system information while preserving the status message
+        // Update the system information while preserving the status message.
+        // Renders from the monitor snapshot — no BIOS calls on the UI thread (issue #98).
         public void UpdateSys() {
 
-            // Update the platform system information
-            Context.Op.Platform.UpdateSystem();
+            MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+            if(s == null)
+                return;
 
             // Update the system info string
             this.SysInfo = ""
-                + Conv.RTF_CF6 + Context.Op.Platform.System.GetManufacturer() + " "
-                + Conv.RTF_CF5 + Context.Op.Platform.System.GetProduct() + " "
-                + Conv.RTF_CF1 + Context.Op.Platform.System.GetVersion() + " "
+                + Conv.RTF_CF6 + s.Manufacturer + " "
+                + Conv.RTF_CF5 + s.Product + " "
+                + Conv.RTF_CF1 + s.Version + " "
                 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "Born") + " "
-                    + Context.Op.Platform.System.GetBornDate() + " "
-                + (Context.Op.Platform.System.GetDefaultCpuPowerLimit4() == 0 ? ""
+                    + s.BornDate + " "
+                + (s.CpuPl4 == 0 ? ""
                     : Conv.RTF_CF1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "CpuPl4") + " "
-                    + Conv.RTF_CF5 + Context.Op.Platform.System.GetDefaultCpuPowerLimit4().ToString()
+                    + Conv.RTF_CF5 + s.CpuPl4.ToString()
                     + Conv.RTF_CF1 + Config.Locale.Get(Config.L_UNIT + "Power") + " ")
-                + Conv.RTF_CF1 + (Context.Op.Platform.System.IsFullPower() ?
+                + Conv.RTF_CF1 + (s.IsFullPower ?
                     Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "Adapter"
-                        + Enum.GetName(typeof(BiosData.AdapterStatus),
-                            Context.Op.Platform.System.GetAdapterStatus()))
+                        + Enum.GetName(typeof(BiosData.AdapterStatus), s.AdapterStatus))
                     : Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "AdapterBatteryPower"))
                     + Conv.RTF_LINE
-                + Conv.RTF_CF1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "Gpu") + " " 
-                    + Conv.RTF_CF5 + Enum.GetName(typeof(BiosData.GpuMode), Context.Op.Platform.System.GetGpuMode(true)) + " "
+                + Conv.RTF_CF1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "Gpu") + " "
+                    + Conv.RTF_CF5 + Enum.GetName(typeof(BiosData.GpuMode), s.GpuMode) + " "
                 + Conv.RTF_CF1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "GpuDState") + " "
-                    + Conv.RTF_CF5 + Enum.GetName(typeof(BiosData.GpuDState), Context.Op.Platform.System.GetGpuDState(true)) + " "
-                + (Context.Op.Platform.System.GetGpuCustomTgp() == BiosData.GpuCustomTgp.On ?
+                    + Conv.RTF_CF5 + Enum.GetName(typeof(BiosData.GpuDState), s.GpuDState) + " "
+                + (s.GpuCustomTgp == BiosData.GpuCustomTgp.On ?
                     Conv.RTF_CF6 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "GpuCustomTgp")
                     : Conv.RTF_CF1 + Conv.RTF_STRIKE1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "GpuCustomTgp") + Conv.RTF_STRIKE0) + " "
-                + (Context.Op.Platform.System.GetGpuPpab() == BiosData.GpuPpab.On ?
+                + (s.GpuPpab == BiosData.GpuPpab.On ?
                     Conv.RTF_CF6 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "GpuPpab")
                     : Conv.RTF_CF1 + Conv.RTF_STRIKE1 + Config.Locale.Get(Config.L_GUI_MAIN + Gui.G_SYS + "GpuPpab") + Conv.RTF_STRIKE0) + " "
                 + Conv.RTF_CF1 + Config.Locale.Get(
                     Config.L_GUI_MAIN + Gui.G_SYS + "Throttling"
-                        + Enum.GetName(typeof(BiosData.Throttling),
-                    Context.Op.Platform.System.GetThrottling())) + Conv.RTF_LINE
+                        + Enum.GetName(typeof(BiosData.Throttling), s.Throttling)) + Conv.RTF_LINE
                 + Conv.RTF_CF2;
 
             // Apply the update
@@ -983,25 +1023,27 @@ namespace OmenMon.AppGui {
                 + Config.SysInfoRtfFooter;
         }
 
-        // Updates the temperature group
+        // Updates the temperature group — renders from the monitor snapshot (the monitor
+        // already performed the batched EC read), no hardware I/O on the UI thread.
         public void UpdateTmp() {
 
-            // Update the temperature readings
-            Context.Op.Platform.UpdateTemperature();
+            MonitorSnapshot s = Context.Monitor != null ? Context.Monitor.Current : null;
+            if(s == null || s.TempValue == null)
+                return;
 
             // Update the form data representation
-            for(int i = 0; i < Context.Op.Platform.Temperature.Length; i++)
-                UpdateTmpItem(i);
+            for(int i = 0; i < Context.Op.Platform.Temperature.Length && i < s.TempValue.Length; i++)
+                UpdateTmpItem(i, s);
 
         }
 
         // Updates an item within the temperature group
-        private void UpdateTmpItem(int index) {
+        private void UpdateTmpItem(int index, MonitorSnapshot s) {
 
             // Prepare the data
             string prefix = Gui.T_LBL + Gui.G_TMP + index.ToString();
-            int value = Context.Op.Platform.Temperature[index].GetValue();
-            PlatformData.ValueTrend valueTrend = Context.Op.Platform.Temperature[index].GetValueTrend();
+            int value = s.TempValue[index];
+            PlatformData.ValueTrend valueTrend = s.TempTrend[index];
 
             // Locate the pertinent labels
             Label labelCaption = ((Label) this.GrpTmp.Controls.Find(prefix + Gui.S_CAP, false)[0]);

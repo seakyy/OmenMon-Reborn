@@ -69,8 +69,18 @@ namespace OmenMon.AppCli {
         // to work with console (with some caveats)
         public static void Initialize() {
 
-            // If output or error is redirected, do not attach or allocate console.
-            if (Console.IsOutputRedirected || Console.IsErrorRedirected) {
+            // Skip attaching only when standard output or error is *genuinely*
+            // redirected: the handle exists and is not a console (file or pipe), so
+            // writes must keep flowing to that target untouched (issue #76 hardening).
+            // A GUI-subsystem process launched from a console without any redirection
+            // has NULL standard handles, which Console.IsOutputRedirected also reports
+            // as "redirected" — early-returning on that made every plain CLI
+            // invocation silent (issue #101). NULL handles fall through to
+            // AttachConsole below, restoring the pre-v1.4.2 behaviour. The redirect
+            // properties are only queried when a real handle exists, so the normal
+            // path never caches a stale pre-attach state inside System.Console.
+            if((HasStdHandle(Kernel32.STD_OUTPUT_HANDLE) && Console.IsOutputRedirected)
+                || (HasStdHandle(Kernel32.STD_ERROR_HANDLE) && Console.IsErrorRedirected)) {
                 IsInitialized = true;
                 return;
             }
@@ -107,6 +117,15 @@ namespace OmenMon.AppCli {
             IsAttached = true;
             IsInitialized = true;
        }
+
+        // Reports whether the process has a real standard handle in the given slot.
+        // Console.IsOutputRedirected cannot make this distinction: it returns true
+        // both for an actual redirection target and for no handle at all (the normal
+        // state of a GUI-subsystem process started from a console without redirection).
+        private static bool HasStdHandle(int stdHandleId) {
+            IntPtr handle = Kernel32.GetStdHandle(stdHandleId);
+            return handle != IntPtr.Zero && handle != Kernel32.INVALID_HANDLE_VALUE;
+        }
 
         // Releases the console when no longer needed
         public static void Close() {

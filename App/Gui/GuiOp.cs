@@ -26,11 +26,31 @@ namespace OmenMon.AppGui {
         // Parent class reference
         private GuiTray Context;
 
-        // Flag to indicate if running on full power
-        public bool FullPower { get; private set; }
+        // Serialises every multi-step hardware *control* sequence (the background monitor
+        // pass AND user-initiated UI handlers) so the fan/thermal/EC-write sequences never
+        // interleave across threads. The cross-process Global\Access_EC mutex still
+        // serialises raw EC port I/O; this in-process lock serialises the higher-level
+        // sequences that release the EC mutex between their individual steps. Always the
+        // outermost lock (acquired before any EC mutex), so the ordering is consistent and
+        // deadlock-free.
+        internal readonly object HardwareLock = new object();
 
-        // Thermal panic: true while max temperature is above the configured threshold
-        public bool IsThermalPanic { get; private set; }
+        // True while the main form's constant-speed mode is engaged. Read by the monitor
+        // thread, which then maintains the fan countdown (the logic that used to live on
+        // the UI thread in GuiFormMain.UpdateFan, gated on RdoFanConst.Checked).
+        internal volatile bool ConstantSpeedActive;
+
+        // Flag to indicate if running on full power.
+        // Volatile: written by the monitor thread (PowerChange) / AutoConfig and read by the
+        // UI thread (AC-flicker passive poll), so it needs a defined publish without a lock.
+        private volatile bool _fullPower;
+        public bool FullPower { get { return this._fullPower; } private set { this._fullPower = value; } }
+
+        // Thermal panic: true while max temperature is above the configured threshold.
+        // Volatile: written by the monitor thread (CheckThermalPanic) and read by the UI
+        // thread (tray tooltip / snapshot) and elsewhere.
+        private volatile bool _isThermalPanic;
+        public bool IsThermalPanic { get { return this._isThermalPanic; } private set { this._isThermalPanic = value; } }
 
         // Constructs the operation-running class
         public GuiOp(GuiTray context) {
@@ -64,26 +84,34 @@ namespace OmenMon.AppGui {
         public void AutoConfig() {
 
             // Set whether the application should start automatically with Windows
+            // (Task Scheduler, not an EC/BIOS call — kept outside the hardware lock)
             Hw.TaskSet(Config.TaskId.Gui, Config.AutoStartup);
 
-            // Apply the default GPU power settings
-            this.Platform.System.SetGpuPower(
-                new BiosData.GpuPowerData(
-                    (BiosData.GpuPowerLevel)
-                        Enum.Parse(typeof(BiosData.GpuPowerLevel), Config.GpuPowerDefault)));
+            // AutoConfig runs on its own background thread, concurrently with the monitor
+            // thread, so its hardware control sequence is serialised under HardwareLock.
+            lock(this.HardwareLock) {
 
-            // Apply the default fan program, or the alternative program if no AC.
-            // Re-sample FullPower with the multi-source check at this moment so the
-            // startup window between the constructor and AutoConfig running on a
-            // background thread cannot land on the alternate program due to a
-            // transient AC-flicker (issue #70).
-            this.FullPower = this.Platform.System.IsFullPowerConfirmed();
-            if(this.FullPower)
-                this.Program.Run(Config.FanProgramDefault);
-            else
-                this.Program.Run(Config.FanProgramDefaultAlt, true);
+                // Apply the default GPU power settings
+                this.Platform.System.SetGpuPower(
+                    new BiosData.GpuPowerData(
+                        (BiosData.GpuPowerLevel)
+                            Enum.Parse(typeof(BiosData.GpuPowerLevel), Config.GpuPowerDefault)));
 
-            // Update the main form, if visible
+                // Apply the default fan program, or the alternative program if no AC.
+                // Re-sample FullPower with the multi-source check at this moment so the
+                // startup window between the constructor and AutoConfig running on a
+                // background thread cannot land on the alternate program due to a
+                // transient AC-flicker (issue #70).
+                this.FullPower = this.Platform.System.IsFullPowerConfirmed();
+                if(this.FullPower)
+                    this.Program.Run(Config.FanProgramDefault);
+                else
+                    this.Program.Run(Config.FanProgramDefaultAlt, true);
+
+            }
+
+            // Update the main form, if visible (effectively a no-op at startup — the form
+            // is not created yet; the periodic snapshot render covers it otherwise)
             if(Context.FormMain != null && Context.FormMain.Visible)
                 Context.FormMain.UpdateFanCtl();
 
@@ -93,48 +121,32 @@ namespace OmenMon.AppGui {
         // so as not to increase the application loading time
         public void AutoConfigRun() {
 
-            Thread autoConfig = new Thread(this.AutoConfig);
+            // Quiet EC-lock handling on this thread: at logon HP's own services
+            // frequently hold Global\Access_EC for a while, and AutoConfig's initial
+            // fan-program application hitting that window was the once-per-startup
+            // "Failed to acquire embedded controller exclusive lock" box (issue #94).
+            // A skipped write self-heals — the monitor re-applies the program curve
+            // within one program interval. The flag is thread-static and the thread
+            // dedicated, so user-initiated actions on the UI thread stay loud.
+            Thread autoConfig = new Thread(() => {
+                Hw.EcLockQuiet = true;
+                this.AutoConfig();
+            });
             autoConfig.IsBackground = true;
             autoConfig.Start();
 
         }
 
-        // Keeps updating the status as the fan program runs in the background
+        // Keeps updating the status as the fan program runs. The program now ticks on the
+        // background monitor thread, so the status is handed to the UI thread via the
+        // monitor's message queue (drained by the tray timer tick, rendered in
+        // GuiTray.HandleProgramStatus) rather than touching the tray icon / main form
+        // directly — an off-thread WinForms access would throw. Verbose messages are still
+        // silently ignored in GUI mode (run OmenMon -Prog <Name> from the CLI to see them).
         public void FanProgramCallback(FanProgram.Severity severity, string message) {
-
-            // For important status updates only,
-            // show a balloon tray notification
-            if(severity == FanProgram.Severity.Important)
-                Context.ShowBalloonTip(message);
-
-            // Handle notice-severity messages
-            else if(severity == FanProgram.Severity.Notice) {
-
-                // Add a prefix if an alternate fan program
-                string name = Context.Op.Program.IsAlternate ?
-                    Config.Locale.Get(Config.L_PROG + "Alt") + " "
-                    + Context.Op.Program.GetName()
-                    : Context.Op.Program.GetName();
-
-                // If the main form is available, update the status there
-                if(Context.FormMain != null && Context.FormMain.Visible)
-                    Context.FormMain.UpdateSysMsg(
-                        message.Replace(
-                            Config.Locale.Get(Config.L_PROG + "SubMax"),
-                            Conv.RTF_SUB1 + Config.Locale.Get(Config.L_PROG + "SubMax") + Conv.RTF_SUBSUP0)
-                        + ": " + name);
-
-                // Also put it in the tray icon tooltip
-                Context.SetNotifyText(
-                    Config.Locale.Get(Config.L_PROG) + ": " + name
-                    + " @ " + DateTime.Now.ToString(Config.TimestampFormat)
-                    + Environment.NewLine + message);
-
-            }
-
-            // Note: Verbose messages are silently ignored in the GUI mode
-            // Run OmenMon -Prog <Name> from the command line to see them
-
+            if(severity == FanProgram.Severity.Important
+                || severity == FanProgram.Severity.Notice)
+                Context.Monitor?.EnqueueProgramStatus(severity, message);
         }
 
         // Cycles through the keyboard color presets defined in OmenMon.xml
@@ -189,7 +201,9 @@ namespace OmenMon.AppGui {
             // Cycle color presets (takes priority over all other key actions)
             if(Config.KeyToggleColorPreset) {
 
-                CycleColorPresets();
+                // Serialise the keyboard-colour read/write with the monitor thread
+                lock(this.HardwareLock)
+                    CycleColorPresets();
 
             // If Omen key is set
             // to toggle fan program
@@ -203,42 +217,50 @@ namespace OmenMon.AppGui {
 
                 else {
 
-                    // Configured to cycle
-                    // through all fan programs
-                    if(Config.KeyToggleFanProgramCycleAll) {
+                    // Fan-program control runs under HardwareLock to serialise with the
+                    // background monitor's program tick.
+                    lock(this.HardwareLock) {
 
-                        // Default to the first fan program 
-                        string next = Config.FanProgram.Keys[0];
+                        // Configured to cycle
+                        // through all fan programs
+                        if(Config.KeyToggleFanProgramCycleAll) {
 
-                        // If a program is running,
-                        // cycle to the next one, if exists
-                        if(this.Program.IsEnabled)
-                            try {
-                                next = Config.FanProgram.Keys[
-                                    Config.FanProgram.IndexOfKey(this.Program.GetName()) + 1];
-                            } catch { }
+                            // Default to the first fan program
+                            string next = Config.FanProgram.Keys[0];
 
-                        // Run the next fan program
-                        this.Program.Run(next);
+                            // If a program is running,
+                            // cycle to the next one, if exists
+                            if(this.Program.IsEnabled)
+                                try {
+                                    next = Config.FanProgram.Keys[
+                                        Config.FanProgram.IndexOfKey(this.Program.GetName()) + 1];
+                                } catch { }
 
-                    // Configured to toggle
-                    // default fan program on and off
-                    } else {
+                            // Run the next fan program
+                            this.Program.Run(next);
 
-                        // Terminate a program, if there is one running
-                        if(this.Program.IsEnabled)
-                            this.Program.Terminate();
+                        // Configured to toggle
+                        // default fan program on and off
+                        } else {
 
-                        // Run the default program, if no program running
-                        else
-                            this.Program.Run(Config.FanProgramDefault);
+                            // Terminate a program, if there is one running
+                            if(this.Program.IsEnabled)
+                                this.Program.Terminate();
+
+                            // Run the default program, if no program running
+                            else
+                                this.Program.Run(Config.FanProgramDefault);
 
                         }
 
-                    // Update the main form fan controls
-                    // (if main form is being shown)
-                    if(Context.FormMain != null && Context.FormMain.Visible)
+                    }
+
+                    // Update the main form fan controls (if main form is being shown),
+                    // from a freshly published snapshot so the change is reflected at once
+                    if(Context.FormMain != null && Context.FormMain.Visible) {
+                        Context.Monitor?.SampleNow();
                         Context.FormMain.UpdateFanCtl();
+                    }
 
                     // Otherwise, show a balloon tip notification
                     // unless configured to toggle programs silently
@@ -305,7 +327,8 @@ namespace OmenMon.AppGui {
                 string tempStr = Config.TemperatureUseFahrenheit
                     ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
                     : maxTemp + "°C";
-                Context.ShowBalloonTip(
+                // Runs on the monitor thread → hand the balloon to the UI thread via the queue
+                Context.Monitor?.EnqueueBalloon(
                     "⚠ " + tempStr + " — both fans forced to maximum!",
                     "OmenMon — Thermal Panic",
                     ToolTipIcon.Warning);
@@ -327,7 +350,8 @@ namespace OmenMon.AppGui {
                     string tempStr = Config.TemperatureUseFahrenheit
                         ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
                         : maxTemp + "°C";
-                    Context.ShowBalloonTip(
+                    // Runs on the monitor thread → hand the balloon to the UI thread via the queue
+                    Context.Monitor?.EnqueueBalloon(
                         "Temperature normalized (" + tempStr + ") — fan control restored.",
                         "OmenMon — Thermal Panic",
                         ToolTipIcon.Info);
@@ -368,9 +392,9 @@ namespace OmenMon.AppGui {
 
             }
 
-            // Separately also update the main form, if it's visible
-            if(Context.FormMain != null && Context.FormMain.Visible)
-               Context.FormMain.UpdateSys();
+            // The system-info panel reflects the new power state via the next snapshot
+            // render (this method now runs on the monitor thread under HardwareLock, so it
+            // must not touch the form directly).
 
         }
 

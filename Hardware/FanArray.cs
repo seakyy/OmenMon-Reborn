@@ -237,6 +237,11 @@ namespace OmenMon.Hardware.Platform {
         //          0/30/70/100 % — the 100 % period is slower than idle, same rate-limiter
         //          footprint as the boards above. RPM stays sidecar-supported only because
         //          the <Models> schema is LE16-only and cannot decode PeriodEncoded8.)
+        //   8A4F — HP Victus 15 (2023)                    — issue #107 (richardcofie). AutoCal
+        //          plateau-detector tripped at 30 %: live RPM collapsed to idle (CPU 5109→1585,
+        //          GPU 4418→1597) instead of climbing, the physical-ceiling signature. Fan regs
+        //          are PeriodEncoded8 (CPU 0x2E, GPU 0x2F), so — like 8C77 — RPM stays
+        //          sidecar-only and this list is the protection that applies.
         //
         // Call-sites:
         //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
@@ -254,6 +259,7 @@ namespace OmenMon.Hardware.Platform {
                 case "8E35":
                 case "8C77":
                 case "88F4":
+                case "8A4F":
                     return true;
                 default:
                     return false;

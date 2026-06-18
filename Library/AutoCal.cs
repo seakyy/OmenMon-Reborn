@@ -450,6 +450,23 @@ namespace OmenMon.Library {
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
+            // HP Victus 15-fb0102la (8A3E, 2023) — issue #96, reported by @David112x
+            // (the same board as the upstream OmenMon issue #85 report). The
+            // Auto-Calibration sweep confirms canonical 16-bit LE tachometers at
+            // 0xB0/0xB2, decoded from the raw dumps: CPU EC[0xB0..0xB1] = B3 01 →
+            // 0x01B3 = 435 RPM at 0% (this CPU fan never fully stops) and 1C 15 →
+            // 0x151C = 5404 RPM at 100%; GPU EC[0xB2..0xB3] = 00 00 at 0% and 4B 14
+            // → 0x144B = 5195 RPM at 100% — both matching the reported idle/max
+            // exactly and rising monotonically across the 0/30/70/100% steps.
+            // Read-only mapping: pins the RPM display out of the box and gives
+            // Load()'s sidecar-collision self-heal a verified ground truth, while
+            // fan *control* stays on the default 2022-layout registers the sweep
+            // already drove successfully (level 0x34/0x35 tracked every step).
+            ["8A3E"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
