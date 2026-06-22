@@ -66,14 +66,20 @@ namespace OmenMon.AppCli {
             Cli.PrintEcResult(false, true, register, w);
         }
 
-        // Prints out the values of all Embedded Controller registers in a table format
+        // Prints out the values of all Embedded Controller registers in a table format.
+        // Reads the whole 256-byte block in a single atomic Hw.EcDump() pass (one EC mutex
+        // hold) rather than 256 individually-locked Hw.EcGetByte calls. When the tray app's
+        // background monitor is contending for Global\Access_EC, per-byte locking loses the
+        // race on many cells: the dump crawls and "failed to acquire exclusive lock" lines
+        // get interleaved into the grid (issue #108). One batched acquisition mirrors the
+        // -Probe / -Diag dump path, so -Ec stays fast and clean whether or not the GUI runs.
         private static void EcGetTable() {
+            byte[] data = Hw.EcDump();
             Cli.PrintColor((ConsoleColor) Cli.Color.TableHeader, "0x _0 _1 _2 _3 _4 _5 _6 _7 _8 _9 _a _b _c _d _e _f" + Environment.NewLine);
             for(int high = 0; high <= 0xF0; high += 0x10) {
                 Cli.PrintColor((ConsoleColor) Cli.Color.TableHeader, Convert.ToString(high >> 4, 16) + "_ ");
                 for(int low = 0; low <= 0xF; low++) {
-                    byte b = Hw.EcGetByte((byte) (high | low));
-                    Cli.PrintValueHexColor(b);
+                    Cli.PrintValueHexColor(data[high | low]);
                     Console.Write(" ");
                 }
                 Console.WriteLine();

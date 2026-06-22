@@ -34,7 +34,8 @@ namespace OmenMon.Tests {
 
         // Boards confirmed to hit the BIOS rate-limiter EC freeze at 100 % fan
         // (lock-until-reboot). Removing one re-exposes its users to the freeze:
-        // 8C30 #32, 8D07 #56, 8BAD #58, 8E35 #57, 8C77 #50, 88F4 #67.
+        // 8C30 #32, 8D07 #56, 8BAD #58, 8E35 #57, 8C77 #50, 88F4 #67, 8748 #111,
+        // 8A50 #115.
         [Theory]
         [InlineData("8C30")]
         [InlineData("8D07")]
@@ -42,6 +43,8 @@ namespace OmenMon.Tests {
         [InlineData("8E35")]
         [InlineData("8C77")]
         [InlineData("88F4")]
+        [InlineData("8748")]
+        [InlineData("8A50")]
         public void MaxFanFreezeList_StillContains(string productId) {
             var source = Source(Path.Combine("Hardware", "FanArray.cs"));
             Assert.Matches(
@@ -63,6 +66,8 @@ namespace OmenMon.Tests {
         [InlineData("8BA9")]
         [InlineData("8D41")]
         [InlineData("8A3E")]
+        [InlineData("8A50")]
+        [InlineData("8E9A")]
         public void KnownBoards_StillContains(string productId) {
             var source = Source(Path.Combine("Library", "AutoCal.cs"));
             Assert.Contains("[\"" + productId + "\"]", source);

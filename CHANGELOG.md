@@ -47,10 +47,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   single-fan case (#81), write-register exclusion, slow-mover (temperature)
   rejection, and the counter false-positive the verification pass eliminates.
 - **Guard-ledger tripwire tests.** Source-level tests now fail CI if the
-  `HasMaxFanFreeze` blacklist (8C30/8D07/8BAD/8E35/8C77/88F4), a curated
-  `KnownBoards` entry, or a user-facing setting documented in `OmenMon.xml`
-  is removed, and if a new `ConfigData` field is added without load/save
-  plumbing in `Config.cs` (the 3-place-edit drift identified in the audit).
+  `HasMaxFanFreeze` blacklist (8C30/8D07/8BAD/8E35/8C77/88F4/8748/8A50), a
+  curated `KnownBoards` entry, or a user-facing setting documented in
+  `OmenMon.xml` is removed, and if a new `ConfigData` field is added without
+  load/save plumbing in `Config.cs` (the 3-place-edit drift from the audit).
+- **Field-report model support.** Built-in read-only RPM mappings for two
+  single-fan boards from the issue tracker: the HP Victus 15-fa0031dx (`8A50`,
+  16-bit LE tachometer at 0xB0, #115) and the 2026 HP/HyperX OMEN Max 16
+  (`8E9A`, 16-bit LE tachometer at 0xC5, #110) — the auto-calibration sweep had
+  locked onto an adjacent temperature pair / found no GPU fan, so RPM read as
+  garbage / zero. Both decode their reported idle and maximum exactly and, being
+  read-only, fix the display without touching the fan-control path. Added
+  `HasMaxFanFreeze` protection for the Victus 15-fa0031dx (`8A50`, #115) and the
+  HP Omen 17-cb1004ur (`8748`, #111): both reported a fan-ceiling plateau in the
+  wizard (30 % and 70 % respectively), the 100 %-fan-freeze signature.
+
+### Fixed
+
+- **`-Ec` register dump no longer thrashes the EC lock (#108).** The CLI table
+  read all 256 registers with one independently-locked `Hw.EcGetByte` call
+  apiece, so while the tray app's background monitor held `Global\Access_EC` the
+  dump lost the race on many cells — it crawled and interleaved "failed to
+  acquire embedded controller exclusive lock" lines into the hex grid. It now
+  takes a single atomic `Hw.EcDump()` snapshot under one mutex hold, the same
+  path `-Probe` / `-Diag` already used, so `-Ec` is fast and clean whether or
+  not the GUI is running.
 
 ## [1.4.6-reborn] - 2026-06-12
 

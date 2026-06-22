@@ -237,6 +237,14 @@ namespace OmenMon.Hardware.Platform {
         //          0/30/70/100 % — the 100 % period is slower than idle, same rate-limiter
         //          footprint as the boards above. RPM stays sidecar-supported only because
         //          the <Models> schema is LE16-only and cannot decode PeriodEncoded8.)
+        //   88F4 — HP Omen (BIOS rate-limiter freeze)     — issue #67
+        //   8748 — HP Omen 17-cb1004ur (2020)             — issue #111 (swo1och, AutoCal
+        //          plateau at 70 %: CPU RPM flat at 2929 across 30 -> 70 %, the fan-ceiling
+        //          signature; the period-encoded CPU tach at 0xDB is stuck at 0x50 from idle
+        //          to max — the controller is already saturated.)
+        //   8A50 — HP Victus 15-fa0031dx (2023, single-fan) — issue #115 (nean24, AutoCal
+        //          plateau at 30 % and "max fan does nothing"; one ~1.6 kRPM fan at 0xB0,
+        //          far below the headroom the 100 % path assumes.)
         //
         // Call-sites:
         //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
@@ -254,6 +262,8 @@ namespace OmenMon.Hardware.Platform {
                 case "8E35":
                 case "8C77":
                 case "88F4":
+                case "8748":
+                case "8A50":
                     return true;
                 default:
                     return false;
