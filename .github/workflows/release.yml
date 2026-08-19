@@ -190,12 +190,10 @@ jobs:
           $zipName = $env:ZIP_NAME
           $tag = "${{ needs.stage2-compile.outputs.tag }}"
           $zipHash = (Get-FileHash -Algorithm SHA256 -Path $zipName).Hash.ToLower()
-          $exeHash = (Get-FileHash -Algorithm SHA256 -Path "OmenMon.exe").Hash.ToLower()
           $header1 = "# OmenMon-Reborn $tag - SHA-256 checksums"
           $header2 = "# Verify on Windows: Get-FileHash -Algorithm SHA256 <file>"
           $lineZip = "$zipHash  $zipName"
-          $lineExe = "$exeHash  OmenMon.exe"
-          Set-Content -Path "SHA256SUMS.txt" -Value @($header1, $header2, "", $lineZip, $lineExe)
+          Set-Content -Path "SHA256SUMS.txt" -Value @($header1, $header2, "", $lineZip)
           Get-Content "SHA256SUMS.txt"
 
       - name: "Publish GitHub Release"
@@ -208,10 +206,10 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists. Updating release assets and notes..."
             gh release edit "$TAG" --draft=false --title "OmenMon $TAG" --notes-file release-notes.md
-            gh release upload "$TAG" OmenMon.exe "$ZIP_NAME" SHA256SUMS.txt --clobber
+            gh release upload "$TAG" "$ZIP_NAME" SHA256SUMS.txt --clobber
           else
             echo "Creating new GitHub Release $TAG..."
-            gh release create "$TAG" OmenMon.exe "$ZIP_NAME" SHA256SUMS.txt \
+            gh release create "$TAG" "$ZIP_NAME" SHA256SUMS.txt \
               --title "OmenMon $TAG" \
               --notes-file release-notes.md
           fi
