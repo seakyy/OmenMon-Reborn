@@ -82,7 +82,7 @@ jobs:
       - name: "Set up MSBuild"
         uses: microsoft/setup-msbuild@v2
 
-      - name: "Build Solution with Root OmenMon.xml"
+      - name: "Build Solution with Root OmenMon.xml (Auto Build-Bump)"
         run: |
           msbuild -m -noLogo /restore -p:Configuration=Release -p:AssemblyVersion=${{ steps.resolve.outputs.version }}.${{ github.run_number }} -p:AssemblyVersionWord=reborn -t:Rebuild OmenMon.sln
 
@@ -93,14 +93,18 @@ jobs:
           if (-not (Test-Path "Bin\OmenMon.xml")) { throw "Bin\OmenMon.xml missing!" }
 
       - name: "Retrieve & Decode Certificate (Optional)"
-        if: ${{ secrets.CODE_SIGN_CERT != '' }}
+        env:
+          CODE_SIGN_CERT: ${{ secrets.CODE_SIGN_CERT }}
+        if: ${{ env.CODE_SIGN_CERT != '' }}
         shell: bash
         run: |
-          echo "${{ secrets.CODE_SIGN_CERT }}" > OmenMon-GitHub.pfx.txt
+          echo "$CODE_SIGN_CERT" > OmenMon-GitHub.pfx.txt
           certutil -decode OmenMon-GitHub.pfx.txt OmenMon-GitHub.pfx
 
       - name: "Sign OmenMon Executable (Optional)"
-        if: ${{ secrets.CODE_SIGN_CERT != '' }}
+        env:
+          CODE_SIGN_CERT: ${{ secrets.CODE_SIGN_CERT }}
+        if: ${{ env.CODE_SIGN_CERT != '' }}
         run: |
           & 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe' sign /d OmenMon /du https://omenmon.github.io/ /f OmenMon-GitHub.pfx /fd sha256 /td sha256 /tr http://timestamp.digicert.com/ /v Bin\OmenMon.exe
 
