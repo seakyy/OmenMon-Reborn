@@ -68,7 +68,9 @@ namespace OmenMon.Hardware.Platform {
 
         // Retrieves the fan level [krpm]
         public virtual int GetLevel() {
-            return Hw.BiosGet(Hw.Bios.GetFanLevel)[(int) this.FanType - 1];
+            var levels = Hw.BiosGet(Hw.Bios.GetFanLevel);
+            if(levels == null || levels.Length < (int) this.FanType) return 0;
+            return levels[(int) this.FanType - 1];
         }
 
         // Retrieves the fan rate [%]

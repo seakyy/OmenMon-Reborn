@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.11-reborn] - 2026-08-19
+
+> **Final v1.4.x batch release: WMI exception safety and model database completion.**
+> Fixes #142, Fixes #143, Fixes #144, Fixes #145, Fixes #146, Fixes #147, Fixes #148, Fixes #149, Fixes #150, Fixes #151.
+
+### Fixed
+
+- **WMI BIOS Call Exception Safety (Fixes #143, Fixes #150).** Added exception handling
+  to `BiosGet`, `BiosGetStruct`, and `Fan.GetLevel()` so models where the BIOS WMI interface
+  rejects `GetFanLevel` (e.g. `8600`, `8E41`) no longer crash the WinForms UI thread or hang.
+
+### Added
+
+- **Freeze Guard (`HasMaxFanFreeze`) Protection (Fixes #149).** Added HP Omen 15
+  (`8600`) to `HasMaxFanFreeze` to prevent 100% manual fan speed EC freeze locks.
+- **Known Board RPM Mappings (Fixes #142, Fixes #143, Fixes #144, Fixes #145, Fixes #146, Fixes #147, Fixes #148, Fixes #151).** Added built-in RPM mappings and unit-test coverage for:
+  - OMEN 16 (`8BCA`, 16-bit LE tachometers at 0xB0/0xB2, #142).
+  - HP Omen 14 Transcend (`8E41`, 16-bit LE tachometers at 0xB0/0xB2, #143).
+  - HP Omen 16-xd series (`8BCD`, 16-bit LE tachometers at 0xB0/0xB2, #144).
+  - HP Victus 16-r0xxx (`8BBE`, 16-bit LE tachometers at 0xB0/0xB2, #145).
+  - OMEN 16 n0123ax (`8A44`, 16-bit LE tachometers at 0xB0/0xB2, #146).
+  - HP Omen 16-wd0013dx (`8BA9`, 16-bit LE tachometers at 0xB0/0xB2, #147).
+  - HP Victus 15-fb1013dx (`8C30`, 16-bit LE tachometers at 0xB0/0xB2, #148).
+  - OMEN by HP Gaming Laptop 16-wf1xxx (`8C77`, 16-bit LE tachometers at 0xB0/0xB2, #151).
+
 ## [1.4.10-reborn] - 2026-08-19
 
 > **Batch resolution of 10 model database and hardware freeze issue reports.**

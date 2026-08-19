@@ -113,16 +113,24 @@ namespace OmenMon.Library {
 
         // Performs a BIOS operation and returns a numeric (possibly an enumerated or an array) result
         public static TResult BiosGet<TResult>(Func<TResult> biosMethod) {
-            return Hw.BiosExec<TResult>(bios => {
-                return (TResult) (object) biosMethod();
-            }, Hw.Bios);
+            try {
+                return Hw.BiosExec<TResult>(bios => {
+                    return (TResult) (object) biosMethod();
+                }, Hw.Bios);
+            } catch {
+                return default(TResult);
+            }
         }
 
         // Performs a BIOS operation and returns a struct result
         public static TResult BiosGetStruct<TResult>(Func<TResult> biosMethod) where TResult : struct {
-            return Hw.BiosExec<TResult>(bios => {
-                return (TResult) biosMethod();
-            }, Hw.Bios);
+            try {
+                return Hw.BiosExec<TResult>(bios => {
+                    return (TResult) biosMethod();
+                }, Hw.Bios);
+            } catch {
+                return default(TResult);
+            }
         }
 
         // Sets a BIOS toggle to a Boolean value passed as a parameter
