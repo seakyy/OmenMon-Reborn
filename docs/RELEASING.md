@@ -34,15 +34,12 @@ git add -A
 git commit -m "Release v1.5.0"
 git push origin master
 
-# 6. Tag and push the tag — fires draft-release.yml
+# 6. Tag and push the tag — fires release.yml automatically
 git tag v1.5.0
 git push origin v1.5.0
 
-# 7. Go to GitHub → Releases → edit the draft the workflow created
-#    - Verify the auto-extracted notes look right
-#    - Attach Bin/OmenMon.exe
-#    - Add the SHA256 line from step 4
-#    - Click "Publish release" — this fires release.yml which zips it
+# 7. GitHub Actions automatically compiles, tests, zips, generates SHA256,
+#    and publishes the release with OmenMon.exe & zip attached.
 ```
 
 That's the whole flow. The rest of this doc is the **why** and the **what if**.

@@ -18,4 +18,13 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- EcDiffScanner is deliberately a pure, dependency-free static class so the
+       RPM-encoding heuristics can be compiled directly into this .NET 8 test
+       project (the main project is .NET Framework 4.8 and cannot be referenced).
+       If this include breaks, someone added an App/Hardware dependency to the
+       scanner - keep it pure instead. -->
+  <ItemGroup>
+    <Compile Include="..\..\Hardware\EcDiffScanner.cs" Link="Hardware\EcDiffScanner.cs" />
+  </ItemGroup>
+
 </Project>

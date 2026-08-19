@@ -420,19 +420,11 @@ namespace OmenMon.Library {
                 SingleFan = true,
             },
 
-            // HP Omen Max 16 (8D41, 2025) — issue #87, reported by @Keith1341.
-            // The wizard's live-RPM column read blank because Fan.GetSpeed() fell back
-            // to the default 0xB0/0xB2 preset (wrong for this 2025 "Omen Max" layout),
-            // but the EcDiffScanner candidates and the raw EC dumps agree on 16-bit LE
-            // tachometers at 0x5C (CPU) / 0x9F (GPU). Decoded from the report's 100% step:
-            // EC[0x5C..0x5D] = 80 16 → 0x1680 = 5760 RPM (CPU) and EC[0x9F..0xA0] = 85 19
-            // → 0x1985 = 6533 RPM (GPU), matching the reported maxima exactly; the 0% step
-            // reads 0/0. Read-only mapping only — no fan-control registers are committed
-            // for this new layout (a wrong ManualReg/ModeReg could lock the EC), so this
-            // fixes the RPM display without risking the 100%-fan freeze class of bug.
+            // HP Omen Max 16 (8D41, 2025) — issue #87, #109.
+            // 16-bit LE tachometers at 0x5C (CPU) / 0x70 (GPU).
             ["8D41"] = new Mapping {
                 CpuReg = 0x5C, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
-                GpuReg = 0x9F, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+                GpuReg = 0x70, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
             // HP OMEN 17 ck1000nw (8A18, 2022) — issue #84, reported by @xenon205.
@@ -463,6 +455,60 @@ namespace OmenMon.Library {
             // fan *control* stays on the default 2022-layout registers the sweep
             // already drove successfully (level 0x34/0x35 tracked every step).
             ["8A3E"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Victus 15-fa0031dx (8A50, 2023, single-fan) — issue #115, reported by @nean24.
+            // The Auto-Calibration wizard ranked 0x2E highest ("LE16 0 -> 7453") but that pair
+            // is two adjacent temperature bytes: EC[0x2E..0x2F] reads 1D 1D (29/29 °C) at 30 %,
+            // a slow-mover the one-way sweep mistook for a tachometer. The real fan tach is the
+            // canonical legacy LE16 at 0xB0: EC[0xB0..0xB1] = 00 00 at 0 % and 4D 06 -> 0x064D =
+            // 1613 RPM at 30 %, rising monotonically from a true idle of 0. GetFanType = 0x01
+            // (Fan1=Cpu, Fan2=Unsupported) confirms a single physical fan, so SingleFan mirrors
+            // the CPU reading onto the GPU row rather than decoding the adjacent 0xB2 (a second
+            // ~1573 RPM sensor) as a phantom GPU fan. Read-only mapping: pins the RPM display;
+            // fan *control* stays on the default registers. Paired with a HasMaxFanFreeze entry
+            // (FanArray.cs) — the wizard plateau'd at 30 % at this fan's ~1.6 kRPM ceiling.
+            ["8A50"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
+                SingleFan = true,
+            },
+
+            // HP OMEN Max 16 / HyperX OMEN Max 16 (8E9A, 2026, single-fan) — issue #110,
+            // reported by @Keith1341 (the same contributor who characterised 8D41). The
+            // EcDiffScanner found one 16-bit LE tachometer at 0xC5 and no GPU fan. Decoded
+            // from the 0/30/70/100 % sweep, EC[0xC5..0xC6] = 99 00 -> 0x0099 = 153 RPM at idle
+            // and 99 07 -> 0x0799 = 1945 RPM once the fan engages (flat from 30 % on — this SKU
+            // holds a low fan ceiling under the wizard's load), matching the reported idle/max
+            // exactly. SingleFan mirrors the CPU reading onto the GPU row (no second tach was
+            // observed — single-fan chassis or a second fan on a different bus). Read-only
+            // mapping only: no fan-control registers are committed for this new 2026 layout, so
+            // the RPM display is fixed without risking the 100 %-fan freeze class of bug.
+            ["8E9A"] = new Mapping {
+                CpuReg = 0xC5, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
+                SingleFan = true,
+            },
+
+            // HP Victus 16-r1015nt (8C99, 2024) — issue #112, reported by @serhatta.
+            // DirectMultiplier8 tachometers at EC[0x11] / EC[0x14].
+            ["8C99"] = new Mapping {
+                CpuReg = 0x11, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
+                GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
+            },
+
+            // HP OMEN 16 -xf0033dx (8BCA, 2023+) — issue #114, reported by @tapsyin.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8BCA"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP OMEN / Victus (8DD2, 2025/2026) — issue #117, reported by @bobshmo.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8DD2"] = new Mapping {
                 CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },

@@ -76,6 +76,13 @@ namespace OmenMon.AppCli {
             // already drives the two fans from distinct registers (issue #83). The verified
             // preset is kept and no sidecar is written.
             public string OverrideRejectedNote;
+            // EC dump taken after the sweep with the fans commanded back to the lowest
+            // profile level — the scanner uses it to reject time-correlated (counter)
+            // registers that an upward-only sweep cannot distinguish from tachometers.
+            // Null when the sweep aborted on a plateau (the EC fan controller may be
+            // unresponsive there, so a verification dump would just add noise) or when
+            // the verification capture itself failed.
+            public EcDiffScanner.Sample VerificationSample;
         }
 
         // Per-step tachometer snapshot taken via the live IFan.GetSpeed() path, so the
@@ -291,8 +298,38 @@ namespace OmenMon.AppCli {
                     }
                 }
 
+                // Return-to-idle verification pass. A register that merely correlates
+                // with *time* (a counter) is indistinguishable from a tachometer during
+                // a one-way upward sweep — both rise monotonically with the samples.
+                // Commanding the fans back down and dumping once more gives the scanner
+                // a discriminator: a true tachometer falls back toward its idle reading,
+                // a counter keeps climbing. Skipped after a plateau abort, where the EC
+                // fan controller may no longer respond to the lower command anyway.
+                // Best-effort: any failure here degrades to the legacy unverified scan.
+                byte[] verifyDump = null;
+                if(!outcome.PlateauReached) {
+                    try {
+                        int verifyLevel = profile[0];
+                        progress("verify", $"Returning fans to {verifyLevel}% to verify candidates…", 88);
+                        ApplyLevel(fans, verifyLevel);
+                        int vticks = StepSettleMs / 1000;
+                        for(int t = 0; t < vticks; t++) {
+                            cancel.ThrowIfCancellationRequested();
+                            Thread.Sleep(1000);
+                            progress("verify", $"Settling at {verifyLevel}%… {vticks - t} s", 88 + (6 * t) / vticks);
+                        }
+                        verifyDump = SnapshotEc();
+                        outcome.VerificationSample = new EcDiffScanner.Sample(verifyLevel, verifyDump);
+                    } catch(OperationCanceledException) {
+                        throw;
+                    } catch {
+                        verifyDump = null;
+                        outcome.VerificationSample = null;
+                    }
+                }
+
                 progress("scan", "Analysing register diffs…", 96);
-                outcome.Scan = EcDiffScanner.Scan(outcome.Samples);
+                outcome.Scan = EcDiffScanner.Scan(outcome.Samples, verifyDump);
 
                 if(outcome.Scan.IsPlausible) {
                     progress("apply", "Applying detected registers to live session…", 98);
@@ -633,8 +670,8 @@ namespace OmenMon.AppCli {
             if(o.Scan == null) {
                 sb.AppendLine("_Scan did not complete._");
             } else {
-                AppendCandidate(sb, "CPU", o.Scan.CpuFan);
-                AppendCandidate(sb, "GPU", o.Scan.GpuFan);
+                AppendCandidate(sb, "CPU", o.Scan.CpuFan, o.Scan.VerificationUsed);
+                AppendCandidate(sb, "GPU", o.Scan.GpuFan, o.Scan.VerificationUsed);
 
                 // A detected register that would mirror the two fan readouts was rejected
                 // in favour of the board's verified built-in mapping (issue #83). Annotate
@@ -671,14 +708,32 @@ namespace OmenMon.AppCli {
                     sb.AppendLine();
                     sb.AppendLine("<details><summary>All ranked candidates</summary>");
                     sb.AppendLine();
-                    sb.AppendLine("| Offset | Mode | Score | Values |");
-                    sb.AppendLine("|--------|------|-------|--------|");
+                    sb.AppendLine("| Offset | Mode | Score | Values | After sweep |");
+                    sb.AppendLine("|--------|------|-------|--------|-------------|");
                     foreach(var c in o.Scan.All)
-                        sb.AppendLine($"| `0x{c.Offset:X2}` | {c.Mode} | {c.Score} | `{string.Join(", ", c.Values)}` |");
+                        sb.AppendLine($"| `0x{c.Offset:X2}` | {c.Mode} | {c.Score} | `{string.Join(", ", c.Values)}` | {(c.VerifyValue >= 0 ? "`" + c.VerifyValue + "`" : "—")} |");
+                    sb.AppendLine();
+                    sb.AppendLine("</details>");
+                }
+
+                // Candidates discarded by the return-to-idle verification. Shown with
+                // their evidence so a maintainer can sanity-check the rejection — and
+                // so a wrongly-rejected register (fan extremely slow to spin down) is
+                // still visible in the report rather than silently dropped.
+                if(o.Scan.RejectedByVerification.Count > 0) {
+                    sb.AppendLine();
+                    sb.AppendLine("<details><summary>Rejected by return-to-idle verification (likely timers/counters)</summary>");
+                    sb.AppendLine();
+                    sb.AppendLine("| Offset | Mode | Sweep values | After return to idle |");
+                    sb.AppendLine("|--------|------|--------------|----------------------|");
+                    foreach(var c in o.Scan.RejectedByVerification)
+                        sb.AppendLine($"| `0x{c.Offset:X2}` | {c.Mode} | `{string.Join(", ", c.Values)}` | `{c.VerifyValue}` (did not return) |");
                     sb.AppendLine();
                     sb.AppendLine("</details>");
                 }
             }
+
+            AppendProposedEntry(sb, o);
 
             // Live tachometer readings taken at the end of each settle window via the
             // same Fan.GetSpeed() path the GUI uses for the main-form readouts. Useful
@@ -702,34 +757,92 @@ namespace OmenMon.AppCli {
             sb.AppendLine();
             sb.AppendLine("## Raw EC Dumps");
             sb.AppendLine();
-            foreach(var sample in o.Samples) {
-                sb.AppendLine($"### Fan @ {sample.LevelPercent}%");
-                sb.AppendLine();
-                sb.AppendLine("```");
-                sb.AppendLine("0x _0 _1 _2 _3 _4 _5 _6 _7 _8 _9 _a _b _c _d _e _f");
-                for(int hi = 0; hi <= 0xF0; hi += 0x10) {
-                    var row = new StringBuilder();
-                    row.Append(((byte) (hi >> 4)).ToString("x"));
-                    row.Append("_ ");
-                    for(int lo = 0; lo <= 0xF; lo++) {
-                        row.Append(sample.Memory[hi | lo].ToString("X2"));
-                        if(lo < 0xF) row.Append(' ');
-                    }
-                    sb.AppendLine(row.ToString());
-                }
-                sb.AppendLine("```");
-                sb.AppendLine();
-            }
+            foreach(var sample in o.Samples)
+                AppendDumpGrid(sb, $"### Fan @ {sample.LevelPercent}%", sample.Memory);
+            if(o.VerificationSample != null)
+                AppendDumpGrid(sb,
+                    $"### Verification @ {o.VerificationSample.LevelPercent}% (after sweep, fans returning to idle)",
+                    o.VerificationSample.Memory);
 
             return sb.ToString();
         }
 
-        private static void AppendCandidate(StringBuilder sb, string label, EcDiffScanner.Candidate c) {
+        private static void AppendDumpGrid(StringBuilder sb, string heading, byte[] memory) {
+            sb.AppendLine(heading);
+            sb.AppendLine();
+            sb.AppendLine("```");
+            sb.AppendLine("0x _0 _1 _2 _3 _4 _5 _6 _7 _8 _9 _a _b _c _d _e _f");
+            for(int hi = 0; hi <= 0xF0; hi += 0x10) {
+                var row = new StringBuilder();
+                row.Append(((byte) (hi >> 4)).ToString("x"));
+                row.Append("_ ");
+                for(int lo = 0; lo <= 0xF; lo++) {
+                    row.Append(memory[hi | lo].ToString("X2"));
+                    if(lo < 0xF) row.Append(' ');
+                }
+                sb.AppendLine(row.ToString());
+            }
+            sb.AppendLine("```");
+            sb.AppendLine();
+        }
+
+        private static void AppendCandidate(StringBuilder sb, string label, EcDiffScanner.Candidate c, bool verificationUsed) {
             if(c == null) {
                 sb.AppendLine($"- **{label} Fan Register:** _not detected_");
                 return;
             }
-            sb.AppendLine($"- **{label} Fan Register:** `0x{c.Offset:X2}` (Mode: `{c.Mode}`) — {c.Description}");
+            string verified = verificationUsed && c.VerifyValue >= 0
+                ? $" ✓ confirmed by return-to-idle check (read `{c.VerifyValue}` after the sweep)"
+                : "";
+            sb.AppendLine($"- **{label} Fan Register:** `0x{c.Offset:X2}` (Mode: `{c.Mode}`) — {c.Description}{verified}");
+        }
+
+        // Emits a ready-to-merge database entry derived from the scan, so a pasted
+        // report carries the exact change a maintainer needs instead of raw offsets
+        // to transcribe by hand. Suppressed when the board already ships a built-in
+        // mapping (the proposal would fight the curated entry) and when the scan was
+        // rejected by the mirror-collision guard.
+        private static void AppendProposedEntry(StringBuilder sb, CalibrationOutcome o) {
+            var scan = o.Scan;
+            if(scan == null || !scan.IsPlausible || !string.IsNullOrEmpty(o.OverrideRejectedNote))
+                return;
+            if(AutoCal.IsKnownBoard(o.ProductId))
+                return;
+
+            var cpu = scan.CpuFan;
+            var gpu = scan.GpuFan;
+
+            sb.AppendLine();
+            sb.AppendLine("## Proposed Database Entry");
+            sb.AppendLine();
+
+            bool bothLe16 = cpu != null && cpu.Mode == EcDiffScanner.Mode.LittleEndian16
+                         && gpu != null && gpu.Mode == EcDiffScanner.Mode.LittleEndian16;
+            if(bothLe16) {
+                sb.AppendLine("Both tachometers are 16-bit little-endian, so this board qualifies for a native `<Model>` entry in `OmenMon.xml` (register values are **decimal**):");
+                sb.AppendLine();
+                sb.AppendLine("```xml");
+                sb.AppendLine($"<FanSpeedReg0>{cpu.Offset}</FanSpeedReg0>  <!-- 0x{cpu.Offset:X2}, CPU fan tachometer -->");
+                sb.AppendLine($"<FanSpeedReg1>{gpu.Offset}</FanSpeedReg1>  <!-- 0x{gpu.Offset:X2}, GPU fan tachometer -->");
+                sb.AppendLine("```");
+                sb.AppendLine();
+                sb.AppendLine("_Maintainers: start the remaining registers from the closest sibling model in `OmenMon.xml`, then run the model-database tests._");
+            } else {
+                sb.AppendLine("At least one tachometer uses an encoding the `<Models>` XML schema cannot express, so this board needs a `KnownBoards` entry in `Library/AutoCal.cs`:");
+                sb.AppendLine();
+                sb.AppendLine("```csharp");
+                sb.AppendLine($"[\"{o.ProductId}\"] = new Mapping {{");
+                if(cpu != null)
+                    sb.AppendLine($"    CpuReg = 0x{cpu.Offset:X2}, CpuMode = EcDiffScanner.Mode.{cpu.Mode}, CpuMul = 0,");
+                if(gpu != null)
+                    sb.AppendLine($"    GpuReg = 0x{gpu.Offset:X2}, GpuMode = EcDiffScanner.Mode.{gpu.Mode}, GpuMul = 0,");
+                if(gpu == null)
+                    sb.AppendLine("    SingleFan = true,  // only one tachometer detected — verify the SKU really has a single fan");
+                sb.AppendLine("},");
+                sb.AppendLine("```");
+            }
+            sb.AppendLine();
+            sb.AppendLine("_Generated from this run's scan — cross-check against the Live RPM table above before merging._");
         }
 
         // Persist the report next to the executable so the user has a copy even if

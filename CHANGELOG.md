@@ -3,6 +3,103 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.8-reborn] - 2026-08-19
+
+> **Power management fixes and comprehensive hardware database updates.**
+> Resolves 10 issue reports covering hardware RPM mapping additions, MaxFan EC
+> freeze protection, battery fan program switching, and Omen Key handling.
+
+### Fixed
+
+- **Battery Fan Program Switching (`FanProgramDefaultAlt`) (#116).** Fixed an
+  issue where transitioning between AC and battery power did not switch to
+  `FanProgramDefaultAlt` when configured. `PowerChange()` and fan program actions
+  now reliably engage `FanProgramDefaultAlt` when disconnected from AC power.
+- **Omen Key Action Priority (#116).** Updated Omen key handler order so
+  `KeyCustomAction` takes precedence when explicitly enabled by the user instead
+  of being blocked by default key toggle flags.
+- **GPU Fan Tachometer Offset for HP Omen Max 16 `8D41` (#109).** Corrected GPU fan
+  register mapping from 0x9F to 0x70 (16-bit LE RPM, max ~6000 RPM) based on field dumps.
+
+### Added
+
+- **Freeze Guard (`HasMaxFanFreeze`) Protection (#100, #118).** Added HP Victus 16
+  (`8C9C`) to `HasMaxFanFreeze` to prevent EC lockups at 100% manual fan speed.
+- **Known Board RPM Mappings (#112, #114, #117).** Added built-in RPM mappings for:
+  - HP Victus 16-r1015nt (`8C99`, DirectMultiplier8 tachometers at 0x11/0x14, #112).
+  - HP OMEN 16 -xf0033dx (`8BCA`, 16-bit LE tachometers at 0xB0/0xB2, #114).
+  - HP OMEN / Victus (`8DD2`, 16-bit LE tachometers at 0xB0/0xB2, #117).
+
+## [1.4.7-reborn] - 2026-08-19
+
+> **Smarter calibration, richer field reports.** First instalment of the
+> v1.4.7 plan from `docs/ARCHITECTURE_AUDIT.md`: the auto-calibration heuristic
+> gains a return-to-idle verification pass that eliminates the timer/counter
+> false-positive class, calibration reports now end with a ready-to-merge
+> database entry, `-Probe` reports decode the well-known EC registers and state
+> how the board resolves against the model database, and the RPM-encoding
+> heuristics are now under direct unit-test coverage together with source-level
+> tripwires for the incident-derived guard ledger.
+
+### Added
+
+- **Return-to-idle verification in the Auto-Calibration Wizard.** A one-way
+  upward sweep cannot distinguish a fan tachometer from a register that merely
+  increases with time (tick counters, charge meters) — both rise monotonically
+  with the samples. After the sweep the wizard now commands the fans back to
+  the lowest profile step, settles, takes one more EC dump, and rejects every
+  candidate whose value did not move back toward its idle reading. Rejected
+  candidates are listed in the report with their evidence instead of silently
+  occupying a fan slot. Skipped after a plateau abort (the EC fan controller
+  may be unresponsive there) and on any capture failure, in which case the
+  legacy unverified scan runs unchanged.
+- **"Proposed Database Entry" section in calibration reports.** When the scan
+  finds tachometers on a board with no built-in mapping, the report now ends
+  with the exact change a maintainer needs: a decimal `<FanSpeedReg0/1>` XML
+  fragment when both fans are 16-bit little-endian, or a ready `KnownBoards`
+  C# snippet for encodings the `<Models>` schema cannot express.
+- **`-Probe` report upgrades.** New "Preset Resolution" section states the
+  Product ID and whether the board matches an `OmenMon.xml` `<Model>` entry, a
+  built-in `KnownBoards` RPM mapping, and/or an auto-calibration sidecar — so a
+  pasted report answers "is this model already supported?" without a follow-up
+  round. New "Well-Known Registers" table decodes the default-layout locations
+  (fan set/get, legacy LE16 tachometers, CPUT/GPTM temperatures, manual-control
+  and countdown bytes, performance mode, battery charge) from the first
+  snapshot, with annotations for the known firmware quirks (CPUT 52 = ASCII
+  firmware-string overlap, GPTM 0xFF = dGPU asleep).
+- **Heuristic scanner under unit test.** `EcDiffScanner` is link-compiled into
+  the .NET 8 test project (it is deliberately dependency-free) and covered by
+  regression tests built from real board signatures: classic 0xB0/0xB2 LE16,
+  8BD4-style byte×100 level mirrors, 8C77-style period encoding, the 8BB3
+  single-fan case (#81), write-register exclusion, slow-mover (temperature)
+  rejection, and the counter false-positive the verification pass eliminates.
+- **Guard-ledger tripwire tests.** Source-level tests now fail CI if the
+  `HasMaxFanFreeze` blacklist (8C30/8D07/8BAD/8E35/8C77/88F4/8748/8A50), a
+  curated `KnownBoards` entry, or a user-facing setting documented in
+  `OmenMon.xml` is removed, and if a new `ConfigData` field is added without
+  load/save plumbing in `Config.cs` (the 3-place-edit drift from the audit).
+- **Field-report model support.** Built-in read-only RPM mappings for two
+  single-fan boards from the issue tracker: the HP Victus 15-fa0031dx (`8A50`,
+  16-bit LE tachometer at 0xB0, #115) and the 2026 HP/HyperX OMEN Max 16
+  (`8E9A`, 16-bit LE tachometer at 0xC5, #110) — the auto-calibration sweep had
+  locked onto an adjacent temperature pair / found no GPU fan, so RPM read as
+  garbage / zero. Both decode their reported idle and maximum exactly and, being
+  read-only, fix the display without touching the fan-control path. Added
+  `HasMaxFanFreeze` protection for the Victus 15-fa0031dx (`8A50`, #115) and the
+  HP Omen 17-cb1004ur (`8748`, #111): both reported a fan-ceiling plateau in the
+  wizard (30 % and 70 % respectively), the 100 %-fan-freeze signature.
+
+### Fixed
+
+- **`-Ec` register dump no longer thrashes the EC lock (#108).** The CLI table
+  read all 256 registers with one independently-locked `Hw.EcGetByte` call
+  apiece, so while the tray app's background monitor held `Global\Access_EC` the
+  dump lost the race on many cells — it crawled and interleaved "failed to
+  acquire embedded controller exclusive lock" lines into the hex grid. It now
+  takes a single atomic `Hw.EcDump()` snapshot under one mutex hold, the same
+  path `-Probe` / `-Diag` already used, so `-Ec` is fast and clean whether or
+  not the GUI is running.
+
 ## [1.4.6-reborn] - 2026-06-12
 
 > **UI responsiveness restored + CLI restored + temperature-policy fix.**
