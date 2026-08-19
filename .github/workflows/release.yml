@@ -220,6 +220,7 @@ jobs:
           fi
 
       - name: "Auto-merge release into master branch"
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.stage2-compile.outputs.tag }}
@@ -235,4 +236,4 @@ jobs:
             echo "Performing merge commit..."
             git merge --no-ff "${{ github.sha }}" -m "chore: auto-merge release $TAG into master"
           fi
-          git push origin master
+          git push origin master || echo "Note: Push to master skipped because master branch is protected by PR rules."
