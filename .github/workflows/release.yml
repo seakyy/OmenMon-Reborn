@@ -132,7 +132,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-binaries
-          path: .
+          path: Bin
+
       - name: "Extract Release Notes from CHANGELOG.md"
         id: notes
         shell: bash
@@ -166,7 +167,12 @@ jobs:
           $tag = "${{ needs.stage2-compile.outputs.tag }}"
           $zipName = "OmenMon-$tag-Release.zip"
 
-          Copy-Item "Bin\OmenMon.exe" -Destination "OmenMon.exe" -Force
+          if (Test-Path "Bin\OmenMon.exe") {
+            Copy-Item "Bin\OmenMon.exe" -Destination "OmenMon.exe" -Force
+          }
+          if (Test-Path "Bin\OmenMon.xml") {
+            Copy-Item "Bin\OmenMon.xml" -Destination "OmenMon.xml" -Force
+          }
 
           $filesToZip = @(
             "ARCHITECTURE.md",
