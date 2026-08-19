@@ -245,6 +245,11 @@ namespace OmenMon.Hardware.Platform {
         //   8A50 — HP Victus 15-fa0031dx (2023, single-fan) — issue #115 (nean24, AutoCal
         //          plateau at 30 % and "max fan does nothing"; one ~1.6 kRPM fan at 0xB0,
         //          far below the headroom the 100 % path assumes.)
+        //   8A4F — HP Victus 15 (2023)                    — issue #107 (richardcofie). AutoCal
+        //          plateau-detector tripped at 30 %: live RPM collapsed to idle (CPU 5109→1585,
+        //          GPU 4418→1597) instead of climbing, the physical-ceiling signature. Fan regs
+        //          are PeriodEncoded8 (CPU 0x2E, GPU 0x2F), so — like 8C77 — RPM stays
+        //          sidecar-only and this list is the protection that applies.
         //
         // Call-sites:
         //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
@@ -264,6 +269,7 @@ namespace OmenMon.Hardware.Platform {
                 case "88F4":
                 case "8748":
                 case "8A50":
+                case "8A4F":
                     return true;
                 default:
                     return false;
