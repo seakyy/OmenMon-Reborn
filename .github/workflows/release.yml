@@ -187,15 +187,11 @@ jobs:
           $tag = "${{ needs.stage2-compile.outputs.tag }}"
           $zipHash = (Get-FileHash -Algorithm SHA256 -Path $zipName).Hash.ToLower()
           $exeHash = (Get-FileHash -Algorithm SHA256 -Path "OmenMon.exe").Hash.ToLower()
-          $shaContent = @"
-# OmenMon-Reborn $tag — SHA-256 checksums
-# Build #$env:GITHUB_RUN_NUMBER * $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC
-# Verify on Windows: Get-FileHash -Algorithm SHA256 <file>
-
-$zipHash  $zipName
-$exeHash  OmenMon.exe
-"@
-          Set-Content -Path "SHA256SUMS.txt" -Value $shaContent
+          $header1 = "# OmenMon-Reborn $tag - SHA-256 checksums"
+          $header2 = "# Verify on Windows: Get-FileHash -Algorithm SHA256 <file>"
+          $lineZip = "$zipHash  $zipName"
+          $lineExe = "$exeHash  OmenMon.exe"
+          Set-Content -Path "SHA256SUMS.txt" -Value @($header1, $header2, "", $lineZip, $lineExe)
           Get-Content "SHA256SUMS.txt"
 
       - name: "Publish GitHub Release"
