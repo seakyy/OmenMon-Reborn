@@ -506,9 +506,58 @@ namespace OmenMon.Library {
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
-            // HP OMEN / Victus (8DD2, 2025/2026) — issue #117, reported by @bobshmo.
+            // HP OMEN / Victus (8DD2, 2025/2026) — issue #117, #126, reported by @bobshmo / @Matt0084.
             // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
             ["8DD2"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP OMEN 16-xd series (8BCD, 2024) — issue #119, #125, reported by @MrGigaFish / @keonerf.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8BCD"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP OMEN 15-en0xxx (8788, 2020) — issue #120, reported by @Bharadwaj-R.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8788"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Victus 15-fa1033nn (8C2E, 2025) — issue #121, reported by @Sent1nelllll.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8C2E"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // OMEN MAX Gaming Laptop 16z-ak000 (8D88, 2025) — issue #122, reported by @Big-ol-Corgi.
+            // 16-bit LE tachometers at 0x60 (CPU) / 0x70 (GPU).
+            ["8D88"] = new Mapping {
+                CpuReg = 0x60, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0x70, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Victus 15-fa1035nt (8BB1, 2023) — issue #123, reported by @Nicholas-Arda.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8BB1"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP OMEN 15-en1004ns (88D2, 2021) — issue #124, reported by @keewan.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["88D2"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Victus 15-fa2082wm (8DCD, 2025) — issue #127, reported by @karlwithmanyks.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8DCD"] = new Mapping {
                 CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },

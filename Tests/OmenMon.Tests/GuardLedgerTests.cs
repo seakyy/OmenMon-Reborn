@@ -46,6 +46,7 @@ namespace OmenMon.Tests {
         [InlineData("8748")]
         [InlineData("8A50")]
         [InlineData("8C9C")]
+        [InlineData("8BAB")]
         public void MaxFanFreezeList_StillContains(string productId) {
             var source = Source(Path.Combine("Hardware", "FanArray.cs"));
             Assert.Matches(
@@ -72,6 +73,13 @@ namespace OmenMon.Tests {
         [InlineData("8C99")]
         [InlineData("8BCA")]
         [InlineData("8DD2")]
+        [InlineData("8BCD")]
+        [InlineData("8788")]
+        [InlineData("8C2E")]
+        [InlineData("8D88")]
+        [InlineData("8BB1")]
+        [InlineData("88D2")]
+        [InlineData("8DCD")]
         public void KnownBoards_StillContains(string productId) {
             var source = Source(Path.Combine("Library", "AutoCal.cs"));
             Assert.Contains("[\"" + productId + "\"]", source);
