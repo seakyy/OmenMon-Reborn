@@ -1,0 +1,74 @@
+#
+#  //\\   OmenMon: Hardware Monitoring & Control Utility
+# //  \\  Copyright © 2023-2026 Piotr Szczepański & seakyy * License: GPL3
+#     //  https://omenmon.github.io/
+#
+# OmenMon Continuous Integration (CI) Workflow
+# Stage 1: Unit Tests
+# Stage 2: Compile Executable
+
+name: "OmenMon CI"
+run-name: "CI Build & Test #${{ github.run_number }} (${{ github.ref_name }})"
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - 'release/*'
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage1-unit-tests:
+    name: "Stage 1: Unit Tests"
+    runs-on: windows-2022
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
+      - name: "Set up .NET 8 SDK"
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: "Run Unit Tests"
+        run: |
+          dotnet test Tests/OmenMon.Tests/OmenMon.Tests.csproj -c Release --nologo
+
+  stage2-compile:
+    name: "Stage 2: Compile Executable"
+    needs: stage1-unit-tests
+    runs-on: windows-2022
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
+      - name: "Set up .NET 8 SDK"
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: "Set up MSBuild"
+        uses: microsoft/setup-msbuild@v2
+
+      - name: "Build Solution with Root OmenMon.xml"
+        run: |
+          msbuild -m -noLogo /restore -p:Configuration=Release -t:Rebuild OmenMon.sln
+
+      - name: "Upload CI Artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmenMon-CI-Binaries
+          path: |
+            Bin/OmenMon.exe
+            Bin/OmenMon.xml
+          if-no-files-found: error
