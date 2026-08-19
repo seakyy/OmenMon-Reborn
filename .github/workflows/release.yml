@@ -6,7 +6,7 @@
 # OmenMon Automated Release Workflow
 # Stage 1: Unit Tests
 # Stage 2: Compile Executable
-# Stage 3: Package ZIP & Publish Release
+# Stage 3: Package ZIP, Publish Release & Auto-Merge to Master
 
 name: "OmenMon Release"
 run-name: "Release ${{ github.ref_name }}"
@@ -213,3 +213,21 @@ jobs:
               --title "OmenMon $TAG" \
               --notes-file release-notes.md
           fi
+
+      - name: "Auto-merge release into master branch"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.stage2-compile.outputs.tag }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout master
+          if git merge --ff-only "${{ github.sha }}"; then
+            echo "Fast-forward merge successful."
+          else
+            echo "Performing merge commit..."
+            git merge --no-ff "${{ github.sha }}" -m "chore: auto-merge release $TAG into master"
+          fi
+          git push origin master
