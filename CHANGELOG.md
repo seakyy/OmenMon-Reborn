@@ -3,7 +3,34 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.4.7-reborn] - Unreleased
+## [1.4.8-reborn] - 2026-08-19
+
+> **Power management fixes and comprehensive hardware database updates.**
+> Resolves 10 issue reports covering hardware RPM mapping additions, MaxFan EC
+> freeze protection, battery fan program switching, and Omen Key handling.
+
+### Fixed
+
+- **Battery Fan Program Switching (`FanProgramDefaultAlt`) (#116).** Fixed an
+  issue where transitioning between AC and battery power did not switch to
+  `FanProgramDefaultAlt` when configured. `PowerChange()` and fan program actions
+  now reliably engage `FanProgramDefaultAlt` when disconnected from AC power.
+- **Omen Key Action Priority (#116).** Updated Omen key handler order so
+  `KeyCustomAction` takes precedence when explicitly enabled by the user instead
+  of being blocked by default key toggle flags.
+- **GPU Fan Tachometer Offset for HP Omen Max 16 `8D41` (#109).** Corrected GPU fan
+  register mapping from 0x9F to 0x70 (16-bit LE RPM, max ~6000 RPM) based on field dumps.
+
+### Added
+
+- **Freeze Guard (`HasMaxFanFreeze`) Protection (#100, #118).** Added HP Victus 16
+  (`8C9C`) to `HasMaxFanFreeze` to prevent EC lockups at 100% manual fan speed.
+- **Known Board RPM Mappings (#112, #114, #117).** Added built-in RPM mappings for:
+  - HP Victus 16-r1015nt (`8C99`, DirectMultiplier8 tachometers at 0x11/0x14, #112).
+  - HP OMEN 16 -xf0033dx (`8BCA`, 16-bit LE tachometers at 0xB0/0xB2, #114).
+  - HP OMEN / Victus (`8DD2`, 16-bit LE tachometers at 0xB0/0xB2, #117).
+
+## [1.4.7-reborn] - 2026-08-19
 
 > **Smarter calibration, richer field reports.** First instalment of the
 > v1.4.7 plan from `docs/ARCHITECTURE_AUDIT.md`: the auto-calibration heuristic

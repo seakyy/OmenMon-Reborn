@@ -198,8 +198,21 @@ namespace OmenMon.AppGui {
         // Launches when the Omen key has been pressed
         public void KeyHandler(Gui.MessageParam lastParam) {
 
-            // Cycle color presets (takes priority over all other key actions)
-            if(Config.KeyToggleColorPreset) {
+            // If Omen key action is set to trigger a custom action
+            // (takes priority when explicitly enabled by user, issue #116)
+            if(Config.KeyCustomActionEnabled) {
+
+                // Launch the action
+                Process customAction = new Process();
+                customAction.StartInfo.FileName = Config.KeyCustomActionExecCmd;
+                customAction.StartInfo.Arguments = Config.KeyCustomActionExecArgs;
+                customAction.StartInfo.UseShellExecute = false; // Required for environment change
+                customAction.StartInfo.WindowStyle = Config.KeyCustomActionMinimized ?
+                    ProcessWindowStyle.Minimized : ProcessWindowStyle.Normal;
+                customAction.Start();
+
+            // Cycle color presets
+            } else if(Config.KeyToggleColorPreset) {
 
                 // Serialise the keyboard-colour read/write with the monitor thread
                 lock(this.HardwareLock)
@@ -237,7 +250,7 @@ namespace OmenMon.AppGui {
                                 } catch { }
 
                             // Run the next fan program
-                            this.Program.Run(next);
+                            this.Program.Run(next, !this.FullPower);
 
                         // Configured to toggle
                         // default fan program on and off
@@ -247,9 +260,13 @@ namespace OmenMon.AppGui {
                             if(this.Program.IsEnabled)
                                 this.Program.Terminate();
 
-                            // Run the default program, if no program running
-                            else
-                                this.Program.Run(Config.FanProgramDefault);
+                            // Run the default program, if no program running (or alt if on battery, issue #116)
+                            else {
+                                string progToRun = this.FullPower
+                                    ? Config.FanProgramDefault
+                                    : (string.IsNullOrEmpty(Config.FanProgramDefaultAlt) ? Config.FanProgramDefault : Config.FanProgramDefaultAlt);
+                                this.Program.Run(progToRun, !this.FullPower);
+                            }
 
                         }
 
@@ -379,16 +396,16 @@ namespace OmenMon.AppGui {
             // is off or no fan program is active.
             this.FullPower = live;
 
-            // Only if a fan program is active, if configured to do so,
-            // and if the power state actually changed from the last-recorded
-            if(changed && Config.AutoConfig && this.Program.IsEnabled) {
+            // Apply default or alternate fan program if configured
+            if(changed && Config.AutoConfig && (this.Program.IsEnabled || !string.IsNullOrEmpty(Config.FanProgramDefaultAlt))) {
 
-                // Apply the default fan program,
-                // or the alternative program if no AC
-                if(this.FullPower)
-                    this.Program.Run(Config.FanProgramDefault);
-                else
-                    this.Program.Run(Config.FanProgramDefaultAlt, true);
+                // Apply the default fan program on AC, or alternative program if on battery
+                string progToRun = this.FullPower
+                    ? Config.FanProgramDefault
+                    : (string.IsNullOrEmpty(Config.FanProgramDefaultAlt) ? Config.FanProgramDefault : Config.FanProgramDefaultAlt);
+
+                if(!string.IsNullOrEmpty(progToRun))
+                    this.Program.Run(progToRun, !this.FullPower);
 
             }
 

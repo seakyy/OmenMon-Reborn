@@ -420,19 +420,11 @@ namespace OmenMon.Library {
                 SingleFan = true,
             },
 
-            // HP Omen Max 16 (8D41, 2025) — issue #87, reported by @Keith1341.
-            // The wizard's live-RPM column read blank because Fan.GetSpeed() fell back
-            // to the default 0xB0/0xB2 preset (wrong for this 2025 "Omen Max" layout),
-            // but the EcDiffScanner candidates and the raw EC dumps agree on 16-bit LE
-            // tachometers at 0x5C (CPU) / 0x9F (GPU). Decoded from the report's 100% step:
-            // EC[0x5C..0x5D] = 80 16 → 0x1680 = 5760 RPM (CPU) and EC[0x9F..0xA0] = 85 19
-            // → 0x1985 = 6533 RPM (GPU), matching the reported maxima exactly; the 0% step
-            // reads 0/0. Read-only mapping only — no fan-control registers are committed
-            // for this new layout (a wrong ManualReg/ModeReg could lock the EC), so this
-            // fixes the RPM display without risking the 100%-fan freeze class of bug.
+            // HP Omen Max 16 (8D41, 2025) — issue #87, #109.
+            // 16-bit LE tachometers at 0x5C (CPU) / 0x70 (GPU).
             ["8D41"] = new Mapping {
                 CpuReg = 0x5C, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
-                GpuReg = 0x9F, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+                GpuReg = 0x70, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
             // HP OMEN 17 ck1000nw (8A18, 2022) — issue #84, reported by @xenon205.
@@ -498,6 +490,27 @@ namespace OmenMon.Library {
                 CpuReg = 0xC5, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0, GpuMode = default(EcDiffScanner.Mode), GpuMul = 0,
                 SingleFan = true,
+            },
+
+            // HP Victus 16-r1015nt (8C99, 2024) — issue #112, reported by @serhatta.
+            // DirectMultiplier8 tachometers at EC[0x11] / EC[0x14].
+            ["8C99"] = new Mapping {
+                CpuReg = 0x11, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
+                GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
+            },
+
+            // HP OMEN 16 -xf0033dx (8BCA, 2023+) — issue #114, reported by @tapsyin.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8BCA"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP OMEN / Victus (8DD2, 2025/2026) — issue #117, reported by @bobshmo.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8DD2"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
         };
