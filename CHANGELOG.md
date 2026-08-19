@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.10-reborn] - 2026-08-19
+
+> **Batch resolution of 10 model database and hardware freeze issue reports.**
+> Fixes #129, Fixes #132, Fixes #133, Fixes #134, Fixes #135, Fixes #136, Fixes #137, Fixes #138, Fixes #140, Fixes #141.
+
+### Added
+
+- **Freeze Guard (`HasMaxFanFreeze`) Protection (Fixes #132, Fixes #137).** Added HP Victus 16
+  (`8BD4`) and HP Omen 16 (`8D3F`) to `HasMaxFanFreeze` to protect the Embedded Controller from
+  locking at 100% manual fan speed.
+- **Known Board RPM Mappings (Fixes #129, Fixes #133, Fixes #135, Fixes #136, Fixes #137, Fixes #138, Fixes #140, Fixes #141).** Added built-in RPM mappings for:
+  - OMEN 17-db1012nt (`8E10`, 16-bit LE tachometers at 0xB0/0xB2, #129).
+  - HP Victus 16-e0111ur (`88EE`, 16-bit LE tachometers at 0xB0/0xB2, #133).
+  - HP Victus 15-fbxxx (`8DD0`, 16-bit LE tachometers at 0xB0/0xB2, #134).
+  - HP Victus 15-Fa0119TX (`8A4F`, 16-bit LE tachometers at 0xB0/0xB2, #135).
+  - OMEN 15-dh1000sl (`8746`, 16-bit LE tachometers at 0xB0/0xB2, #136).
+  - HP Omen 16 - am0279tx (`8D3F`, 16-bit LE tachometers at 0xB0/0xB2, #137).
+  - HP Victus 16 r0133tx (`8BC2`, 16-bit LE tachometers at 0xB0/0xB2, #138).
+  - Victus by HP Gaming Laptop 15-fa 1xxx (`8BB1`, 16-bit LE tachometers at 0xB0/0xB2, #140).
+  - HP Omen Transcend 14 (`8C58`, 16-bit LE tachometers at 0xB0/0xB2, #141).
+
 ## [1.4.9-reborn] - 2026-08-19
 
 > **Batch resolution of 10 model database and hardware freeze issue reports.**

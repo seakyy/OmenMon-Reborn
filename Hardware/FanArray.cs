@@ -272,6 +272,8 @@ namespace OmenMon.Hardware.Platform {
                 case "8A4F":
                 case "8C9C":
                 case "8BAB":
+                case "8BD4":
+                case "8D3F":
                     return true;
                 default:
                     return false;
