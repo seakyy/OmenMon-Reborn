@@ -132,8 +132,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-binaries
-          path: Bin
-
+          path: .
       - name: "Extract Release Notes from CHANGELOG.md"
         id: notes
         shell: bash
