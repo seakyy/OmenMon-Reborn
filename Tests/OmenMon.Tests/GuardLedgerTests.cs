@@ -94,6 +94,7 @@ namespace OmenMon.Tests {
         [InlineData("8E41")]
         [InlineData("8BBE")]
         [InlineData("8A44")]
+        [InlineData("8BC1")]
         public void KnownBoards_StillContains(string productId) {
             var source = Source(Path.Combine("Library", "AutoCal.cs"));
             Assert.Contains("[\"" + productId + "\"]", source);
