@@ -1,4 +1,4 @@
-﻿  //\\   OmenMon: Hardware Monitoring & Control Utility
+  //\\   OmenMon: Hardware Monitoring & Control Utility
  //  \\  Copyright © 2023-2024 Piotr Szczepański * License: GPL3
      //  https://omenmon.github.io/
 // OmenMon-Reborn additions © 2026 seakyy
@@ -375,9 +375,27 @@ namespace OmenMon.AppGui {
                 // Apply the requested mode if it differs, or re-assert it when Max Fan was
                 // just released, so the fans actually return to the automatic curve
                 // (mirrors the main-window "Automatic" path in GuiFormMain).
-                if(fanModeAsk != fanModeNow || manualMaxReleased) {
+                if(fanModeAsk != fanModeNow || manualMaxReleased || fanModeAsk == BiosData.FanMode.Eco) {
                     Context.Op.Platform.Fans.SetMode(fanModeAsk);
                     applied = true;
+
+                    // OMEN Gaming Hub Performance Options (#102):
+                    // ECO mode: Quiet thermal policy + GPU Min power + Low Refresh Rate (60Hz)
+                    // Quiet mode: Quiet thermal policy + GPU Min power
+                    // Default mode: Default thermal policy + GPU Med power
+                    // Performance mode: Performance thermal policy + GPU Max power
+                    try {
+                        if(fanModeAsk == BiosData.FanMode.Eco) {
+                            Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Min));
+                            Os.SetRefreshRate(Config.PresetRefreshRateLow);
+                        } else if(fanModeAsk == BiosData.FanMode.Quiet || fanModeAsk == BiosData.FanMode.LegacyQuiet) {
+                            Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Min));
+                        } else if(fanModeAsk == BiosData.FanMode.Default || fanModeAsk == BiosData.FanMode.LegacyDefault) {
+                            Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Med));
+                        } else if(fanModeAsk == BiosData.FanMode.Performance || fanModeAsk == BiosData.FanMode.LegacyPerformance) {
+                            Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Max));
+                        }
+                    } catch { }
                 }
 
             }

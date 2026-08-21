@@ -470,6 +470,24 @@ namespace OmenMon.AppGui {
                 // Enable automatic fan in the selected mode
                 Context.Op.Platform.Fans.SetMode(fanModeAsk);
 
+                // OMEN Gaming Hub Performance Options (#102):
+                // ECO mode: Quiet thermal policy + GPU Min power + Low Refresh Rate (60Hz)
+                // Quiet mode: Quiet thermal policy + GPU Min power
+                // Default mode: Default thermal policy + GPU Med power
+                // Performance mode: Performance thermal policy + GPU Max power
+                try {
+                    if(fanModeAsk == BiosData.FanMode.Eco) {
+                        Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Min));
+                        Os.SetRefreshRate(Config.PresetRefreshRateLow);
+                    } else if(fanModeAsk == BiosData.FanMode.Quiet || fanModeAsk == BiosData.FanMode.LegacyQuiet) {
+                        Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Min));
+                    } else if(fanModeAsk == BiosData.FanMode.Default || fanModeAsk == BiosData.FanMode.LegacyDefault) {
+                        Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Med));
+                    } else if(fanModeAsk == BiosData.FanMode.Performance || fanModeAsk == BiosData.FanMode.LegacyPerformance) {
+                        Context.Op.Platform.System.SetGpuPower(new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Max));
+                    }
+                } catch { }
+
             }
 
             // Restore the default button look

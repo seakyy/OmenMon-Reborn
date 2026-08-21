@@ -50,6 +50,8 @@ namespace OmenMon.Hardware.Bios {
             LegacyPerformance =  1,  // 0x01 = 0b00000001
             LegacyCool        =  2,  // 0x02 = 0b00000010
             LegacyQuiet       =  3,  // 0x03 = 0b00000011
+            Eco               =  3,  // 0x03 = 0b00000011 (OMEN Gaming Hub ECO mode: Quiet thermal policy + GPU Min + 60Hz)
+            Quiet             =  3,  // 0x03 = 0b00000011 (OMEN Gaming Hub Quiet mode)
             LegacyExtreme     =  4,  // 0x04 = 0b00000100
             L8                =  4,  // 0x04 = 0b00000100
             L0                = 16,  // 0x10 = 0b00010000
@@ -389,7 +391,10 @@ namespace OmenMon.Hardware.Bios {
         public enum GpuPowerLevel : byte {
             Minimum = 0x00,  // Base TGP only
             Medium  = 0x01,  // Custom TGP
-            Maximum = 0x02   // Custom TGP & PPAB
+            Maximum = 0x02,  // Custom TGP & PPAB
+            Min     = 0x00,  // Base TGP only (alias)
+            Med     = 0x01,  // Custom TGP (alias)
+            Max     = 0x02   // Custom TGP & PPAB (alias)
         }
 
         // Graphics power settings data structure

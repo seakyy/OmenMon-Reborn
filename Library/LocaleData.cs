@@ -199,6 +199,8 @@ namespace OmenMon.Library.Locale {
                 ["GuiMenuActFanMax"] = "Maximum",
                 ["GuiMenuActFanModeCool"] = "Cool",
                 ["GuiMenuActFanModeDefault"] = "Default",
+                ["GuiMenuActFanModeEco"] = "ECO (Quiet & 60Hz)",
+                ["GuiMenuActFanModeQuiet"] = "Quiet",
                 ["GuiMenuActFanModeL0"] = "Legacy Level 0",
                 ["GuiMenuActFanModeL1"] = "Legacy Level 1",
                 ["GuiMenuActFanModeL2"] = "Legacy Level 2",
