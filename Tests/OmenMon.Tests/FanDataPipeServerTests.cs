@@ -27,27 +27,22 @@ namespace OmenMon.Tests {
 
         [Fact]
         public async Task EcCollisionAvoidance_PipeClientReceivesPublishedTelemetry() {
-            bool origConfig = FanDataPipeServer.Enabled;
-            try {
-                FanDataPipeServer.Enabled = true;
-                FanDataPipeServer.Instance.Publish(4500, 4200);
+            string testPipeName = "OmenMon_FanData_Test_" + Guid.NewGuid().ToString("N");
+            using (var server = new FanDataPipeServer(testPipeName)) {
+                server.Start();
+                server.Publish(4500, 4200);
 
-                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5))) {
-                    using (var client = new NamedPipeClientStream(".", FanDataPipeServer.PipeName, PipeDirection.In)) {
-                        await client.ConnectAsync(cts.Token);
-                        Assert.True(client.IsConnected);
+                using (var client = new NamedPipeClientStream(".", testPipeName, PipeDirection.In)) {
+                    await client.ConnectAsync(3000);
+                    Assert.True(client.IsConnected);
 
-                        byte[] buffer = new byte[256];
-                        int bytesRead = await client.ReadAsync(buffer, 0, buffer.Length, cts.Token);
-                        string received = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    byte[] buffer = new byte[256];
+                    int bytesRead = await client.ReadAsync(buffer, 0, buffer.Length);
+                    string received = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-                        Assert.Contains("\"cpu\":4500", received);
-                        Assert.Contains("\"gpu\":4200", received);
-                    }
+                    Assert.Contains("\"cpu\":4500", received);
+                    Assert.Contains("\"gpu\":4200", received);
                 }
-            } finally {
-                FanDataPipeServer.Instance.Stop();
-                FanDataPipeServer.Enabled = origConfig;
             }
         }
 

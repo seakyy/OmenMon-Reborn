@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -24,7 +25,9 @@
        If this include breaks, someone added an App/Hardware dependency to the
        scanner - keep it pure instead. -->
   <ItemGroup>
+    <Compile Include="..\..\Hardware\BiosData.cs" Link="Hardware\BiosData.cs" />
     <Compile Include="..\..\Hardware\EcDiffScanner.cs" Link="Hardware\EcDiffScanner.cs" />
+    <Compile Include="..\..\Library\Conv.cs" Link="Library\Conv.cs" />
     <Compile Include="..\..\Library\FanDataPipeServer.cs" Link="Library\FanDataPipeServer.cs" />
   </ItemGroup>
 

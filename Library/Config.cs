@@ -295,6 +295,23 @@ namespace OmenMon.Library {
                     FanProgramDefaultAlt =
                         GetString(xml, XmlPrefix + "FanProgramDefaultAlt");
 
+                    string customFanMode = GetString(xml, "//OmenMon/CustomPreset/Mode");
+                    if(!string.IsNullOrEmpty(customFanMode))
+                        CustomPresetFanMode = customFanMode;
+
+                    string customGpuPower = GetString(xml, "//OmenMon/CustomPreset/GpuPower");
+                    if(!string.IsNullOrEmpty(customGpuPower))
+                        CustomPresetGpuPower = customGpuPower;
+
+                    if(GetWord(xml, "//OmenMon/CustomPreset/MaxRpm", out value))
+                        CustomPresetMaxRpm = value;
+
+                    if(GetWord(xml, "//OmenMon/CustomPreset/Fan0Level", out value) && value <= byte.MaxValue)
+                        CustomPresetCpuLevel = (byte) value;
+
+                    if(GetWord(xml, "//OmenMon/CustomPreset/Fan1Level", out value) && value <= byte.MaxValue)
+                        CustomPresetGpuLevel = (byte) value;
+
                     if(GetBool(xml, XmlPrefix + "FanProgramModeCheckFirst", out flag))
                         FanProgramModeCheckFirst = flag;
 
@@ -668,6 +685,13 @@ namespace OmenMon.Library {
                     SetUInt(xml, XmlPrefix + "ThermalPanicTemperature", ThermalPanicTemperature);
                     SetUInt(xml, XmlPrefix + "ThermalPanicHysteresis", ThermalPanicHysteresis);
                     SetBool(xml, XmlPrefix + "TemperatureUseFahrenheit", TemperatureUseFahrenheit);
+
+                    // Save custom preset parameters directly inside OmenMon.xml
+                    SetString(xml, "//OmenMon/CustomPreset/Mode", CustomPresetFanMode);
+                    SetString(xml, "//OmenMon/CustomPreset/GpuPower", CustomPresetGpuPower);
+                    SetUInt(xml, "//OmenMon/CustomPreset/MaxRpm", (uint) CustomPresetMaxRpm);
+                    SetUInt(xml, "//OmenMon/CustomPreset/Fan0Level", CustomPresetCpuLevel);
+                    SetUInt(xml, "//OmenMon/CustomPreset/Fan1Level", CustomPresetGpuLevel);
 
                     // Color presets (so that the settings are sorted alphabetically)
                     // Ensure the parent element node exists, or create it

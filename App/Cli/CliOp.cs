@@ -107,6 +107,8 @@ namespace OmenMon.AppCli {
 
                                     // Set the fan performance mode to the values parsed from the command line
                                     case "fanmode":
+                                    case "performance":
+                                    case "performancemode":
                                         BiosSet<BiosData.FanMode>(Config.Locale.Get(Config.L_CLI_BIOS + "FanMode"), opArgs[1], Hw.Bios.SetFanMode, "ErrNeedValueFanMode|DataSyntaxFanMode");
                                         break;
 

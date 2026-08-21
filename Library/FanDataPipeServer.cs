@@ -38,8 +38,11 @@ namespace OmenMon.Library {
         private bool _hasData;
 
         public bool IsRunning => _running;
+        public string ActivePipeName { get; }
 
-        private FanDataPipeServer() { }
+        public FanDataPipeServer(string pipeName = PipeName) {
+            ActivePipeName = pipeName;
+        }
 
         public static string FormatJson(int cpuRpm, int gpuRpm) {
             return string.Format("{{\"cpu\":{0},\"gpu\":{1}}}\n",
@@ -106,11 +109,11 @@ namespace OmenMon.Library {
                 NamedPipeServerStream? pipe = null;
                 try {
                     pipe = new NamedPipeServerStream(
-                        PipeName,
+                        ActivePipeName,
                         PipeDirection.Out,
-                        1,
+                        NamedPipeServerStream.MaxAllowedServerInstances,
                         PipeTransmissionMode.Byte,
-                        PipeOptions.None);
+                        PipeOptions.Asynchronous);
 
                     lock (_lock) {
                         _activePipe = pipe;
@@ -118,13 +121,9 @@ namespace OmenMon.Library {
 
                     _serverReady.Set();
 
-                    await Task.Run(() => {
-                        try {
-                            pipe.WaitForConnection();
-                        } catch { }
-                    }, token).ConfigureAwait(false);
+                    await pipe.WaitForConnectionAsync(token).ConfigureAwait(false);
 
-                    if (_hasData && pipe.IsConnected) {
+                    if (_hasData) {
                         lock (_lock) {
                             try {
                                 byte[] bytes = Encoding.UTF8.GetBytes(FormatJson(_latestCpuRpm, _latestGpuRpm));
