@@ -64,7 +64,8 @@ namespace OmenMon.Hardware.Bios {
             L7                = 49,  // 0x31 = 0b00110001 
             L3                = 64,  // 0x40 = 0b01000000
             Cool              = 80,  // 0x50 = 0b01010000
-            L4                = 80   // 0x50 = 0b01010000
+            L4                = 80,  // 0x50 = 0b01010000
+            Custom            = 99   // 0x63 = Custom user-defined preset
         }
 
         // Fan type (per nibble)

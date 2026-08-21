@@ -216,6 +216,7 @@ namespace OmenMon.Library.Locale {
                 ["GuiMenuActFanModeLegacyPerformance"] = "Legacy Performance",
                 ["GuiMenuActFanModeLegacyQuiet"] = "Legacy Quiet",
                 ["GuiMenuActFanModePerformance"] = "Performance",
+                ["GuiMenuActFanModeCustom"] = "Custom Preset",
                 ["GuiMenuActFanOff"] = "Off",
                 ["GuiMenuSubGpu"] = "Graphics",
                 ["GuiMenuActGpuDisplayColor"] = "Reload Color Profile",

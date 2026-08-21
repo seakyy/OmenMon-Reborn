@@ -21,8 +21,8 @@ namespace OmenMon.Tests {
             // Confirm Default maps to 48 (0x30)
             Assert.Equal((byte)48, (byte)BiosData.FanMode.Default);
 
-            // Confirm Performance maps to 49 (0x31)
-            Assert.Equal((byte)49, (byte)BiosData.FanMode.Performance);
+            // Confirm Custom maps to 99 (0x63)
+            Assert.Equal((byte)99, (byte)BiosData.FanMode.Custom);
         }
 
         [Theory]
@@ -30,6 +30,7 @@ namespace OmenMon.Tests {
         [InlineData("Quiet", BiosData.FanMode.Quiet)]
         [InlineData("Default", BiosData.FanMode.Default)]
         [InlineData("Performance", BiosData.FanMode.Performance)]
+        [InlineData("Custom", BiosData.FanMode.Custom)]
         public void FanMode_EnumParse_SupportsOmenGamingHubModes(string name, BiosData.FanMode expected) {
             BiosData.FanMode parsed = (BiosData.FanMode)Enum.Parse(typeof(BiosData.FanMode), name, true);
             Assert.Equal(expected, parsed);
