@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.5.0-reborn] - 2026-08-21
+
+> **Named Pipe Fan Telemetry Streaming & Multi-Tool Interoperability.**
+> Resolves #131.
+
+### Added
+
+- **Named Pipe Telemetry Streaming (`FanDataPipeServer`) (Fixes #131).** Added a named-pipe server (`\\.\pipe\OmenMon_FanData`) that streams live fan RPM telemetry as JSON lines (`{"cpu":4022,"gpu":3623}`). This allows third-party tools (such as DeltaT and HWiNFO) to read fan RPMs without accessing the Embedded Controller, avoiding PawnIO driver EC session collisions. Configurable via `<FanDataPipeServer>true</FanDataPipeServer>` in `OmenMon.xml`.
+- **Unit & Integration Tests for Interoperability (Fixes #131).** Added unit tests verifying JSON formatting, non-blocking pipe operations, configuration toggle handling, and client pipe reception in `FanDataPipeServerTests.cs`.
+
 ## [1.4.12-reborn] - 2026-08-21
 
 > **Model database additions and verification sweep for HP OMEN / Victus field reports.**

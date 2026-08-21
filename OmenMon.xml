@@ -58,6 +58,9 @@
              the whole machine to sleep. Released on the first user input.
              Set to false to restore the previous bare display-off behaviour. -->
         <DisplayOffKeepAwake>true</DisplayOffKeepAwake>
+        <!-- Publish fan RPM over a named pipe (\\.\pipe\OmenMon_FanData) to avoid EC
+             access collisions with other tools such as DeltaT (issue #131). -->
+        <FanDataPipeServer>true</FanDataPipeServer>
         <!-- Display temperatures in Fahrenheit instead of Celsius (default: false) -->
         <TemperatureUseFahrenheit>false</TemperatureUseFahrenheit>
         <!-- Thermal Panic Mode: force max fans + balloon alert when temperature threshold is reached -->

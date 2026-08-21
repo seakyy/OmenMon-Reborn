@@ -71,6 +71,11 @@ namespace OmenMon.Library {
         // Set to false to restore the bare SC_MONITORPOWER broadcast.
         public static bool DisplayOffKeepAwake = true;
 
+        // Named-pipe server for publishing live fan RPM telemetry to third-party tools
+        // (e.g. DeltaT, HWiNFO) to prevent EC access collisions on shared PawnIO drivers
+        // (issue #131). Publishes JSON lines to \\.\pipe\OmenMon_FanData.
+        public static bool FanDataPipeServer = true;
+
         // AC-flicker debounce. Some HP Omen / Victus SKUs briefly report AC as disconnected
         // (PowerLineStatus goes Online -> Offline -> Online for a few seconds) under load,
         // even though the laptop is physically plugged in. Without this guard, the AutoConfig

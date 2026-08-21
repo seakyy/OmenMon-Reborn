@@ -25,6 +25,7 @@
        scanner - keep it pure instead. -->
   <ItemGroup>
     <Compile Include="..\..\Hardware\EcDiffScanner.cs" Link="Hardware\EcDiffScanner.cs" />
+    <Compile Include="..\..\Library\FanDataPipeServer.cs" Link="Library\FanDataPipeServer.cs" />
   </ItemGroup>
 
 </Project>
