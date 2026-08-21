@@ -632,6 +632,12 @@ namespace OmenMon.Library {
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
 
+            // HP Victus 16-r0xxx (8BC1, 2023) — issue #157, reported by @ykz0608.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8BC1"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
