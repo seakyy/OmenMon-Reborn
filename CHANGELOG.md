@@ -5,6 +5,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.5.0-reborn] - 2026-09-19
+
+> **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**
+> Resolves #80, #102, #131, #159, #160, #162, #163, #164, #165, #166, #167, #168, #169, #170, #171, #172, #173, #174, #175, #176, #177, #178, #179, #180, #181, #182, #183, #184, #185, #186, #187, #188, #189, #190, #191, #192.
+
+### Added
+
+- **Named Pipe Fan Telemetry Streaming (`FanDataPipeServer`) (Fixes #131, PR #159).** Added an asynchronous named-pipe server (`\\.\pipe\OmenMon_FanData`) streaming real-time fan RPM telemetry formatted as JSON lines (`{"cpu":4022,"gpu":3623}\n`). This allows external monitoring software (e.g. DeltaT, HWiNFO) to consume fan telemetry without opening concurrent EC sessions, completely eliminating PawnIO driver collision risks. Configurable via `<FanDataPipeServer>true</FanDataPipeServer>` in `OmenMon.xml`.
+- **OMEN Gaming Hub Performance Presets & RPM Caps (Fixes #102, PR #160).** Added support for native OMEN Gaming Hub performance modes in the GUI and CLI:
+  - **ECO:** Quiet thermal policy + GPU minimum power + 60 Hz display refresh rate.
+  - **Quiet:** Quiet thermal policy with subdued fan acoustics.
+  - **Default:** Balanced factory thermal policy.
+  - **Performance:** Aggressive cooling curve and higher power targets.
+  - **Custom:** User-configurable RPM caps via `<CustomPresetCpuLevel>` and `<CustomPresetGpuLevel>`.
+  - Removed outdated legacy levels (L0–L8) from the main GUI dropdown while maintaining full backward compatibility in the configuration parser and CLI.
+- **Model Database & Hardware Compatibility Updates:**
+  - **HP Omen 16 - ap0016ns (`8D24`, Fixes #80):** Added native `<Model>` preset, `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2, and freeze guard protection in `FanArray.HasMaxFanFreeze`.
+  - **HP OMEN X 15-dg0xxx (`8572`, Fixes #162):** Added native `<Model>` preset and `KnownBoards` mapping with 16-bit LE tachometers at 0xC3 (CPU) / 0xB2 (GPU).
+  - **HP Victus 15-fa0xxx (`8A4F`, Fixes #163, Fixes #188):** Added native `<Model>` entry in `OmenMon.xml` with canonical tachometers at 0xB0/0xB2.
+  - **HP Omen 16-am0030ca (`8D2D`, Fixes #164):** Added native `<Model>` preset and `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2.
+  - **HP HyperX OMEN 15-gb0555AX (`8EEC`, Fixes #168):** Added native `<Model>` preset and `KnownBoards` mapping with 16-bit LE tachometers at 0x70 (CPU) / 0x89 (GPU).
+  - **HP Victus 15-fa2xxx (`8DCD`, Fixes #169, Fixes #178):** Added native `<Model>` entry with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN 16-wd0xxx (`8BA9`, Fixes #170, Fixes #172):** Added native `<Model>` entry with `TempCpuReg` mapped to 0xB2 (resolving 0x57 CPUT 255 °C reading and matching BIOS GetTemperature) and `FanSpeedReg` at 0xF1.
+  - **HP OMEN 15-dc1049np (`8575`, Fixes #171):** Added native `<Model>` preset and `KnownBoards` mapping with 16-bit LE tachometers at 0xC3 (CPU) / 0xB2 (GPU).
+  - **HP Victus 15-fb2xxx (`8C2F`, Fixes #174, Fixes #186):** Added native `<Model>` preset and `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN 15-en1004ns (`88D2`, Fixes #181):** Added native `<Model>` entry with canonical tachometers at 0xB0/0xB2.
+  - **HP Omen 17-db0012na (`8C75`, Fixes #182):** Added native `<Model>` preset and `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2.
+  - **HP HyperX OMEN Gaming Laptop 15-ga0xxx (`8ED6` / `8EDC`, Fixes #189):** Added native `<Model>` presets and `KnownBoards` mappings with 16-bit LE tachometers at 0x5C (CPU) / 0x70 (GPU).
+  - **HP Omen 16-c0020ca (`8902`, Fixes #190):** Added native `<Model>` preset, `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2, and freeze guard protection in `FanArray.HasMaxFanFreeze`.
+  - **HP Omen X 16 (`88FD`, Fixes #191, Fixes #192):** Added native `<Model>` preset, `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2, and freeze guard protection in `FanArray.HasMaxFanFreeze`.
+- **Unit & Integration Tests (Fixes #102, Fixes #131).** Added unit tests for named-pipe streaming in `FanDataPipeServerTests.cs`, performance mode mappings in `PerformanceModeTests.cs`, and automated schema validation for all new model presets in `ModelDatabaseTests.cs`.
+
+### Fixed & Verified
+
+- **HP Victus 16-s1xxx Fan Percentages (`8C9C`, Fixes #165).** Fixed stuck 75% / 88% fan percentages by remapping `FanRateReadReg0/1` to 0x3A/0x3B (which track commanded fan duty cycle) and setting `FanLevelReg1` to 0x14.
+- **HP OMEN Transcend 14 Freeze Protection (`8E41`, Fixes #166).** Added `8E41` to `FanArray.HasMaxFanFreeze` to prevent EC lockups on maximum fan commands.
+- **HP Victus 16-r0xx RPM Mapping & Freeze Guard (`8BC2`, Fixes #175).** Corrected `KnownBoards` mapping to DirectMultiplier8 at 0x11/0x14 (0xB0/0xB2 contain string bytes producing ~14k RPM when read as LE16) and added `8BC2` to `FanArray.HasMaxFanFreeze` after plateau detection at 70%.
+- **HP OMEN 16 RPM & Temperature Mapping (`8BCA`, Fixes #180).** Corrected `KnownBoards` mapping to DirectMultiplier8 at 0x11/0x14 (0xB0/0xB2 are temperatures ~45–55 °C, which previously decoded as bogus ~50 RPM) and added native `<Model>` entry with `TempCpuReg` at 0xB0 and `TempGpuReg` at 0xB2.
+- **HP Victus 16 / OMEN 16-b0xxx Tachometer Offsets (`88F4`, Fixes #183).** Corrected `FanSpeedReg0/1` in `OmenMon.xml` from 0x2E/0xB0 to canonical 0xB0 (176) / 0xB2 (178) and added to `KnownBoards`.
+- **HP OMEN 16-wf0xxx Fan Level & Tachometer Registers (`8BAB`, Fixes #185, Fixes #187).** Corrected fan speed and level registers to 0x11/0x14 (DirectMultiplier8 byte ×100) in both `OmenMon.xml` and `KnownBoards` (0xE3/0xE5 are static calibration values).
+- **HP Victus 15-fb3xxx (`8DD0`, #167, #173), HP Victus 16-s0xxx (`8BD4`, #176, #179, #184), HP OMEN 17 Ck-1xxx (`8A18`, #177).** Verified existing native presets and freeze protection operating as expected across multiple field devices.
+
 ## [1.4.12-reborn] - 2026-08-21
 
 > **Model database additions and verification sweep for HP OMEN / Victus field reports.**

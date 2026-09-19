@@ -71,6 +71,11 @@ namespace OmenMon.Library {
         // Set to false to restore the bare SC_MONITORPOWER broadcast.
         public static bool DisplayOffKeepAwake = true;
 
+        // Named-pipe server for publishing live fan RPM telemetry to third-party tools
+        // (e.g. DeltaT, HWiNFO) to prevent EC access collisions on shared PawnIO drivers
+        // (issue #131). Publishes JSON lines to \\.\pipe\OmenMon_FanData.
+        public static bool FanDataPipeServer = true;
+
         // AC-flicker debounce. Some HP Omen / Victus SKUs briefly report AC as disconnected
         // (PowerLineStatus goes Online -> Offline -> Online for a few seconds) under load,
         // even though the laptop is physically plugged in. Without this guard, the AutoConfig
@@ -172,9 +177,15 @@ namespace OmenMon.Library {
         // Whether to use the Embedded Controller instead of a BIOS call to set the fan level
         public static bool FanLevelUseEc = false;
 
-        // Fan modes that should always be placed on top of the list
-        // (the rest are legacy modes, irrelevant but kept for completeness)
-        public static List<string> FanModesSticky = new List<string> { "Default", "Performance", "Cool" };
+        // Clean user-facing performance mode presets (ECO, Quiet, Default, Performance, Custom)
+        public static List<string> FanModesSticky = new List<string> { "Eco", "Quiet", "Default", "Performance", "Custom" };
+
+        // Custom Preset parameters (saved directly inside OmenMon.xml)
+        public static string CustomPresetFanMode = "Default";
+        public static string CustomPresetGpuPower = "Medium";
+        public static int CustomPresetMaxRpm = 0; // 0 = default/uncapped
+        public static byte CustomPresetCpuLevel = 0;
+        public static byte CustomPresetGpuLevel = 0;
 
         // Fan programs (populated at runtime)
         public static SortedList<string, FanProgramData> FanProgram =

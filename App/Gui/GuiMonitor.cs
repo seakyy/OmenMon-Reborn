@@ -307,6 +307,7 @@ namespace OmenMon.AppGui {
                     s.FanLevel[i] = plat.Fans.Fan[i].GetLevel();
                     s.FanRate[i]  = plat.Fans.Fan[i].GetRate();
                 }
+                FanDataPipeServer.Instance.Publish(s.FanSpeed[0], s.FanSpeed[1]);
                 s.Countdown = plat.Fans.GetCountdown();
                 s.Max = plat.Fans.GetMax();
                 s.Off = plat.Fans.GetOff();

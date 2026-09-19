@@ -116,6 +116,7 @@
     <Compile Include="Hardware\PlatformPreset.cs" />
     <Compile Include="Hardware\Settings.cs" />
     <Compile Include="Library\AutoCal.cs" />
+    <Compile Include="Library\FanDataPipeServer.cs" />
     <Compile Include="Library\Config.cs" />
     <Compile Include="Library\ConfigData.cs" />
     <Compile Include="Library\Conv.cs" />
