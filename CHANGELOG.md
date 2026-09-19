@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**
-> Resolves #102, #131, #159, #160, #162, #163, #164, #165, #166, #167, #168, #169, #170, #171, #172, #173, #174, #175, #176, #178, #179, #180, #181, #182, #183, #184, #185, #186, #187, #188, #189.
+> Resolves #80, #102, #131, #159, #160, #162, #163, #164, #165, #166, #167, #168, #169, #170, #171, #172, #173, #174, #175, #176, #177, #178, #179, #180, #181, #182, #183, #184, #185, #186, #187, #188, #189, #190, #191, #192.
 
 ### Added
 
@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - **Custom:** User-configurable RPM caps via `<CustomPresetCpuLevel>` and `<CustomPresetGpuLevel>`.
   - Removed outdated legacy levels (L0–L8) from the main GUI dropdown while maintaining full backward compatibility in the configuration parser and CLI.
 - **Model Database & Hardware Compatibility Updates:**
+  - **HP Omen 16 - ap0016ns (`8D24`, Fixes #80):** Added native `<Model>` preset, `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2, and freeze guard protection in `FanArray.HasMaxFanFreeze`.
   - **HP OMEN X 15-dg0xxx (`8572`, Fixes #162):** Added native `<Model>` preset and `KnownBoards` mapping with 16-bit LE tachometers at 0xC3 (CPU) / 0xB2 (GPU).
   - **HP Victus 15-fa0xxx (`8A4F`, Fixes #163, Fixes #188):** Added native `<Model>` entry in `OmenMon.xml` with canonical tachometers at 0xB0/0xB2.
   - **HP Omen 16-am0030ca (`8D2D`, Fixes #164):** Added native `<Model>` preset and `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2.
@@ -32,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - **HP OMEN 15-en1004ns (`88D2`, Fixes #181):** Added native `<Model>` entry with canonical tachometers at 0xB0/0xB2.
   - **HP Omen 17-db0012na (`8C75`, Fixes #182):** Added native `<Model>` preset and `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2.
   - **HP HyperX OMEN Gaming Laptop 15-ga0xxx (`8ED6` / `8EDC`, Fixes #189):** Added native `<Model>` presets and `KnownBoards` mappings with 16-bit LE tachometers at 0x5C (CPU) / 0x70 (GPU).
+  - **HP Omen 16-c0020ca (`8902`, Fixes #190):** Added native `<Model>` preset, `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2, and freeze guard protection in `FanArray.HasMaxFanFreeze`.
+  - **HP Omen X 16 (`88FD`, Fixes #191, Fixes #192):** Added native `<Model>` preset, `KnownBoards` mapping with canonical tachometers at 0xB0/0xB2, and freeze guard protection in `FanArray.HasMaxFanFreeze`.
 - **Unit & Integration Tests (Fixes #102, Fixes #131).** Added unit tests for named-pipe streaming in `FanDataPipeServerTests.cs`, performance mode mappings in `PerformanceModeTests.cs`, and automated schema validation for all new model presets in `ModelDatabaseTests.cs`.
 
 ### Fixed & Verified
@@ -42,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **HP OMEN 16 RPM & Temperature Mapping (`8BCA`, Fixes #180).** Corrected `KnownBoards` mapping to DirectMultiplier8 at 0x11/0x14 (0xB0/0xB2 are temperatures ~45–55 °C, which previously decoded as bogus ~50 RPM) and added native `<Model>` entry with `TempCpuReg` at 0xB0 and `TempGpuReg` at 0xB2.
 - **HP Victus 16 / OMEN 16-b0xxx Tachometer Offsets (`88F4`, Fixes #183).** Corrected `FanSpeedReg0/1` in `OmenMon.xml` from 0x2E/0xB0 to canonical 0xB0 (176) / 0xB2 (178) and added to `KnownBoards`.
 - **HP OMEN 16-wf0xxx Fan Level & Tachometer Registers (`8BAB`, Fixes #185, Fixes #187).** Corrected fan speed and level registers to 0x11/0x14 (DirectMultiplier8 byte ×100) in both `OmenMon.xml` and `KnownBoards` (0xE3/0xE5 are static calibration values).
-- **HP Victus 15-fb3xxx (`8DD0`, #167, #173) & HP Victus 16-s0xxx (`8BD4`, #176, #179, #184).** Verified existing native presets and freeze protection operating as expected across multiple field devices.
+- **HP Victus 15-fb3xxx (`8DD0`, #167, #173), HP Victus 16-s0xxx (`8BD4`, #176, #179, #184), HP OMEN 17 Ck-1xxx (`8A18`, #177).** Verified existing native presets and freeze protection operating as expected across multiple field devices.
 
 ## [1.4.12-reborn] - 2026-08-21
 

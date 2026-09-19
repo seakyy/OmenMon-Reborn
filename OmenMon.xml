@@ -1081,6 +1081,57 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8D24: HP Omen 16-ap0016ns (2026) — issue #80, loxip.                                      -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8D24" DisplayName="HP Omen 16-ap0016ns (2026)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8902: HP Omen 16-c0020ca (2022) — issue #190.                                             -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x3A/0x3B write registers.                             -->
+            <Model ProductId="8902" DisplayName="HP Omen 16-c0020ca (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 88FD: HP Omen X 16 (2021) — issue #191, #192.                                             -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x3A/0x3B write registers.                             -->
+            <Model ProductId="88FD" DisplayName="HP Omen X 16 (2021)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>

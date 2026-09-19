@@ -708,6 +708,27 @@ namespace OmenMon.Library {
                 CpuReg = 0x5C, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0x70, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
+
+            // HP Omen 16 - ap0016ns (8D24, 2026) — issue #80, reported by @loxip.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8D24"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Omen 16-c0020ca (8902, 2022) — issue #190.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8902"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
+
+            // HP Omen X 16 (88FD, 2021) — issue #191, #192.
+            // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["88FD"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from
