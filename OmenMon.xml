@@ -445,6 +445,25 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8BAC: HP OMEN 16-wf0xxx (2023, i7-13700HX / RTX 4080, BIOS F.30). Fan levels go through the BIOS;
+                 0x11 is the CPU fan target, the GPU fan has no EC register. Mode register 0x59, temperatures 0xB2/0xB4.
+                 Rate, countdown, manual and switch registers are taken from 8BAB and have no observed effect here. -->
+            <Model ProductId="8BAC" DisplayName="HP Omen 16 (2023, wf0xxx, 8BAC)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>17</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>17</FanSpeedReg0>
+                <FanSpeedReg1>17</FanSpeedReg1>
+                <TempCpuReg>178</TempCpuReg>
+                <TempGpuReg>180</TempGpuReg>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>89</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
             <!-- 8A25: HP Victus 16-d1xxx (2022, 12th gen Intel) — GetMaxFan=True sets 0xFF at 0x34/0x35; rate regs confirmed at 0x2E/0x2F; Fan2=Unsupported -->
             <Model ProductId="8A25" DisplayName="HP Victus 16 (2022, d1xxx)">
                 <FanLevelReg0>52</FanLevelReg0>
