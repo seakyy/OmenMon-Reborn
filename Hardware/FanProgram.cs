@@ -262,9 +262,11 @@ namespace OmenMon.Hardware.Platform {
             if(gpuTemp == 0 && !this.Platform.HasObservedGpuTemperature()) gpuTemp = cpuTemp;
 
             // Independent level lookups: each fan reacts to its own
-            // component's temperature instead of the global maximum.
-            byte cpuLevel = GetTemperatureLevel(cpuTemp);
-            byte gpuLevel = GetTemperatureLevel(gpuTemp);
+            // component's temperature instead of the global maximum,
+            // unless configured to share it (common heat pipes)
+            byte sharedTemp = Math.Max(cpuTemp, gpuTemp);
+            byte cpuLevel = GetTemperatureLevel(Config.FanProgramSharedTemperature ? sharedTemp : cpuTemp);
+            byte gpuLevel = GetTemperatureLevel(Config.FanProgramSharedTemperature ? sharedTemp : gpuTemp);
 
             // Assemble the fan speed array: CPU fan speed from the CPU-temp
             // level row, GPU fan speed from the GPU-temp level row.
