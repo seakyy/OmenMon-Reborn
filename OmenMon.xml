@@ -126,6 +126,8 @@
         <FanProgramDefaultAlt>Silent</FanProgramDefaultAlt>
         <!-- Check first (using the EC) if the fan mode is not set already -->
         <FanProgramModeCheckFirst>false</FanProgramModeCheckFirst>
+        <!-- Both fans follow the higher of the CPU and GPU temperatures (shared heat pipes) -->
+        <FanProgramSharedTemperature>false</FanProgramSharedTemperature>
         <!-- Suspend fan program whenever the system enters low-power mode -->
         <FanProgramSuspend>true</FanProgramSuspend>
         <!-- Fan program definitions

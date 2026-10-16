@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`FanProgramSharedTemperature` option** (default `false`): both fans follow the higher of the CPU and GPU temperatures, for laptops whose CPU and GPU share heat pipes. On 8BAC under an 80 W GPU load: GPU peak 78 → 73 °C at about the same total fan speed.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**
