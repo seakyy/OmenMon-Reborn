@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Build without the .NET Framework 4.8 Developer Pack** (reference assemblies from NuGet), and the default version for local and CI builds is 1.5.0.0 instead of 1.4.11.0.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**
