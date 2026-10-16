@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **HP OMEN 16-wf0xxx (`8BAC`):** `KnownBoards` mapping; both fans read the measured speed from the BIOS fan level (×100). EC 0x11 is the CPU fan target, and the GPU fan has no EC register.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**

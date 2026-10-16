@@ -670,6 +670,15 @@ namespace OmenMon.Library {
                 GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
             },
 
+            // HP OMEN 16-wf0xxx (8BAC, RTX 4080 Laptop, BIOS F.30). The BIOS-reported fan level
+            // is the measured speed in units of 100 RPM: it ramps over ~15 s after a set and jitters
+            // by ±1 at steady state. EC[0x11] holds the CPU target (it jumps to a new set-point at
+            // once), and the EC has no GPU fan register (0x14 = 0xFF), so both fans mirror the BIOS.
+            ["8BAC"] = new Mapping {
+                CpuReg = 0, CpuMode = EcDiffScanner.Mode.BiosLevelMirror, CpuMul = 100,
+                GpuReg = 0, GpuMode = EcDiffScanner.Mode.BiosLevelMirror, GpuMul = 100,
+            },
+
             // HP Victus 15-fb2xxx (8C2F, 2024) — issue #174, #186, reported by @Vomitted / @alifkrisnowo064.
             // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
             ["8C2F"] = new Mapping {
