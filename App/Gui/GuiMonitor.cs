@@ -442,7 +442,8 @@ namespace OmenMon.AppGui {
             if(++this.ProgramTick >= Config.UpdateProgramInterval) {
                 this.ProgramTick = 0;
                 lock(op.HardwareLock) {
-                    if(op.Program.IsEnabled)
+                    // Paused while thermal panic holds the fans at the fallback levels
+                    if(op.Program.IsEnabled && !op.IsPanicLevelOverride)
                         programRefreshedTemps = op.Program.Update();
                     else if(Config.FanCountdownExtendAlways)
                         op.Program.UpdateCountdown(false, true);

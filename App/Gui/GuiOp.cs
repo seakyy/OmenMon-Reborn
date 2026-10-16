@@ -52,6 +52,13 @@ namespace OmenMon.AppGui {
         private volatile bool _isThermalPanic;
         public bool IsThermalPanic { get { return this._isThermalPanic; } private set { this._isThermalPanic = value; } }
 
+        // Fan levels held during thermal panic on boards whose BIOS acknowledges but ignores
+        // Max Fan (observed on 8BAC); null while panic relies on Max Fan alone. Set levels
+        // expire after about 120 s on such boards, so they are re-sent on every panic check,
+        // and the fan program is paused meanwhile so that it does not lower them again
+        private volatile byte[] _panicLevels;
+        public bool IsPanicLevelOverride { get { return this._panicLevels != null; } }
+
         // Constructs the operation-running class
         public GuiOp(GuiTray context) {
 
@@ -318,8 +325,43 @@ namespace OmenMon.AppGui {
         public void ClearThermalPanic() {
             if(IsThermalPanic) {
                 IsThermalPanic = false;
-                Platform.Fans.SetMax(false);
+                StopPanicFans();
             }
+        }
+
+        // Forces the fans to maximum: Max Fan first, then, if the BIOS does not report
+        // it as active, the highest levels from the BIOS fan table
+        private void StartPanicFans() {
+            Platform.Fans.SetMax(true);
+            this._panicLevels = null;
+            try {
+                if(!Platform.Fans.GetMax()) {
+                    BiosData.FanTable table = Hw.BiosGet(Hw.Bios.GetFanTable);
+                    byte cpu = 0, gpu = 0;
+                    foreach(BiosData.FanLevel level in table.Level) {
+                        if(level.Fan1Level > cpu) cpu = level.Fan1Level;
+                        if(level.Fan2Level > gpu) gpu = level.Fan2Level;
+                    }
+                    if(cpu > 0 && gpu > 0) {
+                        this._panicLevels = new byte[] { cpu, gpu };
+                        Platform.Fans.SetLevels(this._panicLevels);
+                    }
+                }
+            } catch { }
+        }
+
+        // Re-sends the panic fan levels so that they do not expire while panic lasts
+        private void RefreshPanicFans() {
+            byte[] levels = this._panicLevels;
+            if(levels != null)
+                try { Platform.Fans.SetLevels(levels); } catch { }
+        }
+
+        // Ends forced maximum fan speed; levels set during panic are not lowered here,
+        // they expire on their own or are replaced by the fan program on its next update
+        private void StopPanicFans() {
+            this._panicLevels = null;
+            Platform.Fans.SetMax(false);
         }
 
         // Checks temperature and activates or deactivates Thermal Panic Mode
@@ -331,7 +373,7 @@ namespace OmenMon.AppGui {
             if(!Config.ThermalPanicEnabled) {
                 if(IsThermalPanic) {
                     IsThermalPanic = false;
-                    Platform.Fans.SetMax(false);
+                    StopPanicFans();
                 }
                 return;
             }
@@ -339,7 +381,7 @@ namespace OmenMon.AppGui {
             if(!IsThermalPanic && maxTemp >= Config.ThermalPanicTemperature) {
 
                 IsThermalPanic = true;
-                Platform.Fans.SetMax(true);
+                StartPanicFans();
 
                 string tempStr = Config.TemperatureUseFahrenheit
                     ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
@@ -362,7 +404,7 @@ namespace OmenMon.AppGui {
                 if(maxTemp <= offThreshold) {
 
                     IsThermalPanic = false;
-                    Platform.Fans.SetMax(false);
+                    StopPanicFans();
 
                     string tempStr = Config.TemperatureUseFahrenheit
                         ? ((maxTemp * 9 / 5) + 32) + "°F (" + maxTemp + "°C)"
@@ -372,6 +414,11 @@ namespace OmenMon.AppGui {
                         "Temperature normalized (" + tempStr + ") — fan control restored.",
                         "OmenMon — Thermal Panic",
                         ToolTipIcon.Info);
+
+                } else {
+
+                    // Still too hot: keep the fallback levels from expiring
+                    RefreshPanicFans();
 
                 }
 
