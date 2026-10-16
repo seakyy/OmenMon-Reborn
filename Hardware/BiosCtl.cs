@@ -275,7 +275,14 @@ namespace OmenMon.Hardware.Bios {
         }
 
         // Updates the GPU power settings to those passed in a structure
+        // A zero peak temperature (as left by the preset constructor) is stored by the BIOS as-is,
+        // so keep the current threshold, or fall back to 87°C (0x57) as the OEM application sends
         public void SetGpuPower(GpuPowerData data) {
+            if(data.PeakTemperature == 0) {
+                byte current = 0;
+                try { current = GetGpuPower().PeakTemperature; } catch { }
+                data.PeakTemperature = current != 0 ? current : (byte) 0x57;
+            }
             Check(Send(Cmd.Default, 0x22, Conv.GetByteArray(data)));
         }
 
