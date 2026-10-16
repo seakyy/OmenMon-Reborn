@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **GPU power presets no longer write a peak temperature of 0.** `SetGpuPower` keeps the current threshold, or falls back to 87 °C (0x57), when a preset leaves it at 0.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**
