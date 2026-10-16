@@ -332,6 +332,12 @@ namespace OmenMon.Hardware.Bios {
 
         // Updates the current speed level for each fan
         public void SetFanLevel(byte[] data) {
+            // Some boards (observed on 8BAC, BIOS F.30) acknowledge 0x2E but ignore it unless a
+            // fan count query with a 1-byte input comes right before it; the Linux hp-wmi driver
+            // sends the same query first. The level then holds for about 120 s, so it has to be
+            // re-sent periodically (a fan program does this on every update)
+            byte[] countData;
+            Send(Cmd.Default, 0x10, new byte[1] {0x00}, 4, out countData);
             // Note: this call will always check for BIOS error and throw an exception if it occurred
             Check(Send(Cmd.Default, 0x2E, new byte[4] {(byte) data[0], (byte) data[1], 0x00, 0x00}), true);
         }

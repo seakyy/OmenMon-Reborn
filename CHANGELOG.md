@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Manual fan levels on boards that need a pre-call (8BAC).** `SetFanLevel` sends a fan count query (type 0x10, 1-byte input) right before the fan level call (type 0x2E), like the Linux hp-wmi driver. Harmless on boards that do not need it.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**
