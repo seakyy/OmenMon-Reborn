@@ -729,6 +729,17 @@ namespace OmenMon.Library {
                 CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
             },
+
+            // HP OMEN 15 (878A, 2020). Canonical legacy 16-bit LE tachometers at 0xB0 / 0xB2,
+            // verified against a 0/30/70/100 % sweep. Pinned here so the RPM display is correct
+            // out of the box and Load()'s collision self-heal has a verified fallback.
+            // CollidesWithNativePreset() returns false for this board (176 != 178), so the XML
+            // preset and this mapping coexist without fighting. Read-only mapping: fan *control*
+            // stays on the XML preset's registers.
+            ["878A"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
         };
 
         // Pre-populates AutoCal overrides for a known board, *per fan*. Called from

@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Graphical Fan Curve Editor (Fixes #193).** New tray menu entry **Fan → Fan Curve Editor...** opening a modal editor for multi-point fan curves:
+  - `Hardware/FanCurve.cs` — pure, dependency-free curve mathematics: `BinarySearch`/`LookupThreshold` (byte-for-byte parity with `FanProgram.GetTemperatureLevel`, including the bitwise-complement insertion-point convention), `LookupLevels`, validation and clamping, `ResolveWritableCeiling` (freeze guard) and `ToPoints`/`TryBuildLevels` round-tripping.
+  - `App/Gui/GuiFanCurveCanvas.cs` — custom-painted `Panel` that draws the curve as a **step function** (matching the EC's floor-to-threshold semantics) with a translucent fill, a live dashed CPU/GPU temperature overlay, and drag/add/remove/arrow-key-nudge node editing.
+  - `App/Gui/GuiFormFanCurve.cs` — the dialog: profile picker with New/Rename/Delete, fan mode and GPU power selectors, per-point CPU/GPU level editors, live read-out, *Run preview* that applies the curve to the hardware while you edit, and Save/Close with a dirty-state guard.
+  - Curves are persisted as ordinary `<FanProgram>` entries in `OmenMon.xml`, so they interoperate with the existing tray menu entries and the import/export actions. Deleting a profile referenced by `FanProgramDefault`/`FanProgramDefaultAlt`, or the last remaining profile, is refused.
+  - **Freeze guard integration:** on boards listed in `FanArray.HasMaxFanFreeze` the writable level ceiling is reduced by one and a red notice is shown; lifting the cap requires the existing `GuiOp.ConfirmMaxFanIfRisky` opt-in.
+  - **Lock discipline:** the dialog takes `HardwareLock` only around individual `FanProgram` start/stop calls, never for the lifetime of the window, so monitoring keeps running while the editor is open.
+- **`FanCurveTests.cs`** — 41 new tests covering parity with `FanProgram.GetTemperatureLevel` over 0–130 °C for sparse, single-point and dense curves, clamp-below-curve, stepwise (non-linear) behaviour, exact hits, empty curves, range clamping, the freeze guard, round-tripping, and rejection of duplicate/empty/over-ceiling/out-of-range input.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**

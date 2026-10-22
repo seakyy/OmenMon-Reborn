@@ -85,6 +85,10 @@
     <Compile Include="App\Gui\GuiFormCalibration.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="App\Gui\GuiFormFanCurve.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="App\Gui\GuiFanCurveCanvas.cs" />
     <Compile Include="App\Gui\GuiCalibrationProcessGuard.cs" />
     <Compile Include="App\Gui\GuiKbd.cs" />
     <Compile Include="App\Gui\GuiTray.cs" />
@@ -108,6 +112,7 @@
     <Compile Include="Hardware\EcDiffScanner.cs" />
     <Compile Include="Hardware\Fan.cs" />
     <Compile Include="Hardware\FanArray.cs" />
+    <Compile Include="Hardware\FanCurve.cs" />
     <Compile Include="Hardware\FanProgram.cs" />
     <Compile Include="Hardware\AutoDetector.cs" />
     <Compile Include="Hardware\Platform.cs" />

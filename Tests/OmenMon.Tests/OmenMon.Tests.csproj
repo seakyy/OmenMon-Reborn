@@ -27,6 +27,7 @@
   <ItemGroup>
     <Compile Include="..\..\Hardware\BiosData.cs" Link="Hardware\BiosData.cs" />
     <Compile Include="..\..\Hardware\EcDiffScanner.cs" Link="Hardware\EcDiffScanner.cs" />
+    <Compile Include="..\..\Hardware\FanCurve.cs" Link="Hardware\FanCurve.cs" />
     <Compile Include="..\..\Library\Conv.cs" Link="Library\Conv.cs" />
     <Compile Include="..\..\Library\FanDataPipeServer.cs" Link="Library\FanDataPipeServer.cs" />
   </ItemGroup>

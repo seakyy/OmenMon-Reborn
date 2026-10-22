@@ -77,6 +77,7 @@ namespace OmenMon.AppGui {
         private const string I_SET_TEMP_UNIT    = Gui.M_ACT + Gui.G_SET + "TempUnit";
         private const string I_FAN_EXPORT       = Gui.M_ACT + Gui.G_FAN + "Export";
         private const string I_FAN_IMPORT       = Gui.M_ACT + Gui.G_FAN + "Import";
+        private const string I_FAN_EDITOR       = Gui.M_ACT + Gui.G_FAN + "Editor";
 
         // Menu item identifiers
         private const string I_APPNAME = Gui.M_HDR + "App";
@@ -657,6 +658,40 @@ namespace OmenMon.AppGui {
 
         }
 
+        // Opens the graphical fan-curve editor.
+        //
+        // Deliberately outside Context.Op.HardwareLock: the editor stays open for as
+        // long as the user likes, and the lock has to stay available to the monitor
+        // thread and the menu during that time. The dialog takes the lock itself,
+        // briefly, around each individual hardware operation.
+        private void EventActionFanEditor(object sender, EventArgs e) {
+            try {
+                using(var dlg = new GuiFormFanCurve(
+                    Context.Op?.Program,
+                    Context.Op?.Platform,
+                    Context.Monitor,
+                    Context.Op?.HardwareLock)) {
+                    dlg.ShowDialog();
+                }
+            } catch(Exception ex) {
+                MessageBox.Show(
+                    "Could not open the fan curve editor: " + ex.Message,
+                    Config.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
+            // The editor may have added, renamed or deleted profiles, and possibly
+            // restarted the running program - rebuild the menu and refresh the state
+            Context.Menu.Create();
+            Context.Monitor?.ResetProgramTick();
+            Context.Monitor?.SampleNow();
+            if(Context.FormMain != null)
+                Context.FormMain.UpdateFanCtl();
+            UpdateFan();
+
+        }
+
         // Toggles whether to stay on top of other windows or not
         private void EventActionToggleStayOnTop(object sender, EventArgs e) {
 
@@ -898,6 +933,7 @@ namespace OmenMon.AppGui {
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_FAN_OFF), null, EventActionFanOff, I_FAN_OFF),
                 new ToolStripSeparator(),
+                new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_FAN_EDITOR), null, EventActionFanEditor, I_FAN_EDITOR),
                 new ToolStripMenuItem(Config.Locale.Get(Config.L_GUI_MENU + I_FAN_IMPORT), null, EventActionFanImport, I_FAN_IMPORT),
             });
 

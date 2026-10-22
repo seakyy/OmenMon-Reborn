@@ -243,6 +243,7 @@ namespace OmenMon.Library.Locale {
                 ["GuiMenuActSetTaskKey"] = "Intercept Omen Key",
                 ["GuiMenuActSetTaskMux"] = "Advanced Optimus Fix",
                 ["GuiMenuActSetTempUnit"] = "Show temperature in °F",
+                ["GuiMenuActFanEditor"] = "Fan Curve Editor...",
                 ["GuiMenuActFanImport"] = "Import Fan Profile...",
                 ["GuiMenuActFanExport"] = "Export",
                 ["GuiMenuActToggleFormMain"] = "Show Monitor",

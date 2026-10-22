@@ -250,6 +250,9 @@ namespace OmenMon.Hardware.Platform {
         //          GPU 4418→1597) instead of climbing, the physical-ceiling signature. Fan regs
         //          are PeriodEncoded8 (CPU 0x2E, GPU 0x2F), so — like 8C77 — RPM stays
         //          sidecar-only and this list is the protection that applies.
+        //   878A — HP OMEN 15 (2020)                      — raw 100 % MaxFan locks the EC
+        //          ("Failed to acquire embedded controller exclusive lock", reboot required).
+        //          Setpoint-driven ramp is safe; only the direct 100 % duty path is affected.
         //
         // Call-sites:
         //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
@@ -280,6 +283,7 @@ namespace OmenMon.Hardware.Platform {
                 case "8D24":
                 case "8902":
                 case "88FD":
+                case "878A":
                     return true;
                 default:
                     return false;
