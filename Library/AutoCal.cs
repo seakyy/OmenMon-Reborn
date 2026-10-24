@@ -523,6 +523,10 @@ namespace OmenMon.Library {
 
             // HP OMEN 15-en0xxx (8788, 2020) — issue #120, reported by @Bharadwaj-R.
             // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8787"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
             ["8788"] = new Mapping {
                 CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
@@ -665,6 +669,11 @@ namespace OmenMon.Library {
             // HP OMEN 16-wf0xxx (8BAB, 2023-2025) — issue #185, #187, reported by @Datguy-rgb / @melkimahdali.
             // Fan level registers at 0x11 (CPU) / 0x14 (GPU) reading byte ×100 RPM.
             // 0xE3/0xE5 are static calibration offsets (~4200), not dynamic tachometers.
+            // HP OMEN 16-wf0xxx (8BAC, 2023-2025) — issue #220. Sibling of 8BAB.
+            ["8BAC"] = new Mapping {
+                CpuReg = 0x11, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
+                GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,
+            },
             ["8BAB"] = new Mapping {
                 CpuReg = 0x11, CpuMode = EcDiffScanner.Mode.DirectMultiplier8, CpuMul = 0,
                 GpuReg = 0x14, GpuMode = EcDiffScanner.Mode.DirectMultiplier8, GpuMul = 0,

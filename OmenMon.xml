@@ -1132,6 +1132,260 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
+            <!-- 8787: HP OMEN 15-en0xxx (2020) — issue #95, #210, #211.                                   -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8787" DisplayName="HP OMEN 15-en0xxx (2020)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8788: HP OMEN 15-en0xxx (2020) — issue #120.                                              -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8788" DisplayName="HP OMEN 15-en0xxx (8788, 2020)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A3E: HP Victus 15-fb0102la (2023) — issue #85, #96.                                       -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8A3E" DisplayName="HP Victus 15-fb0102la (2023)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A50: HP Victus 15-fa0031dx (2022) — issue #115.                                           -->
+            <!-- Single-fan SKU. Canonical 16-bit LE tachometer at 0xB0 (176 dec).                          -->
+            <!-- Standard 2022 layout registers. Protected by FanArray.HasMaxFanFreeze.                     -->
+            <Model ProductId="8A50" DisplayName="HP Victus 15-fa0031dx (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>176</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8C2E: HP Victus 15-fa1033nn (2024) — issue #121.                                           -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8C2E" DisplayName="HP Victus 15-fa1033nn (2024)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8D88: HP OMEN MAX Gaming Laptop 16z-ak000 (2025) — issue #122.                             -->
+            <!-- 16-bit LE tachometers at 0x60 (CPU, 96 dec) / 0x70 (GPU, 112 dec).                        -->
+            <!-- Standard 2023+ register layout.                                                           -->
+            <Model ProductId="8D88" DisplayName="HP OMEN MAX Gaming Laptop 16z-ak000 (2025)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>96</FanSpeedReg0>
+                <FanSpeedReg1>112</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BAC: HP OMEN 16-wf0xxx (2023-2025) — issue #220. Sibling of 8BAB.                         -->
+            <!-- Fan level at 0x11/0x14, RPM read via DirectMultiplier8 byte ×100.                          -->
+            <Model ProductId="8BAC" DisplayName="HP Omen 16 (wf0xxx, 8BAC)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>20</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>17</FanSpeedReg0>
+                <FanSpeedReg1>20</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BB1: HP Victus 15-fa1035nt (2023) — issue #123.                                           -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8BB1" DisplayName="HP Victus 15-fa1035nt (2023)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8DD2: HP OMEN / Victus (2025/2026) — issue #117, #126.                                     -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2023+ layout registers with 0x3A/0x3B write registers.                            -->
+            <Model ProductId="8DD2" DisplayName="HP OMEN / Victus (8DD2, 2025)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BCD: HP OMEN 16-xd series (2024) — issue #119, #125.                                      -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8BCD" DisplayName="HP OMEN 16-xd series (2024)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8E10: HP OMEN 17-db1012nt (2026) — issue #129.                                             -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8E10" DisplayName="HP OMEN 17-db1012nt (2026)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 88EE: HP Victus 16-e0111ur (2023) — issue #133.                                            -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="88EE" DisplayName="HP Victus 16-e0111ur (2023)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8746: HP OMEN 15-dh1000sl (2020) — issue #136.                                             -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8746" DisplayName="HP OMEN 15-dh1000sl (2020)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8A44: HP OMEN 16-n0123ax (2022) — issue #146.                                              -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->
+            <Model ProductId="8A44" DisplayName="HP OMEN 16-n0123ax (2022)">
+                <FanLevelReg0>52</FanLevelReg0>
+                <FanLevelReg1>53</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>44</FanRateWriteReg0>
+                <FanRateWriteReg1>45</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
+            <!-- 8BC1: HP Victus 16-r0xxx (2023) — issue #157.                                              -->
+            <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
+            <!-- Standard 2023+ layout registers with 0x3A/0x3B write registers.                            -->
+            <Model ProductId="8BC1" DisplayName="HP Victus 16-r0xxx (2023)">
+                <FanLevelReg0>17</FanLevelReg0>
+                <FanLevelReg1>18</FanLevelReg1>
+                <FanRateReadReg0>46</FanRateReadReg0>
+                <FanRateReadReg1>47</FanRateReadReg1>
+                <FanRateWriteReg0>58</FanRateWriteReg0>
+                <FanRateWriteReg1>59</FanRateWriteReg1>
+                <FanSpeedReg0>176</FanSpeedReg0>
+                <FanSpeedReg1>178</FanSpeedReg1>
+                <CountdownReg>99</CountdownReg>
+                <ManualReg>98</ManualReg>
+                <ModeReg>149</ModeReg>
+                <SwitchReg>244</SwitchReg>
+            </Model>
         </Models>
         <!-- Update Interval -->
         <UpdateIconInterval>3</UpdateIconInterval>
