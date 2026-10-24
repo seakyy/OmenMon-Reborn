@@ -523,6 +523,10 @@ namespace OmenMon.Library {
 
             // HP OMEN 15-en0xxx (8788, 2020) — issue #120, reported by @Bharadwaj-R.
             // Canonical 16-bit LE tachometers at 0xB0 / 0xB2.
+            ["8787"] = new Mapping {
+                CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
+                GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
+            },
             ["8788"] = new Mapping {
                 CpuReg = 0xB0, CpuMode = EcDiffScanner.Mode.LittleEndian16, CpuMul = 0,
                 GpuReg = 0xB2, GpuMode = EcDiffScanner.Mode.LittleEndian16, GpuMul = 0,
