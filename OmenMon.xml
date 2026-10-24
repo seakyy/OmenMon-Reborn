@@ -1234,22 +1234,6 @@
                 <ModeReg>149</ModeReg>
                 <SwitchReg>244</SwitchReg>
             </Model>
-            <!-- 8BAC: HP OMEN 16-wf0xxx (2023-2025) — issue #220. Sibling of 8BAB.                         -->
-            <!-- Fan level at 0x11/0x14, RPM read via DirectMultiplier8 byte ×100.                          -->
-            <Model ProductId="8BAC" DisplayName="HP Omen 16 (wf0xxx, 8BAC)">
-                <FanLevelReg0>17</FanLevelReg0>
-                <FanLevelReg1>20</FanLevelReg1>
-                <FanRateReadReg0>46</FanRateReadReg0>
-                <FanRateReadReg1>47</FanRateReadReg1>
-                <FanRateWriteReg0>58</FanRateWriteReg0>
-                <FanRateWriteReg1>59</FanRateWriteReg1>
-                <FanSpeedReg0>17</FanSpeedReg0>
-                <FanSpeedReg1>20</FanSpeedReg1>
-                <CountdownReg>99</CountdownReg>
-                <ManualReg>98</ManualReg>
-                <ModeReg>149</ModeReg>
-                <SwitchReg>244</SwitchReg>
-            </Model>
             <!-- 8BB1: HP Victus 15-fa1035nt (2023) — issue #123.                                           -->
             <!-- Canonical 16-bit LE tachometers at 0xB0 (176 dec) / 0xB2 (178 dec).                        -->
             <!-- Standard 2022 layout registers with 0x2C/0x2D write registers.                             -->

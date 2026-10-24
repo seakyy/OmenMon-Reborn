@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.5.1-reborn] - 2026-10-24
 
 > **Model Database Expansion for Fully Functional & Verified Hardware Profiles.**
-> Resolves #85, #95, #96, #115, #117, #119, #120, #121, #122, #123, #125, #126, #129, #133, #136, #146, #157, #210, #211, #220.
+> Resolves #85, #95, #96, #115, #117, #119, #120, #121, #122, #123, #125, #126, #129, #133, #136, #146, #157, #210, #211.
 
 ### Added
 
@@ -18,7 +18,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - **HP Victus 15-fa0031dx (`8A50`, Fixes #115):** Added native single-fan `<Model>` entry in `OmenMon.xml` with 0xB0 tachometer, protected by `FanArray.HasMaxFanFreeze`.
   - **HP Victus 15-fa1033nn (`8C2E`, Fixes #121):** Added native `<Model>` entry in `OmenMon.xml` with canonical tachometers at 0xB0/0xB2.
   - **HP OMEN MAX Gaming Laptop 16z-ak000 (`8D88`, Fixes #122):** Added native `<Model>` entry in `OmenMon.xml` with 16-bit LE tachometers at 0x60 (CPU) / 0x70 (GPU) and 2023+ register layout.
-  - **HP OMEN 16-wf0xxx (`8BAC`, Fixes #220):** Added native `<Model>` entry in `OmenMon.xml`, `AutoCal.KnownBoards` mapping, and freeze guard in `FanArray.HasMaxFanFreeze` (sibling of `8BAB`, DirectMultiplier8 at 0x11/0x14).
   - **HP Victus 15-fa1035nt (`8BB1`, Fixes #123):** Added native `<Model>` entry with canonical tachometers at 0xB0/0xB2.
   - **HP OMEN / Victus (`8DD2`, Fixes #117, #126):** Added native `<Model>` entry with canonical tachometers at 0xB0/0xB2.
   - **HP OMEN 16-xd series (`8BCD`, Fixes #119, #125):** Added native `<Model>` entry with canonical tachometers at 0xB0/0xB2.

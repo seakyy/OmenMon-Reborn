@@ -108,7 +108,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8A50` | Victus 15-fa0031dx (2022) | ✅ Native entry in v1.5.1 (issue #115): single-fan 2022 layout with `0xB0` tachometer, protected by `HasMaxFanFreeze`. |
 | `8C2E` | Victus 15-fa1033nn (2024) | ✅ Native entry in v1.5.1 (issue #121): standard 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
 | `8D88` | OMEN MAX Gaming Laptop 16z-ak000 (2025) | ✅ Native entry in v1.5.1 (issue #122): 2023+ layout, 16-bit LE tachometers at `0x60`/`0x70`. |
-| `8BAC` | Omen 16 (wf0xxx, 2023-2025) | ✅ Native entry in v1.5.1 (issue #220): 2023+ layout, DirectMultiplier8 at `0x11`/`0x14`, protected by `HasMaxFanFreeze`. |
+| `8BAC` | Omen 16 (wf0xxx, 2023-2025) | ⚠️ Pending BIOS-only fan control (issue #220, #245). EC registers overlap battery/SMBus host data; requires `<FanControl>Bios</FanControl>` to operate safely without EC writes. |
 | `8788` | Omen 15-en0xxx (2020) | ✅ Native entry in v1.5.1 (issue #120): standard 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
 | `8BB1` | Victus 15-fa1035nt (2023) | ✅ Native entry in v1.5.1 (issue #123): standard 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
 | `8DD2` | HP OMEN / Victus (2025) | ✅ Native entry in v1.5.1 (issue #117, #126): standard 2023+ layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
