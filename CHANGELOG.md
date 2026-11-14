@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [1.5.1-reborn] - 2026-11-14
+## [1.6.0-reborn] - 2026-11-14
 
 > **Graphical Fan Curve Editor, Dynamic Tray Icon BSOD Hardening, Safety Guards, Hardware Profiles Expansion & Bug Fixes.**
 > Resolves #85, #95, #96, #115, #117, #119, #120, #121, #122, #123, #125, #126, #129, #133, #136, #146, #157, #210, #211, #220, #223, #225, #226, #227, #228, #229, #230, #231, #235, #242, #244, #250.
@@ -57,7 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Diagnostic Well-Known Register Plausibility Warnings (Fixes #229, #235):**
   - -Probe and -Diag reports now flag implausible register readings (e.g. legacy LE16 tachometers > 8000 RPM, CPU temp < 15 °C or > 115 °C, GPU temp = 1 °C on 8BC2) with actionable notes explaining relocated registers on 2023+ architectures.
 - **Build Without .NET Framework 4.8 Developer Pack (Fixes #227, PR #227):**
-  - Added Microsoft.NETFramework.ReferenceAssemblies NuGet package reference to OmenMon.csproj, enabling clean compilation and restore on systems with only Visual Studio Build Tools installed. Default version updated to 1.5.1.0.
+  - Added Microsoft.NETFramework.ReferenceAssemblies NuGet package reference to OmenMon.csproj, enabling clean compilation and restore on systems with only Visual Studio Build Tools installed. Default version updated to 1.6.0.0.
 
 ## [1.5.0-reborn] - 2026-09-19
 
