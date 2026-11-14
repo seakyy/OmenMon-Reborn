@@ -5,6 +5,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.6.1-reborn] - 2026-11-14
+
+> **Hardware Model Expansion, Freeze Guard Hardening & Issue Triage.**
+> Resolves #206, #209, #215, #216, #217, #219, #234, #236, #237, #238, #239, #240, #241, #243, #246, #247, #248, #249, #251, #252, #253, #254, #255, #256, #257.
+
+### Added
+
+- **Model Database & Hardware Profiles Expansion:**
+  - **HP Victus 15-fb0xxx (8A3D, Issue #257):** Added native `<Model>` profile in `OmenMon.xml`, `KnownBoards` mapping with canonical 16-bit LE tachometers at `0xB0`/`0xB2`, and `HasMaxFanFreeze` safety guard to prevent EC lockups.
+  - **HP Victus 15 (8C3F, Issue #256):** Added native `<Model>` profile, `KnownBoards` mapping with canonical tachometers at `0xB0`/`0xB2`, and `HasMaxFanFreeze` safety guard.
+  - **HP OMEN 16 (8C9D, 2025, Issue #253):** Added native `<Model>` profile and `KnownBoards` mapping with `DirectMultiplier8` tachometers at `0x11`/`0x14`.
+  - **HP Victus 15 (8BB0, 2023/2024, Issue #252):** Added native `<Model>` profile and `KnownBoards` mapping with canonical 16-bit LE tachometers at `0xB0`/`0xB2`.
+  - **HP OMEN 15-ek1000tx (88C8, 2020, Issue #251):** Added native `<Model>` profile and `KnownBoards` mapping with canonical 16-bit LE tachometers at `0xB0`/`0xB2`.
+  - **HP Victus 15 (8DD0, RTX 4050, Issue #249):** Added native `<Model>` profile in `OmenMon.xml` matching existing `KnownBoards` 16-bit LE mapping at `0xB0`/`0xB2`.
+  - **HP Victus / Omen (8DD6, 2025, Issue #247):** Added native `<Model>` profile and `KnownBoards` mapping with 16-bit LE tachometers at `0x58`/`0x70`.
+  - **HP OMEN by HP Transcend Gaming Laptop 16-u0xxx (8BB3, Issue #246):** Dual-fan mapping verification.
+  - **HP HyperX OMEN MAX 16-ah1790ng (8E9A, 2026, Issue #239, #243):** Added native `<Model>` profile and `KnownBoards` mapping with 16-bit LE tachometers at `0x70`/`0x7E`.
+  - **HP Victus 16 (88EC, 2021, Issue #241):** Added native `<Model>` profile and `KnownBoards` mapping with canonical 16-bit LE tachometers at `0xB0`/`0xB2`.
+  - **HP Victus 15-fa2174ng (8E5C, 2026, Issue #240):** Added native `<Model>` profile, `KnownBoards` mapping with canonical tachometers at `0xB0`/`0xB2`, and `HasMaxFanFreeze` safety guard.
+  - **HP Victus 15 (8A3C, 2024, Issue #219):** Added native `<Model>` profile and `KnownBoards` mapping with canonical 16-bit LE tachometers at `0xB0`/`0xB2`.
+  - **HP Transcend 16 16-u1000 (8C4D, 2023, Issue #209):** Added native `<Model>` profile and `KnownBoards` mapping with `DirectMultiplier8` tachometers at `0x11`/`0x14`.
+  - **HP Omen 16 ae0073cl (8CC0, 2025, Issue #206):** Added native `<Model>` profile and `KnownBoards` mapping with `DirectMultiplier8` tachometers at `0x11`/`0x14`.
+- **Safety Guards:**
+  - Added `8A3D`, `8C3F`, and `8E5C` to `FanArray.HasMaxFanFreeze` to protect against 100 % fan duty EC lockups.
+
 ## [1.6.0-reborn] - 2026-11-14
 
 > **Graphical Fan Curve Editor, Dynamic Tray Icon BSOD Hardening, Safety Guards, Hardware Profiles Expansion & Bug Fixes.**

@@ -123,7 +123,18 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8787` | Omen 15-en0037AX (2020) | ✅ Default 2022 layout confirmed via the issue #95 hardware probe (@sawankumar): fan levels at `0x34`/`0x35`, RPM at `0xB0`/`0xB2` (16-bit LE, CPU ≈2400 RPM at idle), BIOS `GetTemperature` works (39 °C). The probe's `GetFanLevel` → "Unknown response from BIOS: 45" is expected on this 2020 generation — the WMI fan-level call is unsupported there and OmenMon reads levels from the EC instead; no functional impact. |
 | `8748` | Omen 17 cb1046nr (2021) | ❓ |
 | `88FE` | Omen 17 ck0xxx (2020) | ❓ |
-| `88EC` | Victus 16 e0008nt (2021) | ❓ |
+| `88EC` | Victus 16 e0008nt (2021) | ✅ Native entry in v1.6.1 (issue #241): standard 2021/2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
+| `8A3D` | HP Victus 15 (2023, AMD) | ✅ Native entry in v1.6.1 (issue #257): 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`, protected by `HasMaxFanFreeze`. |
+| `8C3F` | HP Victus 15 (2025) | ✅ Native entry in v1.6.1 (issue #256): 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`, protected by `HasMaxFanFreeze`. |
+| `8C9D` | HP Omen 16 (2025) | ✅ Native entry in v1.6.1 (issue #253): 2023+ layout, DirectMultiplier8 tachometers at `0x11`/`0x14`. |
+| `8BB0` | HP Victus 15 (2023/2024) | ✅ Native entry in v1.6.1 (issue #252): 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
+| `88C8` | HP OMEN 15-ek1000tx (2020) | ✅ Native entry in v1.6.1 (issue #251): classic 2020/2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
+| `8DD6` | HP Victus / Omen (2025) | ✅ Native entry in v1.6.1 (issue #247): 2023+ layout, 16-bit LE tachometers at `0x58`/`0x70`. |
+| `8E9A` | HP HyperX OMEN MAX 16-ah1790ng (2026) | ✅ Native entry in v1.6.1 (issue #239, #243): 2025/2026 Omen Max layout, 16-bit LE tachometers at `0x70`/`0x7E`. |
+| `8E5C` | HP Victus 15-fa2174ng (2026) | ✅ Native entry in v1.6.1 (issue #240): 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`, protected by `HasMaxFanFreeze`. |
+| `8A3C` | HP Victus 15 (2024) | ✅ Native entry in v1.6.1 (issue #219): standard 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
+| `8C4D` | HP Transcend 16 16-u1000 (2023) | ✅ Native entry in v1.6.1 (issue #209): 2023+ layout, DirectMultiplier8 tachometers at `0x11`/`0x14`. |
+| `8CC0` | HP Omen 16 ae0073cl (2025) | ✅ Native entry in v1.6.1 (issue #206): 2023+ layout, DirectMultiplier8 tachometers at `0x11`/`0x14`. |
 | `8574` | Omen 15 dc1xxx (2018) | ❓ |
 | `878D` | Envy 15 ep0003nl (2020) | ❓ |
 

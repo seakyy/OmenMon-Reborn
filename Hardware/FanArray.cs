@@ -253,6 +253,12 @@ namespace OmenMon.Hardware.Platform {
         //   878A — HP OMEN 15 (2020)                      — raw 100 % MaxFan locks the EC
         //          ("Failed to acquire embedded controller exclusive lock", reboot required).
         //          Setpoint-driven ramp is safe; only the direct 100 % duty path is affected.
+        //   8A3D — HP Victus 15 (2023, AMD)               — issue #257. AutoCal plateau tripped
+        //          at 30 %: live RPM matched 0 % within 150 RPM, reaching physical fan ceiling.
+        //   8C3F — HP Victus 15 (2025)                    — issue #256. AutoCal plateau tripped
+        //          at 30 %: live RPM reached physical fan ceiling early.
+        //   8E5C — HP Victus 15-fa2174ng (2026)           — issue #240. AutoCal plateau tripped
+        //          at 30 %: live RPM matched 0 % within 150 RPM, physical fan ceiling reached.
         //
         // Call-sites:
         //   App/Cli/CliOpCalibration.cs — AutoCal wizard filters 100% out of its profile.
@@ -284,6 +290,9 @@ namespace OmenMon.Hardware.Platform {
                 case "8902":
                 case "88FD":
                 case "878A":
+                case "8A3D":
+                case "8C3F":
+                case "8E5C":
                     return true;
                 default:
                     return false;
