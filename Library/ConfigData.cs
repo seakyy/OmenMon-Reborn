@@ -201,6 +201,10 @@ namespace OmenMon.Library {
         // before setting it (using a BIOS WMI call) when a fan program is running
         public static bool FanProgramModeCheckFirst = false;
 
+        // If true, both fans follow the higher of the CPU and GPU temperatures,
+        // for designs where the CPU and GPU share heat pipes and fins
+        public static bool FanProgramSharedTemperature = false;
+
         // If true, fan program will be suspended whenever the system enters low-power mode
         // such as sleep, standby or hibernation, to be automatically re-enabled upon resume
         public static bool FanProgramSuspend = true;

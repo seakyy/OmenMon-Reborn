@@ -13,7 +13,7 @@ using OmenMon.Library;
 namespace OmenMon.AppGui {
 
     // Manages the notification icon
-    public class GuiIcon {
+    public class GuiIcon : IDisposable {
 
 #region Data
         // Icon background types
@@ -248,37 +248,59 @@ namespace OmenMon.AppGui {
             // or if there is no previous message (first run or state changed)
             else if(this.LastMessage == null || this.LastMessage != message) {
 
-                // Make a local copy of the template bitmap
-                using Bitmap NewIcon = (Bitmap) this.Template.Clone();
-                using Graphics Canvas = Graphics.FromImage(NewIcon);
+                try {
+                    if(this.Template == null)
+                        return;
 
-                // The end result is better when filling a path
-                // as opposed to using DrawString() directly
-                using GraphicsPath CanvasPath = new GraphicsPath();
-                CanvasPath.AddString(message, TextFont.FontFamily, (int) FontStyle.Regular, (Canvas.DpiY * TextFont.SizeInPoints / 72), Box, TextFormat);
-                Canvas.FillPath(Brushes.White, CanvasPath);
+                    // Make a local copy of the template bitmap
+                    using Bitmap NewIcon = (Bitmap) this.Template.Clone();
+                    using Graphics Canvas = Graphics.FromImage(NewIcon);
 
-                // Update the icon now that it is ready
-                User32.DestroyIcon(this.LastHandle);
-                this.LastHandle = NewIcon.GetHicon();
-                this.Context.Notification.Icon = System.Drawing.Icon.FromHandle(this.LastHandle);
+                    // The end result is better when filling a path
+                    // as opposed to using DrawString() directly
+                    using GraphicsPath CanvasPath = new GraphicsPath();
+                    CanvasPath.AddString(message, TextFont.FontFamily, (int) FontStyle.Regular, (Canvas.DpiY * TextFont.SizeInPoints / 72), Box, TextFormat);
+                    Canvas.FillPath(Brushes.White, CanvasPath);
 
-                // Note: freeing the allocated memory with User32.DestroyIcon() here also
-                // causes the icon to vanish should the notification text be updated
+                    // Create the new HICON before destroying the old one. Destroying the active
+                    // handle while Explorer/win32k is in BitBlt causes win32kfull!DEVLOCKBLTOBJ::bDisposeTrgDco
+                    // PAGE_FAULT_IN_NONPAGED_AREA BSOD (issue #250).
+                    IntPtr newHandle = NewIcon.GetHicon();
+                    IntPtr oldHandle = this.LastHandle;
 
-                // If not doing this causes a memory leak, the notification text can also
-                // be cached until the next time the icon is updated but otherwise, it's
-                // preferable that the user can see it as soon as possible
+                    this.Context.Notification.Icon = System.Drawing.Icon.FromHandle(newHandle);
+                    this.LastHandle = newHandle;
+                    this.LastMessage = message;
 
-                // Update: As a possible workaround for a "general GDI+ failure"
-                // exception, changed to now release the previous (last) handle
-                // before creating a new one
+                    if(oldHandle != IntPtr.Zero)
+                        User32.DestroyIcon(oldHandle);
+                } catch {
+                    // Swallow transient GDI+ failures (e.g. during display sleep / D3D exclusive mode switch)
+                }
 
             }
 
         }
 #endregion
 
-    }
 
+        public void Dispose() {
+            if(this.LastHandle != IntPtr.Zero) {
+                User32.DestroyIcon(this.LastHandle);
+                this.LastHandle = IntPtr.Zero;
+            }
+            if(this.Template != null) {
+                this.Template.Dispose();
+                this.Template = null;
+            }
+            if(this.TextFont != null) {
+                this.TextFont.Dispose();
+                this.TextFont = null;
+            }
+            if(this.TextFormat != null) {
+                this.TextFormat.Dispose();
+                this.TextFormat = null;
+            }
+        }
+    }
 }

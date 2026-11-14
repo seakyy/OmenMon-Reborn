@@ -25,8 +25,47 @@
 | **Fan Bug Fixed** | Ghost sensors TNT2–TNT5 that forced fans to 100% are now disabled by default for fan curves (still visible in the GUI). |
 | **Auto-Calibration Wizard** | Click **"Auto-Calibrate & Diagnose..."** in the tray menu. OmenMon runs a guided 4-step fan stress sweep, scans the EC for fan-tachometer registers (16-bit LE, period-encoded, or direct-multiplier), applies the discovered layout to the live session, and copies a Markdown report to the clipboard for upstream contribution. The override survives a restart via a sidecar XML. |
 | **`-Probe` CLI verb** | `OmenMon.exe -Probe` generates a full WMI + BIOS + EC snapshot as Markdown — ideal for bug reports. |
+| **Fan Curve Editor** | A tray menu item (**Fan → Fan Curve Editor...**) for editing multi-point fan curves on a graph, instead of writing `<FanProgram>` entries into `OmenMon.xml` by hand. |
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release notes, [ARCHITECTURE.md](ARCHITECTURE.md) for design rationale, and [MODIFICATIONS.md](MODIFICATIONS.md) for GPLv3 compliance information.
+
+## Fan Curve Editor
+
+OmenMon applies one fan level (0–55) or one thermal mode at a time. If you want the fan to step up gradually as the laptop heats up, you have to write a `<FanProgram>` entry into `OmenMon.xml` yourself. This is a small dialog for doing that with a mouse instead.
+
+Open it from the tray menu: **Fan → Fan Curve Editor...**
+
+- Drag a point on the graph to change the temperature where the fan steps up. Click on empty space to add a point, press `Delete` to remove one, and use the arrow keys to nudge the selected point by 1 °C or 1 level.
+- Each point has its own CPU and GPU level, since the two fans are driven separately.
+- The line is drawn as steps, not a slope, because that is how the embedded controller behaves: the fan holds one level until the next threshold is reached. A dashed line shows the current CPU and GPU temperatures.
+- Ticking **Run preview** applies the curve to the hardware while you edit. Unticking it, or closing the dialog, puts the previous program back.
+- Curves are saved as normal `<FanProgram>` entries, so they also show up in the tray menu and are exported with the rest of your configuration. A profile that is still set as the default, or the last one left, cannot be deleted.
+- On boards where setting the maximum fan level can lock the EC up (listed in `FanArray.HasMaxFanFreeze`), the editor stops one level short and shows a warning.
+
+For anyone reading the code:
+
+| File | What it does |
+|------|--------------|
+| `Hardware/FanCurve.cs` | The curve maths: lookup, clamping, and converting to and from the level list. Behaves the same as the existing `FanProgram.GetTemperatureLevel`. |
+| `App/Gui/GuiFanCurveCanvas.cs` | Draws the graph and handles mouse and keyboard editing. |
+| `App/Gui/GuiFormFanCurve.cs` | The dialog itself: profiles, preview, live read-out. |
+| `Tests/OmenMon.Tests/FanCurveTests.cs` | Tests for the curve maths, mostly checking that the lookup matches the old code. |
+
+The dialog only takes `HardwareLock` around the individual start and stop calls, so monitoring keeps running while it is open.
+
+## Differences from upstream OmenMon
+
+Most of these exist because of issues reported for specific laptop models. Reborn is not a rewrite; it is the same program with the hardware tables moved out into XML and a few tools added around them.
+
+| Area | Upstream OmenMon | OmenMon-Reborn |
+|------|------------------|----------------|
+| **Hardware layout** | EC register layout written for the models the authors had. | The layout comes from `OmenMon.xml`, so boards can be added without touching the code. Unknown boards are detected read-only and given a starting profile. |
+| **Fan control** | Fan levels and thermal modes. | The same, plus the fan curve editor described above. |
+| **Ghost sensors** | TNT2–TNT5 could drive the fans to 100 %. | Left out of fan curves by default; still shown in the GUI. |
+| **Diagnostics** | Register inspection by hand. | An auto-calibration wizard that walks through a fan sweep and tries to find the tachometer registers, plus `OmenMon.exe -Probe` for a WMI + BIOS + EC dump to attach to a bug report. |
+| **Telemetry sharing** | None. | Optional named-pipe server (`\\.\pipe\OmenMon_FanData`) with JSON fan RPM, so another program can read the fans without opening a second EC session. |
+| **Performance modes** | Legacy L0–L8 levels. | The OMEN Gaming Hub presets (ECO / Quiet / Default / Performance / Custom), still with the old levels kept for existing configs. |
+| **Model support** | The models the authors had. | Whatever has been reported and tested since. Several boards still need more testing. |
 
 ---
 
