@@ -18,6 +18,9 @@ namespace OmenMon.Tests {
             Assert.Equal((byte)3, (byte)BiosData.FanMode.Quiet);
             Assert.Equal((byte)3, (byte)BiosData.FanMode.LegacyQuiet);
 
+            // Confirm Boot maps to 1 (0x01) for Thermal Policy V1 boards (issue #230)
+            Assert.Equal((byte)1, (byte)BiosData.FanMode.Boot);
+
             // Confirm Default maps to 48 (0x30)
             Assert.Equal((byte)48, (byte)BiosData.FanMode.Default);
 
@@ -28,12 +31,20 @@ namespace OmenMon.Tests {
         [Theory]
         [InlineData("Eco", BiosData.FanMode.Eco)]
         [InlineData("Quiet", BiosData.FanMode.Quiet)]
+        [InlineData("Boot", BiosData.FanMode.Boot)]
         [InlineData("Default", BiosData.FanMode.Default)]
         [InlineData("Performance", BiosData.FanMode.Performance)]
         [InlineData("Custom", BiosData.FanMode.Custom)]
         public void FanMode_EnumParse_SupportsOmenGamingHubModes(string name, BiosData.FanMode expected) {
             BiosData.FanMode parsed = (BiosData.FanMode)Enum.Parse(typeof(BiosData.FanMode), name, true);
             Assert.Equal(expected, parsed);
+        }
+
+        [Fact]
+        public void FanTable_Capacity_Is42Levels() {
+            var table = new BiosData.FanTable();
+            Assert.Equal(42, table.Level.Length);
+            Assert.Equal(128, System.Runtime.InteropServices.Marshal.SizeOf(typeof(BiosData.FanTable)));
         }
     }
 }

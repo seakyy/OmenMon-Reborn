@@ -210,6 +210,7 @@ namespace OmenMon.AppGui {
 
             if(isDisposing && this.Components != null)
                 this.Components.Dispose();
+            this.Icon?.Dispose();
 
             // Perform the usual tasks
             base.Dispose(isDisposing);

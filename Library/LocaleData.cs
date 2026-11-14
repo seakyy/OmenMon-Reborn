@@ -243,6 +243,7 @@ namespace OmenMon.Library.Locale {
                 ["GuiMenuActSetTaskKey"] = "Intercept Omen Key",
                 ["GuiMenuActSetTaskMux"] = "Advanced Optimus Fix",
                 ["GuiMenuActSetTempUnit"] = "Show temperature in °F",
+                ["GuiMenuActFanEditor"] = "Fan Curve Editor...",
                 ["GuiMenuActFanImport"] = "Import Fan Profile...",
                 ["GuiMenuActFanExport"] = "Export",
                 ["GuiMenuActToggleFormMain"] = "Show Monitor",
@@ -310,7 +311,7 @@ namespace OmenMon.Library.Locale {
                 ["DataSyntaxFanLevel"] = "<Fan1>,<Fan2> (<Fan#>: 0-255|0x00-0xFF|0b00000000-0b11111111)",
 
                 ["DataTypeFanMode"] = "<FanMode>",
-                ["DataSyntaxFanMode"] = "<FanModeId|0-255|0x00-0xFF|0b...> (<FanModeId>: Default|Performance|Cool|L#, <#>: 0-8)",
+                ["DataSyntaxFanMode"] = "<FanModeId|0-255|0x00-0xFF|0b...> (<FanModeId>: Default|Performance|Cool|Boot|Quiet|Eco|L#, <#>: 0-8)",
 
                 ["DataTypeFanTable"] = "<FanTable>",
                 ["DataSyntaxFanTable"] = "<Fan1>,<Fan2>,<Temp>[:...[:...]] (<Fan#>, <Temp>: <Byte>)",

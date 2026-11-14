@@ -172,9 +172,17 @@ namespace OmenMon.AppCli {
             try {
                 // Parse the value for each entry
                 foreach(string levelEntry in param.Split(':')) {
+                    if(string.IsNullOrWhiteSpace(levelEntry))
+                        continue;
+
+                    if(level >= 42)
+                        throw new ArgumentOutOfRangeException("param", "A fan table cannot have more than 42 entries.");
 
                     // Parse the per-fan level and temperature within each entry
                     string[] levelArray = levelEntry.Split(',');
+                    if(levelArray.Length < 3)
+                        throw new FormatException("Each fan table entry requires 3 comma-separated values (fan1,fan2,temp).");
+
                     byte[] levelValues = new byte[3];
                     Conv.GetByte(levelArray[0], out levelValues[0]);
                     Conv.GetByte(levelArray[1], out levelValues[1]);
@@ -184,15 +192,20 @@ namespace OmenMon.AppCli {
                     fanTable.Level[level] = new BiosData.FanLevel(levelValues);
                     level++;
                 }
+
+                if(level == 0)
+                    throw new FormatException("Fan table is empty.");
+
                 // Set the number of entries and print out the new fan table
                 fanTable.LevelCount = (byte) level;
                 Cli.PrintBiosResult(true, message, fanTable);
 
-                // A table of more than 14 entries is not supported
-                if(level > 14) throw new ArgumentOutOfRangeException();
-
                 // Send the new fan table to the BIOS
                 Hw.BiosSetStruct(biosMethod, fanTable);
+            } catch(ArgumentOutOfRangeException ex) {
+                App.Error(ex.Message);
+            } catch(FormatException ex) {
+                App.Error(ex.Message + " | " + Config.Locale.Get(Config.L_DATATYPE_SYNTAX + "FanTable"));
             } catch {
                 App.Error("ErrNeedValueFanTable|DataSyntaxFanTable");
             }

@@ -5,6 +5,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.6.0-reborn] - 2026-11-14
+
+> **Graphical Fan Curve Editor, Dynamic Tray Icon BSOD Hardening, Safety Guards, Hardware Profiles Expansion & Bug Fixes.**
+> Resolves #85, #95, #96, #115, #117, #119, #120, #121, #122, #123, #125, #126, #129, #133, #136, #146, #157, #210, #211, #220, #223, #225, #226, #227, #228, #229, #230, #231, #235, #242, #244, #250.
+
+### Added
+
+- **Graphical Fan Curve Editor (PR #242):**
+  - Integrated interactive GDI+ fan curve editor dialog accessible from the tray context menu (**Fan -> Fan Curve Editor...**).
+  - Step-wise curve canvas (GuiFanCurveCanvas.cs) mirroring exact FanProgram.GetTemperatureLevel floor resolution.
+  - Profile management (create, rename, delete, save, preview with hardware serialization lock).
+  - Safety ceiling enforcement and confirmation gate for boards flagged in FanArray.HasMaxFanFreeze.
+  - Comprehensive unit test suite (FanCurveTests.cs) with 100% parity testing against runtime lookups.
+- **Shared Heat Pipe Fan Program Option (FanProgramSharedTemperature) (PR #225):**
+  - Configurable boolean <FanProgramSharedTemperature>false</FanProgramSharedTemperature> in OmenMon.xml and CLI.
+  - When enabled, both CPU and GPU fans evaluate against max(CPU, GPU) temperature for laptops sharing heat pipes/fins, dropping GPU peak temperatures by ~5 °C under asymmetrical GPU load.
+- **Thermal Policy V1 Boot Fan Mode Alias (Boot) (Fixes #230):**
+  - Added named Boot mode (0x01) to BiosData.FanMode and CLI parser (-Bios FanMode=Boot) to allow returning to factory boot acoustic curve without requiring a reboot.
+- **Model Database & Hardware Profiles Expansion (PR #221, #222, #242, #244):**
+  - **HP OMEN 16-wf0xxx (8BAC, Fixes #220, #245, PR #221-#223):** Native <Model> entry in OmenMon.xml (mode register 0x59, CPU/GPU temperatures at 0xB2/0xB4), KnownBoards mapping with BiosLevelMirror x100 RPM, and fan level WMI 0x10 query pre-call.
+  - **HP OMEN 15 2020 (878A, PR #242):** Native <Model> entry with standard 2022 layout, canonical 16-bit LE tachometers at 0xB0/0xB2, package thermistor mapped to RTMP at EC 0x58 (TempCpuReg=88), and EC freeze guard in FanArray.HasMaxFanFreeze.
+  - **HP OMEN 15-en0xxx (8787 & 8788, Fixes #95, #120, #210, #211, PR #244):** Added native <Model> entries in OmenMon.xml and AutoCal.KnownBoards mapping with canonical 16-bit LE tachometers at 0xB0/0xB2 and default 2022 layout.
+  - **HP Victus 15-fb0102la (8A3E, Fixes #85, #96, PR #244):** Promoted to native <Model> entry in OmenMon.xml with canonical tachometers at 0xB0/0xB2.
+  - **HP Victus 15-fa0031dx (8A50, Fixes #115, PR #244):** Added native single-fan <Model> entry in OmenMon.xml with 0xB0 tachometer, protected by FanArray.HasMaxFanFreeze.
+  - **HP Victus 15-fa1033nn (8C2E, Fixes #121, PR #244):** Added native <Model> entry in OmenMon.xml with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN MAX Gaming Laptop 16z-ak000 (8D88, Fixes #122, PR #244):** Added native <Model> entry in OmenMon.xml with 16-bit LE tachometers at 0x60 (CPU) / 0x70 (GPU) and 2023+ register layout.
+  - **HP Victus 15-fa1035nt (8BB1, Fixes #123, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN / Victus (8DD2, Fixes #117, #126, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN 16-xd series (8BCD, Fixes #119, #125, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN 17-db1012nt (8E10, Fixes #129, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP Victus 16-e0111ur (88EE, Fixes #133, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN 15-dh1000sl (8746, Fixes #136, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP OMEN 16-n0123ax (8A44, Fixes #146, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+  - **HP Victus 16-r0xxx (8BC1, Fixes #157, PR #244):** Added native <Model> entry with canonical tachometers at 0xB0/0xB2.
+
+### Fixed
+
+- **Dynamic Tray Icon BSOD / win32kfull Page Fault (Fixes #250):**
+  - Resolved PAGE_FAULT_IN_NONPAGED_AREA (0x50) in win32kfull!DEVLOCKBLTOBJ::bDisposeTrgDco triggered during shell BitBlt operations. GuiIcon.Update now creates the new HICON and assigns it to NotifyIcon before destroying the previous handle, preventing active handle deletion races with Desktop Window Manager / Explorer.
+  - Wrapped dynamic icon rendering in exception traps to safely handle display sleep, screen lock, and D3D exclusive fullscreen mode transitions.
+- **GPU Power Presets Zero Peak Temperature Bug (Fixes #226, PR #226):**
+  - BiosCtl.SetGpuPower now checks if PeakTemperature is 0 (as constructed by power presets) and preserves the current BIOS threshold, falling back to 87 °C (0x57) instead of inadvertently writing 0 °C to firmware.
+- **Manual Fan Levels Pre-Call on 8BAC / 2023+ Laptops (Fixes #223, PR #223):**
+  - BiosCtl.SetFanLevel now issues a fan count query (type 0x10, 1-byte input) immediately prior to writing fan levels (type 0x2E). This arms manual fan control on boards where BIOS acknowledges writes but ignores them otherwise. Harmless on boards that do not require it.
+- **FanTable Buffer & Level Limit (Fixes #231):**
+  - Expanded BiosData.FanTable array capacity and SizeConst from 14 to 42 entries (the full 128-byte payload limit: 2 header bytes + 42 * 3 bytes).
+  - Replaced ambiguous syntax error in CliOpBios with explicit validation and descriptive messages when entries exceed 42 or are malformed.
+- **Privacy: Baseboard Serial Number Redaction (Fixes #228):**
+  - Baseboard serial numbers in -Probe, -Diag, and Community Contribution reports are now redacted by default (e.g. 5C******67) to protect user privacy in public issue reports. Added opt-in -WithSerial flag for diagnostic scenarios where full serial is intentionally needed.
+- **Diagnostic Well-Known Register Plausibility Warnings (Fixes #229, #235):**
+  - -Probe and -Diag reports now flag implausible register readings (e.g. legacy LE16 tachometers > 8000 RPM, CPU temp < 15 °C or > 115 °C, GPU temp = 1 °C on 8BC2) with actionable notes explaining relocated registers on 2023+ architectures.
+- **Build Without .NET Framework 4.8 Developer Pack (Fixes #227, PR #227):**
+  - Added Microsoft.NETFramework.ReferenceAssemblies NuGet package reference to OmenMon.csproj, enabling clean compilation and restore on systems with only Visual Studio Build Tools installed. Default version updated to 1.6.0.0.
+
 ## [1.5.0-reborn] - 2026-09-19
 
 > **Named Pipe Fan Telemetry Streaming, OMEN Gaming Hub Performance Modes, and Comprehensive Model Database Update.**

@@ -30,7 +30,7 @@
     <StartupObject>OmenMon.App</StartupObject>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <WarningLevel>4</WarningLevel>
-    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">1.4.11.0</AssemblyVersion>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">1.6.0.0</AssemblyVersion>
     <AssemblyVersionWord Condition="'$(AssemblyVersionWord)' == ''">reborn</AssemblyVersionWord>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -44,6 +44,12 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <!-- Reference assemblies from NuGet, so the build does not need the .NET Framework 4.8 Developer Pack -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
   <ItemGroup>
     <None Include="OmenMon.config" />
     <None Include="OmenMon.manifest" />
@@ -85,6 +91,10 @@
     <Compile Include="App\Gui\GuiFormCalibration.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="App\Gui\GuiFormFanCurve.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="App\Gui\GuiFanCurveCanvas.cs" />
     <Compile Include="App\Gui\GuiCalibrationProcessGuard.cs" />
     <Compile Include="App\Gui\GuiKbd.cs" />
     <Compile Include="App\Gui\GuiTray.cs" />
@@ -108,6 +118,7 @@
     <Compile Include="Hardware\EcDiffScanner.cs" />
     <Compile Include="Hardware\Fan.cs" />
     <Compile Include="Hardware\FanArray.cs" />
+    <Compile Include="Hardware\FanCurve.cs" />
     <Compile Include="Hardware\FanProgram.cs" />
     <Compile Include="Hardware\AutoDetector.cs" />
     <Compile Include="Hardware\Platform.cs" />

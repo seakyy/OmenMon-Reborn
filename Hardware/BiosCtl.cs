@@ -275,7 +275,14 @@ namespace OmenMon.Hardware.Bios {
         }
 
         // Updates the GPU power settings to those passed in a structure
+        // A zero peak temperature (as left by the preset constructor) is stored by the BIOS as-is,
+        // so keep the current threshold, or fall back to 87°C (0x57) as the OEM application sends
         public void SetGpuPower(GpuPowerData data) {
+            if(data.PeakTemperature == 0) {
+                byte current = 0;
+                try { current = GetGpuPower().PeakTemperature; } catch { }
+                data.PeakTemperature = current != 0 ? current : (byte) 0x57;
+            }
             Check(Send(Cmd.Default, 0x22, Conv.GetByteArray(data)));
         }
 
@@ -332,6 +339,12 @@ namespace OmenMon.Hardware.Bios {
 
         // Updates the current speed level for each fan
         public void SetFanLevel(byte[] data) {
+            // Some boards (observed on 8BAC, BIOS F.30) acknowledge 0x2E but ignore it unless a
+            // fan count query with a 1-byte input comes right before it; the Linux hp-wmi driver
+            // sends the same query first. The level then holds for about 120 s, so it has to be
+            // re-sent periodically (a fan program does this on every update)
+            byte[] countData;
+            Send(Cmd.Default, 0x10, new byte[1] {0x00}, 4, out countData);
             // Note: this call will always check for BIOS error and throw an exception if it occurred
             Check(Send(Cmd.Default, 0x2E, new byte[4] {(byte) data[0], (byte) data[1], 0x00, 0x00}), true);
         }
