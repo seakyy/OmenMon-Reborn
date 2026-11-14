@@ -56,6 +56,7 @@ namespace OmenMon.Tests {
         [InlineData("8A3D")]
         [InlineData("8C3F")]
         [InlineData("8E5C")]
+        [InlineData("8E41")]
         public void MaxFanFreezeList_StillContains(string productId) {
             var source = Source(Path.Combine("Hardware", "FanArray.cs"));
             Assert.Matches(
@@ -190,6 +191,24 @@ namespace OmenMon.Tests {
             Assert.DoesNotContain("using OmenMon.Driver", source);
             Assert.DoesNotContain("using OmenMon.AppGui", source);
             Assert.DoesNotContain("using OmenMon.AppCli", source);
+        }
+
+        [Fact]
+        public void ResumeGracePeriod_IsWiredInHw() {
+            var source = Source(Path.Combine("Library", "Hw.cs"));
+            Assert.Contains("IsInResumeGracePeriod", source);
+            Assert.Contains("NotifyResume", source);
+            Assert.Contains("LastBiosWarning", source);
+        }
+
+        [Fact]
+        public void Transcend14_HasSafetyGuardsInBiosAndSettings() {
+            var biosCtl = Source(Path.Combine("Hardware", "BiosCtl.cs"));
+            Assert.Contains("8E41", biosCtl);
+            var settings = Source(Path.Combine("Hardware", "Settings.cs"));
+            Assert.Contains("8E41", settings);
+            var probe = Source(Path.Combine("App", "Cli", "CliOpProbe.cs"));
+            Assert.Contains("8E41", probe);
         }
 
     }

@@ -205,11 +205,28 @@ namespace OmenMon.Library {
         private static int ecLockTimeoutCount;
         public static int EcLockTimeoutCount { get { return ecLockTimeoutCount; } }
 
+        // Tracks warnings when BIOS silently ignores acknowledged commands (issue #232)
+        public static string LastBiosWarning { get; set; }
+
+        // Resume grace period (issue #198): when the system wakes from sleep,
+        // hardware and drivers re-initialize and OEM services contend for the EC mutex.
+        // During this window, suppress modal error popups across all threads so waking
+        // the laptop does not trigger an ErrEcLock dialog box.
+        private static DateTime resumeGraceUntil = DateTime.MinValue;
+
+        public static void NotifyResume(int gracePeriodSeconds = 15) {
+            resumeGraceUntil = DateTime.UtcNow.AddSeconds(gracePeriodSeconds);
+        }
+
+        public static bool IsInResumeGracePeriod {
+            get { return DateTime.UtcNow < resumeGraceUntil; }
+        }
+
         // Records an EC mutex acquisition timeout and reports it unless the
-        // current thread opted into quiet (retry-next-tick) handling
+        // current thread opted into quiet (retry-next-tick) handling or within resume grace period
         private static void EcLockTimeout() {
             Interlocked.Increment(ref ecLockTimeoutCount);
-            if(!EcLockQuiet)
+            if(!EcLockQuiet && !IsInResumeGracePeriod)
                 App.Error("ErrEcLock");
         }
 

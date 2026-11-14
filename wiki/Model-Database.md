@@ -135,6 +135,7 @@ The following IDs have been reported in upstream issues. Entries marked ✅ have
 | `8A3C` | HP Victus 15 (2024) | ✅ Native entry in v1.6.1 (issue #219): standard 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. |
 | `8C4D` | HP Transcend 16 16-u1000 (2023) | ✅ Native entry in v1.6.1 (issue #209): 2023+ layout, DirectMultiplier8 tachometers at `0x11`/`0x14`. |
 | `8CC0` | HP Omen 16 ae0073cl (2025) | ✅ Native entry in v1.6.1 (issue #206): 2023+ layout, DirectMultiplier8 tachometers at `0x11`/`0x14`. |
+| `8E41` | HP OMEN Transcend 14 (14-fb1xxx, 2024-2026) | ✅ Native entry in v1.6.2 (issues #143, #166, #194): 2022 layout, canonical 16-bit LE tachometers at `0xB0`/`0xB2`. Hardened against SMM freeze: unsupported WMI calls (`0x21`, `0x35`) safely bypassed, protected by `HasMaxFanFreeze`. |
 | `8574` | Omen 15 dc1xxx (2018) | ❓ |
 | `878D` | Envy 15 ep0003nl (2020) | ❓ |
 

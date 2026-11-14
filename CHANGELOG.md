@@ -5,6 +5,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.6.2-reborn] - 2026-11-14
+
+> **Embedded Controller Lock Resiliency, Transcend 14 Hardening & Silent BIOS Fan Write Detection.**
+> Resolves #198, #194, #232.
+
+### Fixed
+
+- **EC Exclusive Lock Timeout on Wake from Sleep (Fixes #198):**
+  - Resolved `ErrEcLock` ("Failed to acquire embedded controller exclusive lock") modal dialog popping up on laptop resume from sleep or modern standby.
+  - Implemented `Hw.IsInResumeGracePeriod` and `Hw.NotifyResume(15)` to suppress modal dialog popups across all threads during the 15-second hardware/driver re-initialization window on resume.
+  - Added `PowerModes.Resume` and `PowerModes.Suspend` handling in `GuiTray.EventPowerChange` to refresh monitor threads safely.
+  - Handled `PowrProf.PBT_APMRESUMEAUTOMATIC` in `SuspendResumeCallback` and `FanProgram.Resume()` with thread-local `EcLockQuiet` protection.
+
+- **HP OMEN Transcend 14 (8E41) OS Freeze & Hardening (Fixes #194, #166, #143):**
+  - Fixed hard system freeze / hang on HP OMEN Transcend 14 (`8E41`, Intel Core Ultra Meteor Lake) when opening the GUI or running `omenmon.exe -diag` / `-probe`.
+  - Added mutual exclusion synchronization (`biosLock`) around all CIM/WMI BIOS calls in `Bios.Send` to prevent concurrent ACPI/SMI mailbox collisions across threads.
+  - Added safety bypasses for unsupported BIOS WMI calls on `8E41`: bypassed `GetGpuPower` (`0x21`), `GetThrottling` (`0x35`), `HasOverclock`, `HasMemoryOverclock`, `HasUndervoltBios`, and `GetFanTable` which trigger SMM deadlocks on Transcend 14 firmware.
+  - Bypassed ACPI 4-zone lighting controller queries in `Settings.GetKbdColorSupport()` on `8E41`, which uses embedded HyperX USB lighting instead.
+  - Added 20 ms pacing between successive BIOS calls in `CliOpProbe` to prevent overwhelming fragile ACPI mailbox state machines.
+  - Added native `<Model>` profile for `8E41` (HP OMEN Transcend 14) in `OmenMon.xml`.
+
+- **Detection of Silent BIOS Fan Writes (Fixes #232):**
+  - Added readback validation in `BiosCtl.SetMaxFan` and `BiosCtl.SetFanTable` to detect when the BIOS acknowledges fan commands with return code 0 but silently ignores or drops them.
+  - Surfaced firmware warnings via `Hw.LastBiosWarning` in `-Diag` reports and telemetry to alert users when their firmware ignores fan control requests.
+
 ## [1.6.1-reborn] - 2026-11-14
 
 > **Hardware Model Expansion, Freeze Guard Hardening & Issue Triage.**

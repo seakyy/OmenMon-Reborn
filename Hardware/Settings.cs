@@ -263,12 +263,19 @@ namespace OmenMon.Hardware.Platform {
         public bool GetKbdColorSupport() {
             // Only query the first time,
             // then cache the response
-            if(this.KbdColorSupport == null)
+            if(this.KbdColorSupport == null) {
+                // 8E41 (HP Omen Transcend 14) uses embedded HyperX RGB keyboard with USB interface,
+                // not the ACPI 4-zone lighting controller table. Querying ACPI color table hangs the firmware.
+                if(GetProduct() == "8E41") {
+                    this.KbdColorSupport = false;
+                    return false;
+                }
                 // All keyboards that don't support backlight toggling,
                 // don't support color setting either
                 if((bool) (this.KbdColorSupport = GetKbdBacklightSupport()))
                     // Only four-zone keyboard color setting is supported
                     this.KbdColorSupport = GetKbdColor().ZoneCount == 3;
+            }
             return (bool) this.KbdColorSupport;
         }
 
