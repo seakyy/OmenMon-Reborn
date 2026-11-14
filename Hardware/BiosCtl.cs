@@ -4,6 +4,7 @@
 
 using System;
 using System.Text;
+using OmenMon.Hardware.Platform;
 using OmenMon.Library;
 
 namespace OmenMon.Hardware.Bios {
@@ -188,29 +189,50 @@ namespace OmenMon.Hardware.Bios {
             return Conv.GetBit(outData[0], 0);
         }
 
+        private static string cachedProductId = null;
+        private static string GetCurrentProductId() {
+            if(cachedProductId == null) {
+                try {
+                    cachedProductId = new Settings().GetProduct() ?? "";
+                } catch {
+                    cachedProductId = "";
+                }
+            }
+            return cachedProductId;
+        }
+
         // Checks if memory overclocking is supported
         public byte HasMemoryOverclock() {
+            if(GetCurrentProductId() == "8E41")
+                return 0x00;
             byte[] outData;
             // Do not check BIOS error status for this call, just assume no support
             Send(Cmd.Default, 0x18, new byte[4] {0x00, 0x00, 0x00, 0x00}, 128, out outData);
+            if(outData == null || outData.Length < 3) return 0x00;
             // Byte #2: 0x01 - Memory Overclocking Support (Observed: 0x00)
             return outData[2];
         }
 
         // Checks if overclocking is supported
         public byte HasOverclock() {
+            if(GetCurrentProductId() == "8E41")
+                return 0x00;
             byte[] outData;
             // Do not check BIOS error status for this call, just assume no support
             Send(Cmd.Default, 0x35, new byte[4] {0x00, 0x00, 0x00, 0x00}, 128, out outData);
+            if(outData == null || outData.Length < 3) return 0x00;
             // Byte #2: 0x00 - No Support (Observed: 0x03)
             return outData[2];
         }
 
         // Checks if the BIOS supports undervolting
         public byte HasUndervoltBios() {
+            if(GetCurrentProductId() == "8E41")
+                return 0x00;
             byte[] outData;
             // Do not check BIOS error status for this call, just assume no support
             Send(Cmd.Default, 0x35, new byte[4] {0x00, 0x00, 0x00, 0x00}, 128, out outData);
+            if(outData == null || outData.Length < 3) return 0x00;
             // Byte #2: 0x01 - BIOS Undervolting Support (Observed: 0x03)
             return outData[2];
         }
@@ -268,8 +290,15 @@ namespace OmenMon.Hardware.Bios {
 
         // Retrieves the current GPU power settings
         public GpuPowerData GetGpuPower() {
+            // Guard against calling 0x21 on 8E41 (HP Omen Transcend 14) where this command is unsupported
+            // and corrupts the ACPI/EC firmware state machine, provoking OS hard freezes (issue #194)
+            if(GetCurrentProductId() == "8E41")
+                return default(GpuPowerData);
+
             byte[] outData;
-            Check(Send(Cmd.Default, 0x21, new byte[4] {0x00, 0x00, 0x00, 0x00}, 4, out outData));
+            int rc = Send(Cmd.Default, 0x21, new byte[4] {0x00, 0x00, 0x00, 0x00}, 4, out outData);
+            if(rc != 0 || outData == null)
+                return default(GpuPowerData);
             // See: GpuPowerData (struct)
             return new GpuPowerData(outData);
         }
@@ -278,6 +307,8 @@ namespace OmenMon.Hardware.Bios {
         // A zero peak temperature (as left by the preset constructor) is stored by the BIOS as-is,
         // so keep the current threshold, or fall back to 87°C (0x57) as the OEM application sends
         public void SetGpuPower(GpuPowerData data) {
+            if(GetCurrentProductId() == "8E41")
+                return;
             if(data.PeakTemperature == 0) {
                 byte current = 0;
                 try { current = GetGpuPower().PeakTemperature; } catch { }
@@ -358,8 +389,12 @@ namespace OmenMon.Hardware.Bios {
 
         // Retrieves the fan speed level table
         public FanTable GetFanTable() {
+            if(GetCurrentProductId() == "8E41")
+                return default(FanTable);
             byte[] outData;
-            Check(Send(Cmd.Default, 0x2F, new byte[4] {0x00, 0x00, 0x00, 0x00}, 128, out outData));
+            int rc = Send(Cmd.Default, 0x2F, new byte[4] {0x00, 0x00, 0x00, 0x00}, 128, out outData);
+            if(rc != 0 || outData == null)
+                return default(FanTable);
             // See: FanTable (struct)
             return new FanTable(outData);
         }
@@ -369,6 +404,13 @@ namespace OmenMon.Hardware.Bios {
             // Note: This appears to be a desktop-only functionality
             // Updating the table yields no error but takes no effect
             Check(Send(Cmd.Default, 0x32, Conv.GetByteArray(data)));
+            // Readback check (issue #232): verify if fan table write took effect
+            try {
+                FanTable current = GetFanTable();
+                if(!current.Equals(data)) {
+                    Hw.LastBiosWarning = "SetFanTable acknowledged by BIOS but readback table is unchanged. BIOS fan table writes are unsupported or ignored on this platform.";
+                }
+            } catch { }
         }
 
         // Checks if the fans are running in maximum speed mode
@@ -382,6 +424,15 @@ namespace OmenMon.Hardware.Bios {
         // Toggles the maximum fan speed mode on and off
         public void SetMaxFan(bool value) {
             Check(Send(Cmd.Default, 0x27, new byte[4] {value ? (byte) 0x01 : (byte) 0x00, 0x00, 0x00, 0x00}));
+            // Readback check (issue #232): verify that the BIOS actually engaged the toggle
+            try {
+                bool actual = GetMaxFan();
+                if(actual != value) {
+                    Hw.LastBiosWarning = $"SetMaxFan({value}) acknowledged by BIOS but readback remained {actual}. Your BIOS may be ignoring max fan requests.";
+                } else {
+                    Hw.LastBiosWarning = null;
+                }
+            } catch { }
         }
 
         // Retrieves the current thermal sensor value
@@ -395,10 +446,14 @@ namespace OmenMon.Hardware.Bios {
 
         // Checks if the system is in performance throttling mode
         public Throttling GetThrottling() {
+            if(GetCurrentProductId() == "8E41")
+                return Throttling.Unknown;
             byte[] outData;
             // This call returns BIOS error 6 on 2023 devices,
             // so do not check return state, just report "Unknown" (0)
             Send(Cmd.Default, 0x35, new byte[4] {0x00, 0x04, 0x00, 0x00}, 128, out outData);
+            if(outData == null || outData.Length < 2)
+                return Throttling.Unknown;
             // Byte #1: See Throttling (enum)
             return (Throttling) outData[1];
         }

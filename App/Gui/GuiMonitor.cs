@@ -208,6 +208,11 @@ namespace OmenMon.AppGui {
             this.Wake.Set();
         }
 
+        // Wakes up the monitor thread immediately (e.g. following system resume or power change)
+        public void WakeUp() {
+            this.Wake.Set();
+        }
+
         // Delays the next fan-program tick by a full UpdateProgramInterval. Called from
         // the UI thread right after a user manually starts a program, which has already
         // applied the curve — the periodic re-application can wait a whole interval

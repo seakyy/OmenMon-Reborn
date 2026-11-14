@@ -265,6 +265,18 @@ namespace OmenMon.AppGui {
         // Handles a power-mode change event
         private void EventPowerChange(object sender, PowerModeChangedEventArgs e) {
 
+            // Resume from sleep or suspend (issue #198): grant a grace period
+            // during which EC lock contention is treated quietly without modal popups.
+            if(e.Mode == PowerModes.Resume) {
+                Hw.NotifyResume(15);
+                this.Monitor?.WakeUp();
+                return;
+            }
+            if(e.Mode == PowerModes.Suspend) {
+                Hw.NotifyResume(15);
+                return;
+            }
+
             // Only respond to status change events,
             // which excludes Resume and Suspend
             if(e.Mode != PowerModes.StatusChange)

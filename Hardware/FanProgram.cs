@@ -118,8 +118,15 @@ namespace OmenMon.Hardware.Platform {
             // Set the state flag
             this.IsSuspended = false;
 
-            // Update the program
-            Update();
+            // Update the program under quiet EC lock handling in case the
+            // EC bus is busy at launch or under contention
+            bool previousQuiet = Hw.EcLockQuiet;
+            Hw.EcLockQuiet = true;
+            try {
+                Update();
+            } finally {
+                Hw.EcLockQuiet = previousQuiet;
+            }
 
             // Report success
             return true;
@@ -153,8 +160,15 @@ namespace OmenMon.Hardware.Platform {
             // Save the last GPU power state
             this.LastGpuPowerData = Platform.System.GetGpuPower();
 
-            // Update the program
-            Update();
+            // Update the program under quiet EC lock handling in case the
+            // EC bus is busy at launch or under contention
+            bool previousQuiet = Hw.EcLockQuiet;
+            Hw.EcLockQuiet = true;
+            try {
+                Update();
+            } finally {
+                Hw.EcLockQuiet = previousQuiet;
+            }
 
             // Report success
             return true;

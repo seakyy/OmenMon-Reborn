@@ -418,18 +418,21 @@ namespace OmenMon.AppGui {
         // Responds to the system entering and resuming from low-power state events
         public uint SuspendResumeCallback(IntPtr context, uint type, IntPtr setting) {
 
-            // System is resuming from suspend
-            if(type == PowrProf.PBT_APMRESUMEAUTOMATIC)
-
+            // System is resuming from suspend (issue #198: quiet EC lock handling on resume)
+            if(type == PowrProf.PBT_APMRESUMEAUTOMATIC) {
+                Hw.NotifyResume(15);
+                Hw.EcLockQuiet = true;
                 // Resume the fan program
                 this.Program.Resume();
+            }
 
             // System is about to be suspended
             // and a fan program is running
-            else if(type == PowrProf.PBT_APMSUSPEND)
-
+            else if(type == PowrProf.PBT_APMSUSPEND) {
+                Hw.NotifyResume(15);
                 // Suspend the fan program
                 this.Program.Suspend();
+            }
 
             return 0;
 
